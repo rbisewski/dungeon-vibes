@@ -3,17 +3,42 @@ html,body{margin:0;height:100%;overflow:hidden;background:#05060a}
 #c{position:fixed;inset:0;width:100%;height:100%;display:block;image-rendering:pixelated}
 .px{font-family:'Press Start 2P',ui-monospace,monospace;color:#ead6ae;text-shadow:2px 2px 0 #000,-1px 0 0 #000,0 -1px 0 #000;-webkit-font-smoothing:none;letter-spacing:1px;user-select:none}
 #hud{position:fixed;left:16px;top:14px;font-size:11px;pointer-events:none}
-#hearts{display:flex;gap:4px;margin-bottom:8px}
+.orb{position:fixed;bottom:12px;width:84px;height:84px;pointer-events:auto}
+.orb canvas{width:78px;height:78px;image-rendering:pixelated;display:block;margin:3px;filter:drop-shadow(0 0 6px rgba(0,0,0,.8))}
+.orbText{position:absolute;bottom:92px;left:50%;transform:translateX(-50%);font-size:9px;white-space:nowrap;opacity:0;transition:opacity .15s;pointer-events:none}
+.orb:hover .orbText{opacity:1}
+#lifeOrb{left:12px}
+#manaOrb{right:12px}
+#lvlUp{position:fixed;left:104px;bottom:58px;width:30px;height:30px;font-size:16px;line-height:1;padding:0;cursor:pointer;color:#ffe08a;background:#3a2410;border:3px solid #120c0a;box-shadow:0 0 0 2px #9a7020;animation:lvlPulse 1s steps(2) infinite}
+@keyframes lvlPulse{50%{box-shadow:0 0 0 2px #ffe08a,0 0 12px 2px #e0b040}}
+#xp{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);width:min(420px,50vw);display:flex;align-items:center;gap:8px;font-size:8px;pointer-events:none}
+#xp .bar{flex:1;height:4px;background:#1a140c;box-shadow:0 0 0 2px #000}
+#xp .bar div{height:100%;background:#d8b050}
+.panel{position:fixed;left:16px;top:120px;width:min(440px,46vw);max-height:calc(100vh - 210px);overflow:auto;padding:12px 14px;font-size:9px;line-height:1.6;color:#ead6ae}
+.panelHead{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:11px;color:#f2d79a;margin-bottom:10px}
+.panel .kv{display:flex;justify-content:space-between;gap:10px;margin:3px 0}
+.panel .kv b{font-weight:normal;color:#fff2d0}
+.panel .attrs{width:100%;border-collapse:collapse;margin:12px 0 6px}
+.panel .attrs th{font-weight:normal;font-size:7px;opacity:.6;text-align:right;padding:2px 4px}
+.panel .attrs td{padding:5px 4px;text-align:right}
+.panel .attrs td:first-child{text-align:left}
+.panel .attrs tr.sel td{background:rgba(224,176,64,.14)}
+.panel .stats{margin-top:12px;padding-top:8px;border-top:2px solid rgba(154,112,32,.5)}
+.panel .hint{margin-top:10px;font-size:7px;opacity:.55}
+.panel button{font:inherit;color:#ffe08a;background:#3a2410;border:2px solid #9a7020;cursor:pointer;padding:2px 6px;text-shadow:inherit}
+.panel button:disabled{opacity:.35;cursor:default}
+.panel .gold{color:#e0b040}.panel .blue{color:#7aa8ff}.panel .red{color:#ff6a5a}
+#paused{position:fixed;left:50%;top:15%;transform:translateX(-50%);font-size:14px;opacity:.7;pointer-events:none}
 #hud img,#snd img{image-rendering:pixelated;display:block}
 .row{display:flex;align-items:center;gap:8px;margin:6px 0;height:18px}
 #mode{position:fixed;right:16px;top:14px;font-size:10px;text-align:right;pointer-events:none;line-height:1.9}
 #mode .sub{font-size:8px;opacity:.55}
 #toast{position:fixed;left:50%;top:15%;transform:translateX(-50%);font-size:18px;color:#f2d79a;opacity:0;transition:opacity .5s;pointer-events:none;white-space:nowrap;text-align:center;line-height:1.8}
 #toast .sub{font-size:9px;color:#b8a888;display:block}
-#boss{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);width:min(420px,70vw);text-align:center;font-size:10px;opacity:0;transition:opacity .4s;pointer-events:none}
+#boss{position:fixed;left:50%;bottom:40px;transform:translateX(-50%);width:min(420px,70vw);text-align:center;font-size:10px;opacity:0;transition:opacity .4s;pointer-events:none}
 #boss .bar{margin-top:8px;height:10px;border:2px solid #000;background:#2a0c10;box-shadow:0 0 0 2px #5a4a3a}
 #bossfill{height:100%;width:100%;background:#9a2636}
 #fade{position:fixed;inset:0;background:#000;opacity:1;pointer-events:none}
-#snd{position:fixed;right:12px;bottom:10px;font-size:8px;opacity:.5;cursor:pointer;padding:6px 8px;border:2px solid rgba(234,214,174,.22);background:rgba(0,0,0,.35);display:flex;gap:7px;align-items:center;transition:opacity .4s}
+#snd{position:fixed;left:50%;top:12px;transform:translateX(-50%);font-size:8px;opacity:.5;cursor:pointer;padding:6px 8px;border:2px solid rgba(234,214,174,.22);background:rgba(0,0,0,.35);display:flex;gap:7px;align-items:center;transition:opacity .4s}
 #snd:hover{opacity:.95}
 #snd.off,#snd.off:hover{opacity:0;pointer-events:none}

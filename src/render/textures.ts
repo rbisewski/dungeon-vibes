@@ -103,7 +103,9 @@ function texBanner() {
   g.beginPath(); g.moveTo(0, 128); for (let x = 0; x <= 64; x += 8) g.lineTo(x, 112 + (x / 8 % 2 ? 14 : 0) - rr(0, 5)); g.lineTo(64, 128); g.closePath(); g.fill();
   return c;
 }
+/** The stone wall canvas, also used as the UI panel background. */
+export const WALL_CANVAS = texWall();
 export const TEX = {
-  wall: ctex(texWall()), floor: ctex(texFloor()), wood: ctex(texWood()), web: ctex(texWeb(), true, false),
+  wall: ctex(WALL_CANVAS), floor: ctex(texFloor()), wood: ctex(texWood()), web: ctex(texWeb(), true, false),
   rune: ctex(texRune(), true, false), grate: ctex(texGrate(), true, false), glow: ctex(texGlow(), true, false), banner: ctex(texBanner(), true, false)
 };

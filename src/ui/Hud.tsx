@@ -1,19 +1,46 @@
+import { useEffect, useRef } from 'preact/hooks';
 import type { PixImage } from './pixel/pixArt';
+import { drawOrb, LIFE_ORB, MANA_ORB, ORB_PX, type OrbColors } from './pixel/orb';
 import { ICON } from './icons';
-import { fade, hud, soundOn, toastOn, toastSub, toastText } from './store';
+import { openPanel } from './actions';
+import { CharacterPanel } from './CharacterPanel';
+import { fade, hud, panel, soundOn, toastOn, toastSub, toastText } from './store';
 
 function Pix({ img, scale = 3, style }: { img: PixImage; scale?: number; style?: Record<string, string> }) {
   return <img src={img.src} width={img.w * scale} height={img.h * scale} style={style} alt="" />;
 }
 
-function Hearts() {
-  const hp = hud.hp.value;
+/** Life or mana globe; redraws only when the visible fill level changes. */
+function Orb({ id, label, cur, max, colors }: { id: string; label: string; cur: number; max: number; colors: OrbColors }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const frac = max > 0 ? Math.max(0, Math.min(1, cur / max)) : 0;
+  const level = Math.round(frac * ORB_PX);
+  useEffect(() => { const g = ref.current?.getContext('2d'); if (g) drawOrb(g, level / ORB_PX, colors); }, [level, colors]);
   return (
-    <div id="hearts">
-      {[0, 1, 2, 3, 4].map(i => {
-        const v = hp - i * 2;
-        return <Pix key={i} img={v >= 2 ? ICON.heartFull : v === 1 ? ICON.heartHalf : ICON.heartEmpty} />;
-      })}
+    <div id={id} class="orb px">
+      <canvas ref={ref} width={ORB_PX} height={ORB_PX} />
+      <div class="orbText">{label} {cur}/{max}</div>
+    </div>
+  );
+}
+
+function Orbs() {
+  return (
+    <>
+      <Orb id="lifeOrb" label="LIFE" cur={hud.life.value} max={hud.maxLife.value} colors={LIFE_ORB} />
+      <Orb id="manaOrb" label="MANA" cur={hud.mana.value} max={hud.maxMana.value} colors={MANA_ORB} />
+      {hud.unspent.value > 0 && !panel.value && (
+        <button id="lvlUp" class="px" onClick={() => openPanel('char')} title="Level up! Spend points (C)">+</button>
+      )}
+    </>
+  );
+}
+
+function XpBar() {
+  return (
+    <div id="xp" class="px" title="Experience">
+      <span>LV {hud.clvl}</span>
+      <div class="bar"><div style={{ width: `${(100 * hud.xpFrac.value).toFixed(1)}%` }} /></div>
     </div>
   );
 }
@@ -21,7 +48,6 @@ function Hearts() {
 function Stats() {
   return (
     <div id="hud" class="px">
-      <Hearts />
       <div class="row"><Pix img={ICON.gold} /><span>{hud.gold}</span></div>
       <div class="row"><Pix img={ICON.slain} /><span>{hud.slain}</span></div>
       <div class="row"><Pix img={ICON.depth} /><span>DEPTH {hud.depth}</span></div>
@@ -37,7 +63,7 @@ function Mode() {
   return (
     <div id="mode" class="px">
       <div>{hud.manual.value ? 'YOU' : 'AUTO'}</div>
-      <div class="sub">WASD/ARROWS MOVE<br />SPACE ATTACK</div>
+      <div class="sub">WASD/ARROWS MOVE<br />SPACE ATTACK<br />C CHARACTER</div>
     </div>
   );
 }
@@ -80,6 +106,10 @@ export function Hud() {
       <Mode />
       <Toast />
       <BossBar />
+      <XpBar />
+      <Orbs />
+      {panel.value === 'char' && <CharacterPanel />}
+      {panel.value && <div id="paused" class="px">PAUSED</div>}
       <Fade />
       <SoundPrompt />
     </>

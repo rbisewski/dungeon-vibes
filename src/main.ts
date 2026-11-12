@@ -8,6 +8,7 @@ import { G } from './game/state';
 import { createHero } from './actors/hero';
 import { buildLevel } from './world/level';
 import { startLoop } from './game/loop';
+import { renderer } from './render/renderer';
 
 render(h(Hud, null), document.getElementById('ui')!);
 
@@ -16,3 +17,6 @@ addEventListener('pointerdown', () => { Snd.init(); soundOn.value = true; }, { o
 G.hero = createHero();
 buildLevel(G.depth);
 startLoop();
+
+// Dev-only handle for inspecting live state from the browser console.
+if (import.meta.env.DEV) Object.assign(window, { G, renderer });

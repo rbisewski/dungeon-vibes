@@ -5,6 +5,8 @@ let lastInput = -1e9, atkQueued = false, padAtkPrev = false;
 const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 
 addEventListener('keydown', e => {
+  // UI handlers claim their keys with preventDefault; nothing reaches the game while a panel pauses it.
+  if (e.defaultPrevented || G.paused) return;
   if (MOVE_KEYS.includes(e.code) || e.code === 'Space') {
     e.preventDefault();
     keys.add(e.code);
@@ -14,6 +16,9 @@ addEventListener('keydown', e => {
 });
 addEventListener('keyup', e => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
+
+/** Drops held keys and any queued attack (used when a panel opens so the hero doesn't keep walking). */
+export function resetInput(): void { keys.clear(); atkQueued = false; }
 
 export interface InputState { mx: number; mz: number; atk: boolean }
 

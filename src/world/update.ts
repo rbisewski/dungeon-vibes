@@ -1,4 +1,4 @@
-import { damageHero, damageMonster } from '../actors/combat';
+import { damageHero, damageMonster, trapDamage } from '../actors/combat';
 import { SFX, vol } from '../audio/sfx';
 import { PI, R, damp, lerp, rr } from '../core/math';
 import { G, isHero } from '../game/state';
@@ -21,14 +21,14 @@ export function updateWorld(dt: number): void {
       tr.up = up;
       if (up) for (const a of [h, ...G.L.monsters]) {
         if (a.dead || a.rise > 0 || tr.hit.has(a) || (a === h && h.descend > 0)) continue;
-        if (Math.abs(a.x - tr.x) < .95 && Math.abs(a.z - tr.z) < .95) { tr.hit.add(a); if (isHero(a)) damageHero(2, 0, 0); else damageMonster(a, 2, 0, 0); }
+        if (Math.abs(a.x - tr.x) < .95 && Math.abs(a.z - tr.z) < .95) { tr.hit.add(a); if (isHero(a)) damageHero(trapDamage(), 0, 0); else damageMonster(a, trapDamage(), 0, 0, false); }
       }
     } else {
       tr.prev = tr.ang; tr.ang = 1.15 * Math.sin(tr.w * G.now + tr.ph); tr.sw.rotation.x = tr.ang;
       if (Math.sign(tr.prev) !== Math.sign(tr.ang)) SFX.whoosh(near);
       if (Math.abs(tr.ang) < .3) for (const a of [h, ...G.L.monsters]) {
         if (a.dead || a.rise > 0) continue; const along = tr.along === 'x' ? Math.abs(a.x - tr.x) : Math.abs(a.z - tr.z), across = tr.along === 'x' ? Math.abs(a.z - tr.z) : Math.abs(a.x - tr.x);
-        if (along < .35 + a.r && across < 1 && (tr.hitT.get(a) || 0) < G.now) { tr.hitT.set(a, G.now + .9); const s = Math.sign(tr.ang - tr.prev) || 1, nx = tr.along === 'x' ? 0 : s, nz = tr.along === 'x' ? s : 0; if (isHero(a)) damageHero(2, nx, nz); else damageMonster(a, 2, nx, nz); }
+        if (along < .35 + a.r && across < 1 && (tr.hitT.get(a) || 0) < G.now) { tr.hitT.set(a, G.now + .9); const s = Math.sign(tr.ang - tr.prev) || 1, nx = tr.along === 'x' ? 0 : s, nz = tr.along === 'x' ? s : 0; if (isHero(a)) damageHero(trapDamage(), nx, nz); else damageMonster(a, trapDamage(), nx, nz, false); }
       }
     }
   }

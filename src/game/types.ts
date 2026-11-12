@@ -1,4 +1,9 @@
 import type * as THREE from 'three';
+import type { MonsterRoll } from '../rules/monsters';
+import type { CharState, Derived } from '../rules/stats';
+import type { Progress } from '../rules/xp';
+
+export type HeroStats = CharState & Progress;
 
 /**
  * Tile codes in `Level.tiles`:
@@ -83,10 +88,12 @@ export interface HeroParts {
 
 export type MonsterType = 'skeleton' | 'rat' | 'slime' | 'boss';
 export type MonsterState = 'idle' | 'chase' | 'windup' | 'recover' | 'stun';
-export interface MonsterStats { r: number; speed: number; hp: number; reach: number; windup: number; cd: number; dmg: number; mass: number }
+/** Movement and attack timing per monster type; combat numbers come from `rules/monsters` (`roll`). */
+export interface MonsterBody { r: number; speed: number; reach: number; windup: number; cd: number; mass: number }
 
 export interface MonsterCommon {
-  st: MonsterStats;
+  st: MonsterBody;
+  roll: MonsterRoll;
   x: number; z: number; kx: number; kz: number; vx: number; vz: number;
   face: number; r: number; mass: number; speed: number;
   hp: number; maxHp: number;
@@ -95,6 +102,8 @@ export interface MonsterCommon {
   wt: number; wx: number; wz: number;
   flash: number; phase: number; rise: number;
   dead: boolean; deadT: number; remove: boolean; eyeBoost: number; ignoreT: number;
+  /** Boss stagger cooldown (bosses stagger at most once per 3 s). */
+  staggerT: number;
 }
 export type Monster = MonsterCommon & (
   | ({ type: 'skeleton' | 'boss' } & SkeletonParts)
@@ -114,7 +123,12 @@ export type Goal =
 export interface Hero extends HeroParts {
   x: number; z: number; vx: number; vz: number; kx: number; kz: number;
   face: number; r: number; mass: number; rise: number;
-  hp: number; maxHp: number; gold: number; potions: number; key: boolean; slain: number;
+  /** Class, level, experience and base attributes. */
+  stats: HeroStats;
+  /** Derived stats; refreshed only by `recompute`. */
+  d: Derived;
+  life: number; mana: number;
+  gold: number; potions: number; key: boolean; slain: number;
   cd: number; atkT: number; hitDone: boolean; inv: number; flinch: number; flash: number; drink: number; phase: number;
   path: { x: number; z: number }[] | null; pi: number;
   goal: Goal | null; goalKey: string; goalT: number; repath: number; aiT: number;

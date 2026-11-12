@@ -5,33 +5,73 @@ import { G, addShake } from '../game/state';
 import { gBox, gCircle, gCyl, gSph, mesh } from '../render/geometry';
 import { MAT } from '../render/materials';
 import { fxAdd, fxNorm, impact } from '../render/particles';
+import { CLASS } from '../rules/classes';
+import { blockChance, monsterHitChance, roll, staggers } from '../rules/combat';
 import { toast } from '../ui/store';
 import { computeField } from '../world/nav';
 import type { Chest, PickupKind, Monster } from '../game/types';
+import { awardKill, heroHasShield } from './heroStats';
+
+/** Trap damage scales with depth (spikes and blades hit heroes and monsters alike). */
+export const trapDamage = (): number => ri(5, 10) + 2 * G.L.depth;
 
 export function damageHero(dmg: number, nx: number, nz: number): void {
   const h = G.hero; if (h.dead || h.inv > 0 || h.descend > 0) return;
-  h.hp -= dmg; h.inv = .5; h.flinch = .28; h.flash = .2; h.kx += nx * 5; h.kz += nz * 5; addShake(.35);
+  h.life -= dmg; h.inv = .5; h.flash = .2; h.kx += nx * 5; h.kz += nz * 5; addShake(.35);
+  // Chip damage below 5 % of max life does not interrupt the hero.
+  if (dmg >= .05 * h.d.maxLife) h.flinch = CLASS[h.stats.cls].recover;
   SFX.hurt();
   for (let k = 0; k < 10; k++) fxNorm.spawn(h.x + rr(-.2, .2), .9, h.z + rr(-.2, .2), nx * 2 + rr(-1.2, 1.2), rr(.5, 2.2), nz * 2 + rr(-1.2, 1.2), rr(.4, .7), .35, .03, .02, rr(.06, .1), 9, .5, 1);
-  if (h.hp <= 0) { h.hp = 0; h.dead = true; h.deadT = 0; toast('YOU DIED', 'THE TORCH GUTTERS...'); }
+  if (h.life <= 0) { h.life = 0; h.dead = true; h.deadT = 0; toast('YOU DIED', 'THE TORCH GUTTERS...'); }
 }
-export function damageMonster(m: Monster, dmg: number, nx: number, nz: number): void {
+
+/** A monster's blow lands on the hero's position: roll to-hit against AC, then the shield block, then damage. */
+export function monsterStrike(m: Monster, nx: number, nz: number): void {
+  const h = G.hero; if (h.dead || h.inv > 0 || h.descend > 0) return;
+  const s = h.stats, r = m.roll;
+  if (!roll(R, monsterHitChance(r.toHit, r.mlvl, s.clvl, h.d.ac))) { SFX.whiff(); return; }
+  // D1: a shield blocks only while standing still or swinging.
+  const canBlock = heroHasShield() && (h.atkT >= 0 || Math.hypot(h.vx, h.vz) < .6);
+  if (canBlock && roll(R, blockChance(s.cls, h.d, s.clvl, r.mlvl))) {
+    SFX.block(); h.kx += nx * 2; h.kz += nz * 2;
+    impact(h.x - nx * .35, 1.0, h.z - nz * .35, 0xbfd8ff, 1.2);
+    for (let k = 0; k < 10; k++) fxAdd.spawn(h.x - nx * .35, 1.0, h.z - nz * .35, -nx * rr(1, 3) + rr(-1, 1), rr(.5, 2), -nz * rr(1, 3) + rr(-1, 1), rr(.15, .3), 1.2, 1.4, 1.8, rr(.03, .05), 9, 1, 1);
+    return;
+  }
+  damageHero(ri(r.dmgMin, r.dmgMax), nx, nz);
+}
+
+/** Hero attack roll that failed: the monster notices and is nudged, but takes no damage. */
+export function missMonster(m: Monster, nx: number, nz: number): void {
+  m.aware = true;
+  const kb = m.type === 'boss' ? .3 : 1.5 / m.mass; m.kx += nx * kb; m.kz += nz * kb;
+  SFX.whiff();
+}
+
+/**
+ * Applies damage to a monster. Only hits of at least mlvl + 3 interrupt it (bosses at most once per 3 s).
+ * `byHero` grants experience on the kill.
+ */
+export function damageMonster(m: Monster, dmg: number, nx: number, nz: number, byHero: boolean, crit = false): void {
   m.hp -= dmg; m.flash = .14; m.aware = true;
-  const kb = m.type === 'boss' ? 1.2 : 7 / m.mass; m.kx += nx * kb; m.kz += nz * kb;
-  const interrupt = m.state === 'windup' ? (m.type !== 'boss' && R() < .35) : (m.state === 'chase' || m.state === 'idle');
-  if (interrupt) { m.state = 'stun'; m.t = .3; }
+  const kb = (m.type === 'boss' ? 1.2 : 7 / m.mass) * (crit ? 1.6 : 1); m.kx += nx * kb; m.kz += nz * kb;
+  if (staggers(dmg, m.roll.mlvl) && (m.type !== 'boss' || m.staggerT <= 0)) {
+    m.state = 'stun'; m.t = .3;
+    if (m.type === 'boss') m.staggerT = 3;
+  }
   const hx = m.x - nx * m.r, hz = m.z - nz * m.r, hy = m.type === 'rat' ? .4 : m.type === 'slime' ? .45 : m.type === 'boss' ? 1.6 : .9;
-  impact(hx, hy, hz, m.type === 'slime' ? 0xb0ff60 : 0xffe0a0, m.type === 'boss' ? 2 : 1.4);
-  for (let k = 0; k < 14; k++) fxAdd.spawn(hx, hy, hz, nx * rr(1, 4) + rr(-2, 2), rr(.5, 3.5), nz * rr(1, 4) + rr(-2, 2), rr(.2, .45), 1.6, 1.1, .5, rr(.04, .07), 9, 1, 1);
+  impact(hx, hy, hz, crit ? 0xffffff : m.type === 'slime' ? 0xb0ff60 : 0xffe0a0, (m.type === 'boss' ? 2 : 1.4) * (crit ? 1.8 : 1));
+  for (let k = 0; k < (crit ? 30 : 14); k++) fxAdd.spawn(hx, hy, hz, nx * rr(1, 4) + rr(-2, 2), rr(.5, 3.5), nz * rr(1, 4) + rr(-2, 2), rr(.2, .45), 1.6, 1.1, .5, rr(.04, .07), 9, 1, 1);
   if (m.type === 'slime') for (let k = 0; k < 10; k++) fxAdd.spawn(hx, hy, hz, nx * 2 + rr(-2, 2), rr(1, 3), nz * 2 + rr(-2, 2), rr(.4, .8), .25, .7, .12, rr(.07, .12), 9, .5, 1);
   if (m.type === 'rat') for (let k = 0; k < 8; k++) fxNorm.spawn(hx, hy, hz, nx * 2 + rr(-1.5, 1.5), rr(.5, 2.5), nz * 2 + rr(-1.5, 1.5), rr(.4, .7), .3, .03, .02, rr(.06, .1), 9, .5, 1);
   SFX.hit(m.type, vol(m.x, m.z));
-  if (m.hp <= 0) killMonster(m, nx, nz);
+  if (crit) SFX.crit();
+  if (m.hp <= 0) killMonster(m, nx, nz, byHero);
 }
 const BONE_GEOS = () => [gCyl(.035, .03, .34, 5), gCyl(.03, .025, .28, 5), gBox(.28, .035, .18), gBox(.26, .08, .12), gSph(.13, 8, 6)];
-function killMonster(m: Monster, nx: number, nz: number): void {
+function killMonster(m: Monster, nx: number, nz: number, byHero: boolean): void {
   m.dead = true; m.deadT = 0; G.hero.slain++; G.L.killsHere++;
+  if (byHero) awardKill(m);
   SFX.death(m.type, vol(m.x, m.z)); addShake(m.type === 'boss' ? .8 : .25);
   if (m.type === 'skeleton' || m.type === 'boss') {
     const sc = m.type === 'boss' ? 1.8 : 1, gs = BONE_GEOS();

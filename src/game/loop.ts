@@ -34,8 +34,9 @@ function updateTransition(dt: number): void {
     tr.built = true;
     fade.value = 1;
     const hero = G.hero;
-    if (tr.kind === 'descend') { G.depth++; hero.hp = Math.min(hero.maxHp, hero.hp + 2); }
-    else { hero.hp = hero.maxHp; hero.potions = Math.max(hero.potions, 1); }
+    // Descending restores a fifth of max life (the legacy +2 of 10 hearts); dying restores everything.
+    if (tr.kind === 'descend') { G.depth++; hero.life = Math.min(hero.d.maxLife, hero.life + hero.d.maxLife * .2); }
+    else { hero.life = hero.d.maxLife; hero.mana = hero.d.maxMana; hero.potions = Math.max(hero.potions, 1); }
     buildLevel(G.depth);
   } else {
     fade.value = Math.max(0, fade.value - dt * 1.4);
@@ -69,6 +70,14 @@ function frame(nowMs: number): void {
   requestAnimationFrame(frame);
   const dt = clamp((nowMs - last) / 1000, 0, 0.05);
   last = nowMs;
+  hudT -= dt;
+  if (hudT <= 0) { hudT = 0.1; syncHud(); }
+  if (G.paused) {
+    // Panels freeze the world: no simulation, particles, lights, camera motion or toast countdown.
+    acc = 0;
+    renderFrame();
+    return;
+  }
   updateTransition(dt);
   const tr = G.transition;
   const frozen = !!(tr && tr.built && fade.value >= 1);
@@ -83,8 +92,6 @@ function frame(nowMs: number): void {
   ambientSound(dt);
   updateCamera(dt, !!(tr && tr.built && fade.value >= 0.99));
   tickToast(dt);
-  hudT -= dt;
-  if (hudT <= 0) { hudT = 0.1; syncHud(); }
   renderFrame();
 }
 

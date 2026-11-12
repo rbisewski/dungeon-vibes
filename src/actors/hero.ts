@@ -1,4 +1,8 @@
-import { damageMonster, openChest, unlockDoor } from './combat';
+import { damageMonster, missMonster, openChest, unlockDoor } from './combat';
+import { potionHeal, recompute } from './heroStats';
+import { meleeHitChance, rollDamage, roll } from '../rules/combat';
+import { CLASS } from '../rules/classes';
+import { derive } from '../rules/stats';
 import { heroAuto } from './heroAuto';
 import { SFX } from '../audio/sfx';
 import { manualActive, readInput } from '../core/input';
@@ -13,28 +17,38 @@ import { buildHero } from './models/hero-warrior';
 
 /** Builds the hero model (added to the scene) with fresh run state. */
 export function createHero(): Hero {
-  return {
+  const stats = { cls: 'warrior' as const, clvl: 1, xp: 0, unspent: 0, base: { ...CLASS.warrior.base } };
+  const d = derive(stats);
+  const h: Hero = {
     ...buildHero(),
     x: 0, z: 0, vx: 0, vz: 0, kx: 0, kz: 0, face: PI * 1.25, r: .36, mass: 2.5, rise: 0,
-    hp: 10, maxHp: 10, gold: 0, potions: 1, key: false, slain: 0,
+    stats, d, life: d.maxLife, mana: d.maxMana,
+    gold: 0, potions: 1, key: false, slain: 0,
     cd: 0, atkT: -1, hitDone: false, inv: 0, flinch: 0, flash: 0, drink: 0, phase: 0,
     path: null, pi: 0, goal: null, goalKey: '', goalT: 0, repath: 0, aiT: 0,
     dead: false, deadT: 0, descend: 0,
     stuckT: 0, stuck: 0, sx: 0, sz: 0, unstickT: 0, ux: 0, uz: 0, killsAtGoal: 0, waitTrap: false,
   };
+  recompute(h);
+  h.life = h.d.maxLife; h.mana = h.d.maxMana;
+  return h;
 }
 
-function startAttack(): void { const h = G.hero; h.atkT = 0; h.hitDone = false; h.cd = .44; SFX.swing(); }
+function startAttack(): void { const h = G.hero; h.atkT = 0; h.hitDone = false; h.cd = h.d.attackTime; SFX.swing(); }
+/** Mid-swing: every monster in the arc gets its own to-hit, damage and crit roll. */
 function heroHitCheck(): void {
-  const h = G.hero; let any = false;
+  const h = G.hero, s = h.stats; let any = false, crit = false;
   for (const m of G.L.monsters) {
     if (m.dead || m.rise > 0) continue;
     const dx = m.x - h.x, dz = m.z - h.z, d = Math.hypot(dx, dz) || .001;
     if (d > h.r + m.r + 1.0) continue;
     if (Math.abs(wrapA(Math.atan2(dx, dz) - h.face)) > 1.5 && d > h.r + m.r + .2) continue;
-    damageMonster(m, R() < .12 ? 2 : 1, dx / d, dz / d); any = true;
+    if (!roll(R, meleeHitChance(s.cls, h.d, s.clvl, m.roll.ac))) { missMonster(m, dx / d, dz / d); continue; }
+    const hit = rollDamage(R, h.d);
+    damageMonster(m, hit.dmg, dx / d, dz / d, true, hit.crit);
+    any = true; crit ||= hit.crit;
   }
-  if (any) { G.hitstop = .055; addShake(.22); }
+  if (any) { G.hitstop = crit ? .11 : .055; addShake(crit ? .4 : .22); }
 }
 export function updateHero(dt: number): void {
   const h = G.hero;
@@ -60,8 +74,9 @@ export function updateHero(dt: number): void {
     if (atk && !mx && !mz) { let bm: Monster | null = null, bd = 2.8; for (const m of G.L.monsters) { if (m.dead || m.rise > 0) continue; const d = Math.hypot(m.x - h.x, m.z - h.z); if (d < bd) { bd = d; bm = m; } } if (bm) faceT = Math.atan2(bm.x - h.x, bm.z - h.z); }
   } else { const o = heroAuto(dt); mx = o.mx; mz = o.mz; atk = o.atk; faceT = o.face; }
   // potion
-  if (h.potions > 0 && h.drink <= 0 && h.atkT < 0 && h.hp <= (manual ? 3 : 4)) {
-    h.potions--; h.drink = .7; h.hp = Math.min(h.maxHp, h.hp + 6); SFX.drink(); toast('POTION', '+3 HEARTS');
+  if (h.potions > 0 && h.drink <= 0 && h.atkT < 0 && h.life <= h.d.maxLife * (manual ? .3 : .4)) {
+    const heal = Math.round(Math.min(h.d.maxLife - h.life, potionHeal(h)));
+    h.potions--; h.drink = .7; h.life += heal; SFX.drink(); toast('POTION', `+${heal} LIFE`);
     for (let k = 0; k < 26; k++) fxAdd.spawn(h.x + rr(-.4, .4), rr(.2, 1.2), h.z + rr(-.4, .4), rr(-.3, .3), rr(.8, 2), rr(-.3, .3), rr(.6, 1.2), 1.4, .25, .4, rr(.05, .08), -.5, .5, 2);
   }
   h.drink -= dt;

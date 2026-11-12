@@ -38,5 +38,12 @@ export const SFX = {
   spike(v: number) { if (v > .05) { Snd.noise({ type: 'highpass', f: 3500, dur: .12, gain: .2 * v }); Snd.tone({ wave: 'triangle', f: 900, f2: 700, dur: .15, gain: .04 * v }); } },
   whoosh(v: number) { if (v > .05) Snd.noise({ type: 'bandpass', f: 300, f2: 900, q: 1.5, dur: .3, a: .1, gain: .22 * v }); },
   drip() { Snd.tone({ wave: 'sine', f: rr(1400, 2000), f2: rr(500, 800), dur: .07, gain: .03, rev: .9 }); },
-  rise(v: number) { if (v > .05) Snd.noise({ type: 'lowpass', f: 400, f2: 120, dur: .6, gain: .25 * v, a: .1 }); }
+  rise(v: number) { if (v > .05) Snd.noise({ type: 'lowpass', f: 400, f2: 120, dur: .6, gain: .25 * v, a: .1 }); },
+  /** Swing that missed: a thin airy swish, no impact. */
+  whiff() { Snd.noise({ type: 'highpass', f: 1800, f2: 900, q: .7, dur: .12, gain: .12, rev: .25 }); },
+  /** Blow stopped by the shield: wooden thud plus a metallic ring. */
+  block() { Snd.noise({ type: 'lowpass', f: 420, dur: .1, gain: .5 }); Snd.tone({ wave: 'triangle', f: 1550, f2: 1450, dur: .25, gain: .06, rev: .4 }); Snd.tone({ wave: 'triangle', f: 2330, dur: .18, gain: .03, delay: .01, rev: .4 }); },
+  /** Critical hit layered over the normal hit sound. */
+  crit() { Snd.noise({ type: 'bandpass', f: 1200, f2: 300, q: 1.2, dur: .22, gain: .45 }); Snd.tone({ wave: 'square', f: 90, f2: 40, dur: .25, gain: .12 }); },
+  levelUp() { [523, 659, 784, 1047, 1319].forEach((f, i) => Snd.tone({ wave: 'triangle', f, dur: .5, gain: .07, delay: i * .09, rev: .7 })); Snd.noise({ type: 'highpass', f: 5000, dur: .9, gain: .05, a: .2, rev: .8 }); },
 };

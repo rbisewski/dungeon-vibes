@@ -12,6 +12,8 @@ export const G = {
   shake: 0,
   hitstop: 0,
   transition: null as Transition | null,
+  /** True while a UI panel is open: the world does not advance. */
+  paused: false,
 };
 
 export const isHero = (a: Actor): a is Hero => a === G.hero;

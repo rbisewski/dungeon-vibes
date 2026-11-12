@@ -1,6 +1,6 @@
 # Dungeon Vibes — Diablo-Style Progression Spec
 
-Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). No code changes yet.
+Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phase 0 and Phase 1.
 
 This spec layers a Diablo 1 (D1) style character, spell, and loot system onto the existing game. The game is first ported from the single `index.html` to a TypeScript project (§2.1). It keeps the game's look, controls, and AUTO mode.
 
@@ -448,6 +448,8 @@ Monsters gain `mlvl`, `ac`, `toHit`, `dmg: [min, max]`, `xp`, and `undead: bool`
 
 **Hero flinch [OURS]:** only when damage is at least 5 % of max life. The flinch lasts the class's hit-recovery time (§1.1a). This prevents stun-lock from chip damage.
 
+**Traps [OURS]:** spikes and blades deal `5–10 + 2·depth` to the hero and to monsters. Trap kills give no XP.
+
 **HUD**
 - Hearts are replaced by D1-style pixel **life and mana orbs** (red and blue).
 - Each orb is a canvas with a liquid level, highlight, and 1 px dark outline.
@@ -823,9 +825,9 @@ subtype   = min(3, floor((depth − family.minDepth) / 4))   // +15 % hp/dmg per
 
 | Family | D1 inspiration | Depth | Undead | hp | dmg | ac | toHit | xpMul |
 |---|---|---|---|---|---|---|---|---|
-| Rat (existing) | Scavenger | 1–8 | | 6 | 1–3 | 5 | 20 | 0.8 |
-| Skeleton (existing) | Skeleton | 1–14 | ✔ | 8 | 1–4 | 10 | 25 | 1.0 |
-| Slime (existing) | [OURS] | 2–12 | | 12 | 2–4 | 0 | 20 | 1.1 |
+| Rat (existing) | Scavenger | 1–8 | | 6 | 4–8 | 5 | 30 | 0.8 |
+| Skeleton (existing) | Skeleton | 1–14 | ✔ | 8 | 5–10 | 10 | 35 | 1.0 |
+| Slime (existing) | [OURS] | 2–12 | | 12 | 6–11 | 0 | 30 | 1.1 |
 | **Zombie** | Zombie | 1–10 | ✔ | 12 | 2–5 | 5 | 15 | 1.1 |
 | **Fallen** | Fallen One | 1–9 | | 5 | 1–3 | 5 | 20 | 0.7 |
 | **Skeleton Archer** | Skeleton Archer | 3–14 | ✔ | 7 | 1–4 | 8 | 30 | 1.2 |
@@ -833,6 +835,8 @@ subtype   = min(3, floor((depth − family.minDepth) / 4))   // +15 % hp/dmg per
 | **Giant Spider** | Hellfire Arachnon / Spider Lord | 4–16 | | 10 | 2–6 | 15 | 30 | 1.4 |
 | Goat Man (stretch) | Goat Men | 8+ | | 20 | 4–9 | 25 | 40 | 1.6 |
 | Hidden (stretch) | Hidden | 6+ | | 15 | 3–8 | 20 | 35 | 1.5 |
+
+Damage and to-hit for the three existing families were raised during Phase 1 playtesting; at D1-like values the Warrior was almost never hurt. The new families get the same simulation-based tuning in Phase 8.
 
 | Family | Behaviour | Subtypes (tiers 0–3) |
 |---|---|---|
@@ -892,8 +896,9 @@ Mini-bosses appear on depths 5, 10, 15, 20, … This replaces the current `depth
 | 20 | **The Ember Lich** | Lazarus / Diablo flavour | Undead. Teleports between 3 rune circles (`texRune`). Fires slow homing Firebolts (blockable). Summons 2 Burning Dead. Vulnerable for 2 s after each teleport. | Same, plus a guaranteed ring or amulet and a guaranteed book with qlvl ≥ 6 |
 
 **Boss stats**
-- `hp = 10 ×` the family-equivalent hp at `mlvl = depth + 2`.
-- Damage is 2.5× the normal formula.
+- `hp = 5 ×` the family-equivalent hp at `mlvl = depth + 2`.
+- Damage is 1.5× the normal formula.
+- **Tuned in Phase 1** down from 10× HP and 2.5× damage, because the hero has no gear yet. Retune in Phase 9 once items exist.
 - `xpMul` is 8.
 - Bosses stagger only when hit for `dmg ≥ mlvl + 3`, and at most once per 3 s.
 - Bosses are immune to Stone Curse [OURS].

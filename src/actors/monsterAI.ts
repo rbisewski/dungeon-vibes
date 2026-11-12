@@ -1,4 +1,4 @@
-import { damageHero } from './combat';
+import { monsterStrike } from './combat';
 import { monsterTypeFor, spawnMonster } from './monsters';
 import { SFX, vol } from '../audio/sfx';
 import { PI, R, TAU, clamp, damp, lerp, pick, ri, rr, wrapA } from '../core/math';
@@ -34,7 +34,7 @@ export function updateMonsters(dt: number): void {
     }
     m.ignoreT -= dt;
     if (m.rise > 0) { m.rise -= dt; m.root.position.y = -Math.max(0, m.rise) * 1.6 * (m.type === 'boss' ? 2 : 1); m.root.position.x = m.x; m.root.position.z = m.z; if (R() < .5) fxNorm.spawn(m.x + rr(-.4, .4), .05, m.z + rr(-.4, .4), rr(-.3, .3), rr(.3, .9), rr(-.3, .3), rr(.5, .9), .15, .13, .12, rr(.1, .2), .3, 1.5, 3); continue; }
-    m.cd -= dt; m.flash -= dt; m.eyeBoost = Math.max(0, m.eyeBoost - dt);
+    m.cd -= dt; m.flash -= dt; m.staggerT -= dt; m.eyeBoost = Math.max(0, m.eyeBoost - dt);
     const fl = Math.max(0, m.flash) / .14; for (const mt of m.flashMats) mt.emissive.setRGB(fl * 1.6, fl * 1.5, fl * 1.3);
     if (m.type === 'slime' && fl <= 0) m.flashMats[0].emissive.setHex(0x0e2a08);
     const dx = h.x - m.x, dz = h.z - m.z, d = Math.hypot(dx, dz) || .001, heroOK = !h.dead && h.descend <= 0;
@@ -48,7 +48,7 @@ export function updateMonsters(dt: number): void {
       case 'windup': m.t -= dt; want = Math.atan2(dx, dz); if (m.t <= 0) {
         m.state = 'recover'; m.t = .4; m.lunge = .15;
         const facing = Math.abs(wrapA(Math.atan2(dx, dz) - m.face)) < 1.3;
-        if (d <= reach + .25 && facing) damageHero(m.st.dmg, dx / d, dz / d);
+        if (d <= reach + .25 && facing) monsterStrike(m, dx / d, dz / d);
         if (m.type === 'boss') { addShake(.3); impact(m.x + Math.sin(m.face) * 1.6, .2, m.z + Math.cos(m.face) * 1.6, 0xffb070, 2.4); }
       } break;
       case 'recover': m.t -= dt; if (m.t <= 0) m.state = m.aware ? 'chase' : 'idle'; break;
