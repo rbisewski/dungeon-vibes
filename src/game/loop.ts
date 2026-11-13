@@ -14,6 +14,7 @@ import { SFX } from '../audio/sfx';
 import { clamp, R, rr } from '../core/math';
 import { fade, tickToast } from '../ui/store';
 import { syncHud } from '../ui/syncHud';
+import { updateGroundLabels } from '../ui/GroundLabels';
 import { G } from './state';
 import { ensureHealingPotion } from '../actors/heroStats';
 
@@ -93,6 +94,7 @@ function frame(nowMs: number): void {
   ambientSound(dt);
   updateCamera(dt, !!(tr && tr.built && fade.value >= 0.99));
   tickToast(dt);
+  updateGroundLabels();
   renderFrame();
 }
 

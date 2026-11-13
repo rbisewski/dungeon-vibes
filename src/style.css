@@ -46,3 +46,23 @@ html,body{margin:0;height:100%;overflow:hidden;background:#05060a}
 #belt .slot{position:relative;width:30px;height:30px;padding:1px;background:#1e1612;box-shadow:inset 0 0 0 1px #3a2a1e}
 #belt .slot img{image-rendering:pixelated;display:block}
 #belt .key{position:absolute;right:1px;bottom:0;font-size:6px;opacity:.75;pointer-events:none}
+#invPanel{left:auto;right:16px;width:auto;max-height:calc(100vh - 150px)}
+#invPanel .doll,#invPanel .grid{position:relative;margin:8px 0}
+#invPanel .grid{background:#0e0a08;background-image:linear-gradient(#2a2018 1px,transparent 1px),linear-gradient(90deg,#2a2018 1px,transparent 1px);background-size:29px 29px;box-shadow:0 0 0 2px #3a2a1e;cursor:pointer}
+#invPanel .slot,#invPanel .item,#invPanel .cursor{position:absolute;display:flex;align-items:center;justify-content:center}
+#invPanel .slot{background:#16100c;box-shadow:inset 0 0 0 1px #3a2a1e;cursor:pointer}
+#invPanel .slotLabel{font-size:6px;opacity:.35}
+#invPanel .item{pointer-events:none;background:rgba(80,64,40,.18)}
+#invPanel .bad{background:rgba(170,30,30,.38)}
+#invPanel .ok{box-shadow:inset 0 0 0 2px #e0b040}
+#invPanel .cur,#invPanel .cursor{box-shadow:inset 0 0 0 2px #7aa8ff;pointer-events:none}
+#invPanel img{image-rendering:pixelated;display:block}
+#invPanel .desc{width:289px;min-height:66px;padding:6px 8px;background:rgba(0,0,0,.4);box-shadow:inset 0 0 0 1px #3a2a1e;font-size:8px;line-height:1.7}
+#invPanel .desc .name{color:#fff2d0;font-size:9px}
+#invPanel .desc .red{color:#ff6a5a}
+#invPanel .desc .hint{font-size:7px;opacity:.55}
+.heldItem{position:fixed;pointer-events:none;transform:translate(-50%,-50%);z-index:10;filter:drop-shadow(2px 2px 0 #000)}
+.heldItem img{image-rendering:pixelated;display:block}
+#belt .slot{cursor:pointer}
+.groundLabel{position:fixed;transform:translate(-50%,-100%);font-size:8px;padding:2px 4px;background:rgba(0,0,0,.6);white-space:nowrap;pointer-events:none}
+.groundLabel.dim{opacity:.55}

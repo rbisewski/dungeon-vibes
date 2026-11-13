@@ -2,7 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { ATTRS, CLASS, type Attr } from '../rules/classes';
 import { closePanels, spendPoint } from './actions';
 import { panelStyle } from './pixel/frame';
-import { sheet } from './store';
+import { isOpen, sheet } from './store';
 
 const ATTR_NAME: Record<Attr, string> = { str: 'STRENGTH', int: 'INTELLIGENCE', dex: 'DEXTERITY', vit: 'VITALITY' };
 
@@ -13,6 +13,7 @@ export function CharacterPanel() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (isOpen('inv')) return; // the inventory owns the arrow keys while it is open
       if (e.code === 'ArrowUp' || e.code === 'KeyW') { e.preventDefault(); setSel(i => (i + 3) % 4); }
       else if (e.code === 'ArrowDown' || e.code === 'KeyS') { e.preventDefault(); setSel(i => (i + 1) % 4); }
       else if (e.code === 'Enter' || e.code === 'ArrowRight' || e.code === 'KeyD') { e.preventDefault(); setSel(i => { spendPoint(ATTRS[i]); return i; }); }

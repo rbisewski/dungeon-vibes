@@ -8,7 +8,7 @@ export const PAL: Record<string, string> = {
   N: '#3060e0', n: '#183080', U: '#b050e0', u: '#5a2088', c: '#8a5a30',
 };
 
-export interface PixImage { src: string; w: number; h: number }
+export interface PixImage { src: string; w: number; h: number; canvas: HTMLCanvasElement }
 
 /** Rasterizes ASCII pixel rows into a data URL at 1 px per character. */
 export function pixImage(rows: readonly string[]): PixImage {
@@ -17,5 +17,5 @@ export function pixImage(rows: readonly string[]): PixImage {
     const col = PAL[ch];
     if (col) { g.fillStyle = col; g.fillRect(x, y, 1, 1); }
   }));
-  return { src: c.toDataURL(), w, h };
+  return { src: c.toDataURL(), w, h, canvas: c };
 }

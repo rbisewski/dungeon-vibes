@@ -5,6 +5,7 @@ import { S } from '../render/buckets';
 import { GEO, gBox, gCone, gCyl, gSph, glowSprite, mesh } from '../render/geometry';
 import { MAT } from '../render/materials';
 import { T } from './consts';
+import { CHEST_ITEM_CHANCE } from '../rules/loot';
 import type { Axis, Chest, Door, Trap } from '../game/types';
 
 export function makeChest(x: number, z: number, ry: number, isKey: boolean): Chest {
@@ -19,7 +20,7 @@ export function makeChest(x: number, z: number, ry: number, isKey: boolean): Che
   for (const s of [-1, 1]) { const b = mesh(gCyl(.3, .3, .06, 10), trim, .3 * s, 0, .29, lid); b.rotation.z = PI / 2; b.scale.set(1, 1, 1); }
   let glow: THREE.Sprite | null = null; if (isKey) glow = glowSprite(0xffc060, 1.2, g, 0, .7, 0);
   G.L.group.add(g);
-  return { g, lid, glow, open: false, t: 0, x, z, isKey, gold: ri(6, 18), potion: R() < .38 };
+  return { g, lid, glow, open: false, t: 0, x, z, isKey, gold: ri(6, 18), hasItem: R() < CHEST_ITEM_CHANCE };
 }
 /** Room ids and target group a door needs; satisfied by both a `Level` and a layout under construction. */
 export interface DoorCtx { roomId: Int16Array; W: number; group: THREE.Group }

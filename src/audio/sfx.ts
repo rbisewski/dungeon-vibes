@@ -47,5 +47,7 @@ export const SFX = {
   crit() { Snd.noise({ type: 'bandpass', f: 1200, f2: 300, q: 1.2, dur: .22, gain: .45 }); Snd.tone({ wave: 'square', f: 90, f2: 40, dur: .25, gain: .12 }); },
   /** Glass clink when a potion goes into the belt or backpack. */
   potion() { Snd.tone({ wave: 'triangle', f: 2400, dur: .06, gain: .05, rev: .4 }); Snd.tone({ wave: 'triangle', f: 3150, dur: .1, gain: .035, delay: .05, rev: .4 }); },
+  /** Equipment lifted off the floor or placed in the inventory: a dull leather-and-metal thump. */
+  pickup() { Snd.noise({ type: 'lowpass', f: 700, dur: .08, gain: .35 }); Snd.tone({ wave: 'triangle', f: 640, f2: 520, dur: .09, gain: .04, delay: .02 }); },
   levelUp() { [523, 659, 784, 1047, 1319].forEach((f, i) => Snd.tone({ wave: 'triangle', f, dur: .5, gain: .07, delay: i * .09, rev: .7 })); Snd.noise({ type: 'highpass', f: 5000, dur: .9, gain: .05, a: .2, rev: .8 }); },
 };

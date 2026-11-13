@@ -3,25 +3,26 @@ import { R, rr } from '../core/math';
 import { G } from '../game/state';
 import type { Hero, Monster } from '../game/types';
 import { fxAdd } from '../render/particles';
-import type { Attr } from '../rules/classes';
-import { addItem, countPotions, newInventory, newPotion, takeFromBelt, type Inventory } from '../rules/inventory';
-import { POTIONS, potionEffect } from '../rules/potions';
-import { derive, NO_BONUS, spendPoint, type Bonus, type Weapon } from '../rules/stats';
+import { CLASS, type Attr } from '../rules/classes';
+import { base } from '../rules/bases';
+import { addItem, countPotions, EQUIP_SLOTS, meetsReq, newEquip, newInventory, newPotion, putInGrid, takeFromBelt, type Inventory } from '../rules/inventory';
+import { POTIONS, potionEffect, type PotionId } from '../rules/potions';
+import { derive, FISTS, NO_BONUS, spendPoint, type Bonus, type Weapon } from '../rules/stats';
 import { gainXp, killXp } from '../rules/xp';
 import { toast } from '../ui/store';
 
-/**
- * D1 Warrior starting equipment: Short Sword (2–6) and a Buckler (AC 1–5, taken at its middle roll).
- * Replaced by real equipped items in the inventory phase.
- */
-const STARTING_WEAPON: Readonly<Weapon> = { kind: 'sword', min: 2, max: 6 };
-const STARTING_SHIELD_AC = 3;
-
-function equipBonus(): Bonus {
-  return { ...NO_BONUS, ac: STARTING_SHIELD_AC };
+/** Equipment bonuses: only gear whose requirements are met counts (D1). Item attribute bonuses arrive in Phase 4. */
+function gear(h: Hero): { bonus: Bonus; weapon: Weapon } {
+  const attrs = h.stats.base, eq = h.inv.equip;
+  let ac = 0;
+  for (const s of EQUIP_SLOTS) { const it = eq[s]; if (it && meetsReq(it, attrs)) ac += it.ac; }
+  const w = eq.weapon, wb = w && meetsReq(w, attrs) ? base(w.base) : null;
+  const weapon: Weapon = wb && wb.kind === 'weapon' ? { kind: wb.wk, min: wb.dmg[0], max: wb.dmg[1] } : FISTS;
+  return { bonus: { ...NO_BONUS, ac }, weapon };
 }
 
-export const heroHasShield = (): boolean => STARTING_SHIELD_AC > 0;
+/** A usable shield is equipped (needed to block). */
+export const heroHasShield = (h: Hero): boolean => !!h.inv.equip.shield && meetsReq(h.inv.equip.shield, h.stats.base);
 
 /**
  * Re-derives stats after any change to level, attributes or equipment. Raising max life/mana raises the current
@@ -29,7 +30,8 @@ export const heroHasShield = (): boolean => STARTING_SHIELD_AC > 0;
  */
 export function recompute(h: Hero): void {
   const prev = h.d;
-  h.d = derive(h.stats, equipBonus(), STARTING_WEAPON);
+  const g = gear(h);
+  h.d = derive(h.stats, g.bonus, g.weapon);
   if (prev) {
     h.life += Math.max(0, h.d.maxLife - prev.maxLife);
     h.mana += Math.max(0, h.d.maxMana - prev.maxMana);
@@ -61,28 +63,46 @@ export function spendHeroPoint(a: Attr): boolean {
   return true;
 }
 
-/** D1 Warrior kit: two Potions of Healing on the belt. */
+/** D1 Warrior kit: Short Sword and Buckler equipped, a Club in the backpack, two Potions of Healing on the belt. */
 export function startingInventory(): Inventory {
   const inv = newInventory();
+  inv.equip.weapon = newEquip('short_sword');
+  inv.equip.shield = newEquip('buckler', R());
+  putInGrid(inv.pack, newEquip('club'));
   addItem(inv, newPotion('heal')); addItem(inv, newPotion('heal'));
   return inv;
 }
 
 const DRINK_RGB: Record<'life' | 'mana' | 'both', [number, number, number]> = { life: [1.4, .25, .4], mana: [.35, .6, 1.8], both: [1.1, .4, 1.6] };
 
-/** Drinks the potion in a belt slot (no-op when empty). Movement slows for the 0.7 s drink animation. */
-export function drinkFromBelt(slot: number): void {
+/** Applies a potion's effect. Movement slows for the 0.7 s drink animation. */
+export function drinkPotion(p: PotionId): void {
   const h = G.hero;
-  if (h.dead || h.descend > 0) return;
-  const it = takeFromBelt(h.inv, slot);
-  if (!it) return;
-  const e = potionEffect(it.potion, h.stats.cls, h.d.maxLife, h.d.maxMana, R);
+  const e = potionEffect(p, h.stats.cls, h.d.maxLife, h.d.maxMana, R);
   h.life = Math.min(h.d.maxLife, h.life + e.life);
   h.mana = Math.min(h.d.maxMana, h.mana + e.mana);
   h.drink = .7;
   SFX.drink();
   const [r, g, b] = DRINK_RGB[e.life && e.mana ? 'both' : e.mana ? 'mana' : 'life'];
   for (let k = 0; k < 26; k++) fxAdd.spawn(h.x + rr(-.4, .4), rr(.2, 1.2), h.z + rr(-.4, .4), rr(-.3, .3), rr(.8, 2), rr(-.3, .3), rr(.6, 1.2), r, g, b, rr(.05, .08), -.5, .5, 2);
+}
+
+/** Drinks the potion in a belt slot (no-op when empty). */
+export function drinkFromBelt(slot: number): void {
+  const h = G.hero;
+  if (h.dead || h.descend > 0) return;
+  const it = takeFromBelt(h.inv, slot);
+  if (it?.kind === 'potion') drinkPotion(it.potion);
+}
+
+/** Elixir: +1 to a base attribute, refused at the class maximum. Returns whether it was consumed. */
+export function drinkElixir(a: Attr): boolean {
+  const h = G.hero;
+  if (h.stats.base[a] >= CLASS[h.stats.cls].cap[a]) { toast('ALREADY AT MAXIMUM'); return false; }
+  h.stats.base[a]++;
+  recompute(h);
+  SFX.levelUp();
+  return true;
 }
 
 /** Gives the hero a Potion of Healing if they carry no life potion at all (used after death, until Phase 7). */

@@ -2,8 +2,7 @@ import type * as THREE from 'three';
 import type { MonsterRoll } from '../rules/monsters';
 import type { CharState, Derived } from '../rules/stats';
 import type { Progress } from '../rules/xp';
-import type { Inventory } from '../rules/inventory';
-import type { PotionId } from '../rules/potions';
+import type { Inventory, Item } from '../rules/inventory';
 
 export type HeroStats = CharState & Progress;
 
@@ -29,7 +28,7 @@ export interface PropBlock { x: number; z: number; r: number }
 
 export interface Chest {
   g: THREE.Group; lid: THREE.Group; glow: THREE.Sprite | null;
-  open: boolean; t: number; x: number; z: number; isKey: boolean; gold: number; potion: boolean;
+  open: boolean; t: number; x: number; z: number; isKey: boolean; gold: number; /** Rolled at creation: the chest also holds an item. */ hasItem: boolean;
 }
 export interface Door {
   pivot: THREE.Group; axis: Axis; sign: number; open: number; locked: boolean;
@@ -39,9 +38,12 @@ export interface SpikeTrap { kind: 'spike'; tx: number; tz: number; x: number; z
 export interface BladeTrap { kind: 'blade'; tx: number; tz: number; x: number; z: number; along: Axis; sw: THREE.Group; ph: number; w: number; ang: number; prev: number; hitT: Map<Actor, number> }
 export type Trap = SpikeTrap | BladeTrap;
 
-export type PickupKind = 'coin' | 'potion';
 interface PickupBody { o: THREE.Object3D; x: number; z: number; y: number; vx: number; vz: number; vy: number; t: number }
-export type Pickup = PickupBody & ({ kind: 'coin' } | { kind: 'potion'; potion: PotionId });
+/**
+ * Something lying on the floor. `discarded` items were dropped by the player: they are only picked up again with `E`,
+ * never by walking over them or by AUTO.
+ */
+export type Pickup = PickupBody & ({ kind: 'coin'; amount: number } | { kind: 'item'; item: Item; discarded: boolean });
 export interface Debris { o: THREE.Mesh; vx: number; vy: number; vz: number; sx: number; sz: number; t: number; life: number; rest: boolean }
 export interface Decal { o: THREE.Mesh; t: number }
 

@@ -4,10 +4,11 @@ import { drawOrb, LIFE_ORB, MANA_ORB, ORB_PX, type OrbColors } from './pixel/orb
 import { ICON } from './icons';
 import { POTION_ICON } from './pixel/potionIcons';
 import { POTIONS } from '../rules/potions';
-import { queueBelt } from '../core/input';
-import { openPanel } from './actions';
+import { beltClick, invVersion, openPanel } from './actions';
 import { CharacterPanel } from './CharacterPanel';
-import { fade, hud, panel, soundOn, toastOn, toastSub, toastText } from './store';
+import { fade, hud, isOpen, openPanels, soundOn, toastOn, toastSub, toastText } from './store';
+import { InventoryPanel } from './InventoryPanel';
+import { GroundLabels } from './GroundLabels';
 
 function Pix({ img, scale = 3, style }: { img: PixImage; scale?: number; style?: Record<string, string> }) {
   return <img src={img.src} width={img.w * scale} height={img.h * scale} style={style} alt="" />;
@@ -32,15 +33,16 @@ function Orbs() {
     <>
       <Orb id="lifeOrb" label="LIFE" cur={hud.life.value} max={hud.maxLife.value} colors={LIFE_ORB} />
       <Orb id="manaOrb" label="MANA" cur={hud.mana.value} max={hud.maxMana.value} colors={MANA_ORB} />
-      {hud.unspent.value > 0 && !panel.value && (
+      {hud.unspent.value > 0 && !openPanels.value.length && (
         <button id="lvlUp" class="px" onClick={() => openPanel('char')} title="Level up! Spend points (C)">+</button>
       )}
     </>
   );
 }
 
-/** D1 belt: 8 slots with hotkey digits. Right-click (or 1–8) drinks; hovering names the potion. */
+/** D1 belt: 8 slots with hotkey digits. Right-click (or 1–8) drinks; with the inventory open, left-click moves potions. */
 function Belt() {
+  void invVersion.value; // paused inventory edits refresh the belt immediately
   return (
     <div id="belt" class="px">
       {hud.belt.value.map((p, i) => (
@@ -48,7 +50,8 @@ function Belt() {
           key={i}
           class="slot"
           title={p ? `${POTIONS[p].name} - right-click or ${i + 1} to drink` : `Belt slot ${i + 1}`}
-          onContextMenu={e => { e.preventDefault(); if (p) queueBelt(i); }}
+          onMouseDown={e => { if (e.button === 0) beltClick(i, 'left'); }}
+          onContextMenu={e => { e.preventDefault(); beltClick(i, 'right'); }}
         >
           {p && <Pix img={POTION_ICON[p]} scale={2} />}
           <span class="key">{i + 1}</span>
@@ -84,7 +87,7 @@ function Mode() {
   return (
     <div id="mode" class="px">
       <div>{hud.manual.value ? 'YOU' : 'AUTO'}</div>
-      <div class="sub">WASD/ARROWS MOVE<br />SPACE ATTACK<br />1-8 POTIONS<br />C CHARACTER</div>
+      <div class="sub">WASD/ARROWS MOVE<br />SPACE ATTACK<br />1-8 POTIONS<br />C CHARACTER<br />I INVENTORY<br />E PICK UP · ALT ITEMS</div>
     </div>
   );
 }
@@ -123,6 +126,7 @@ function SoundPrompt() {
 export function Hud() {
   return (
     <>
+      <GroundLabels />
       <Stats />
       <Mode />
       <Toast />
@@ -130,8 +134,9 @@ export function Hud() {
       <Belt />
       <XpBar />
       <Orbs />
-      {panel.value === 'char' && <CharacterPanel />}
-      {panel.value && <div id="paused" class="px">PAUSED</div>}
+      {isOpen('char') && <CharacterPanel />}
+      {isOpen('inv') && <InventoryPanel />}
+      {openPanels.value.length > 0 && <div id="paused" class="px">PAUSED</div>}
       <Fade />
       <SoundPrompt />
     </>

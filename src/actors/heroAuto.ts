@@ -6,6 +6,10 @@ import { buildPath, clearLine, fieldAt, navOK } from '../world/nav';
 import type { Goal, Hero, Monster, Pickup, Trap } from '../game/types';
 import { findBelt, storeTarget } from '../rules/inventory';
 import { POTIONS } from '../rules/potions';
+import { pickupReach } from '../world/groundItems';
+
+/** Pickups AUTO tried and failed to reach; ignored for the rest of the level (they are dropped with the level). */
+const unreachable = new WeakSet<Pickup>();
 
 export interface AutoOut { mx: number; mz: number; atk: boolean; face: number | null }
 
@@ -20,8 +24,8 @@ export function autoDrinkSlot(h: Hero): number {
   return frac < .2 ? (full >= 0 ? full : part) : (part >= 0 ? part : full);
 }
 
-/** True when a ground pickup can be collected (coins always; potions need belt or backpack room). */
-export const canCollect = (h: Hero, p: Pickup): boolean => p.kind === 'coin' || storeTarget(h.inv, p) !== null;
+/** True when walking over a pickup collects it: coins always; items need room and must not be player-discarded. */
+export const canCollect = (h: Hero, p: Pickup): boolean => p.kind === 'coin' || (!p.discarded && storeTarget(h.inv, p.item) !== null);
 
 /** Sets the AUTO goal; a different goal (by kind, tile and, for monsters, identity) resets the path and goal timer. */
 function setGoal(goal: Goal): void {
@@ -37,7 +41,7 @@ function chooseGoal(): void {
   for (const m of L.monsters) { if (m.dead || m.rise > 0 || m.ignoreT > 0) continue; const fd = fieldAt(m.x, m.z); if (fd > (m.aware ? 11 : 8)) continue; const s = fd - (m.aware ? 3 : 0); if (s < bd) { bd = s; best = m; } }
   if (best) return setGoal({ kind: 'mon', ref: best, tx: Math.round(best.x / T), tz: Math.round(best.z / T) });
   let pk: Pickup | null = null; bd = 7;
-  for (const p of L.pickups) { if (p.t < .6 || !canCollect(h, p)) continue; const fd = fieldAt(p.x, p.z); if (fd < bd) { bd = fd; pk = p; } }
+  for (const p of L.pickups) { if (p.t < .6 || !canCollect(h, p) || unreachable.has(p)) continue; const fd = fieldAt(p.x, p.z); if (fd < bd) { bd = fd; pk = p; } }
   if (pk) return setGoal({ kind: 'pick', ref: pk, tx: Math.round(pk.x / T), tz: Math.round(pk.z / T) });
   const doorGoal: Goal = { kind: 'door', ref: L.lockedDoor, tx: L.lockedDoor.tx, tz: L.lockedDoor.tz };
   if (L.locked && h.key && L.rooms.filter(r => r.visited).length >= L.rooms.length * .6) return setGoal(doorGoal);
@@ -77,7 +81,13 @@ export function heroAuto(dt: number): AutoOut {
     g.tx = Math.round(gx / T); g.tz = Math.round(gz / T);
     if (h.goalT < dt * 1.5) h.killsAtGoal = G.L.killsHere;
     if (h.goalT > 12) { m.ignoreT = 6; h.aiT = 0; }
-  } else if (g.kind === 'pick') { gx = g.ref.x; gz = g.ref.z; arrive = .1; if (!G.L.pickups.includes(g.ref)) { h.aiT = 0; return out; } direct = Math.hypot(gx - h.x, gz - h.z) < 5 && clearLine(h.x, h.z, gx, gz, h.r); }
+  } else if (g.kind === 'pick') {
+    gx = g.ref.x; gz = g.ref.z; arrive = pickupReach(g.ref) > 1 ? 1.1 : .1;
+    if (!G.L.pickups.includes(g.ref)) { h.aiT = 0; return out; }
+    // Unreachable pickups would otherwise beat exploration forever.
+    if (h.goalT > 8) { unreachable.add(g.ref); h.aiT = 0; return out; }
+    direct = Math.hypot(gx - h.x, gz - h.z) < 5 && clearLine(h.x, h.z, gx, gz, h.r);
+  }
   else if (g.kind === 'chest') { if (g.ref.open) { h.aiT = 0; return out; } arrive = 1.35; if (Math.hypot(g.ref.x - h.x, g.ref.z - h.z) < 1.3) return out; if (h.goalT > 25) openChest(g.ref); }
   else if (g.kind === 'room') { if (g.ref.visited) { h.aiT = 0; return out; } if (h.goalT > 30) g.ref.visited = true; }
   else if (g.kind === 'door') { if (Math.hypot(gx - h.x, gz - h.z) < 2.1) return out; if (h.goalT > 30) unlockDoor(); }

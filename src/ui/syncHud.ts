@@ -2,7 +2,7 @@ import { manualActive } from '../core/input';
 import { G } from '../game/state';
 import { CLASS } from '../rules/classes';
 import { MAX_LEVEL, xpForLevel } from '../rules/xp';
-import { hud, panel, sheet } from './store';
+import { hud, isOpen, sheet } from './store';
 
 /** Copies game state into HUD signals; signals skip unchanged values. */
 export function syncHud(): void {
@@ -18,14 +18,14 @@ export function syncHud(): void {
   hud.gold.value = h.gold;
   hud.slain.value = h.slain;
   hud.depth.value = L.depth;
-  const belt = h.inv.belt.map(it => it?.potion ?? null);
+  const belt = h.inv.belt.map(it => (it?.kind === 'potion' ? it.potion : null));
   if (belt.join() !== hud.belt.value.join()) hud.belt.value = belt;
   hud.key.value = h.key;
   hud.manual.value = manualActive();
   const boss = L.monsters.find(m => m.type === 'boss' && !m.dead && m.aware);
   hud.bossVisible.value = !!boss;
   if (boss) hud.bossFrac.value = Math.max(0, boss.hp) / boss.maxHp;
-  if (panel.value === 'char') syncSheet();
+  if (isOpen('char')) syncSheet();
 }
 
 /** Character-screen snapshot (D1 layout: base vs current attributes, then combat stats). */

@@ -46,9 +46,10 @@ export interface CharSheet {
 }
 export const sheet = signal<CharSheet | null>(null);
 
-export type Panel = 'char';
-/** The open panel, if any. Any open panel pauses the game. */
-export const panel = signal<Panel | null>(null);
+export type Panel = 'char' | 'inv';
+/** Open panels (character on the left, inventory on the right). Any open panel pauses the game. */
+export const openPanels = signal<readonly Panel[]>([]);
+export const isOpen = (p: Panel): boolean => openPanels.value.includes(p);
 
 export const toastText = signal('');
 export const toastSub = signal('');

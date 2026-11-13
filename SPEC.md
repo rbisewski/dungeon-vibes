@@ -1,6 +1,6 @@
 # Dungeon Vibes — Diablo-Style Progression Spec
 
-Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phases 0–2.
+Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phases 0–3.
 
 This spec layers a Diablo 1 (D1) style character, spell, and loot system onto the existing game. The game is first ported from the single `index.html` to a TypeScript project (§2.1). It keeps the game's look, controls, and AUTO mode.
 
@@ -699,7 +699,17 @@ Notes:
 
 **Gold [OURS]**
 - Gold stays a counter, not backpack cells.
-- A gold drop gives `ri(1,3)·(mlvl+1) + ri(0, mlvl)` gold. The existing coin pickups (L1278) are used.
+- A gold drop gives `ri(1,3)·(mlvl+1) + ri(0, mlvl)` gold, split over up to 6 coins on the floor.
+
+**As implemented in Phase 3** [OURS]
+- Item categories until scrolls and books exist (Phase 5): equipment 45, potion 30 (50 below depth 3), elixir 2 (depth 8+).
+- Chests: their gold, plus one item at `ilvl = 2·depth` with 50 % chance.
+- The Bone Warden always drops one equipment item, one potion and 10× a normal gold pile, until the §9 boss drops land.
+- Bows wait for bow attacks (Phase 6); rings and amulets wait for magic items (Phase 4), since they are always magic.
+- Potion type within the potion category: weighted among potions with `qlvl ≤ ilvl`. Weights: Healing 50, Mana 22, Rejuvenation 10, Full Healing 8, Full Mana 5, Full Rejuvenation 5.
+- Ground equipment and elixirs lie on the floor as their pixel icon (billboarded sprite); potions keep their 3D flask.
+- Pickups may fly out of a prop (chest loot starts inside the chest) but not into one. One that still ends up inside a prop can be collected from 1.4 m instead of 0.55 m. AUTO gives up on a pickup it has not reached after 8 s.
+- The starting kit is equipped: Short Sword and Buckler, a Club in the backpack, two Potions of Healing on the belt (D1 Warrior kit).
 
 ### 6.4 Identification [USER]
 
@@ -780,15 +790,13 @@ const UNIQUES    = [{ id: 'gravewhisper', base: 'dagger', qlvl: 1, props: [{ sta
 
 - Drinking slows movement for 0.7 s, using the existing `drink` animation and particles.
 
-**Elixirs** (ship with Phase 3, because they are used from the backpack UI)
+**Elixirs** (shipped in Phase 3)
 - Use with right-click or `X` in the backpack.
-- +1 permanently to an attribute.
+- +1 permanently to a base attribute; refused at the class maximum.
 
 **Using the belt [OURS]:** keys `1`–`8` or right-click a slot. Drinking from the belt never takes control away from AUTO. Left-click is reserved for moving items once the inventory exists (Phase 3).
 
-**Potion drops (until the §6.3 pipeline lands in Phase 3)** [OURS]
-- Rates are unchanged from the legacy game: 4 % per monster kill, 38 % of chests, guaranteed from the Bone Warden.
-- The type is a weighted pick among potions with `qlvl ≤ ilvl` (monster: mlvl; chest: 2·depth). Weights: Healing 50, Mana 22, Rejuvenation 10, Full Healing 8, Full Mana 5, Full Rejuvenation 5.
+**Potion drops** follow the §6.3 pipeline since Phase 3.
 - With a full belt and backpack, potions stay on the floor and AUTO ignores them.
 
 **Removed code:** `hero.potions`, `#pots`, and the auto-drink at L1422. After a death, the hero is given one Potion of Healing if they carry no life potion (until the Phase 7 death rules).
