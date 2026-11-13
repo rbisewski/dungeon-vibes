@@ -1,9 +1,11 @@
 import { SFX } from '../audio/sfx';
-import { rr } from '../core/math';
+import { R, rr } from '../core/math';
 import { G } from '../game/state';
 import type { Hero, Monster } from '../game/types';
 import { fxAdd } from '../render/particles';
-import { CLASS, type Attr } from '../rules/classes';
+import type { Attr } from '../rules/classes';
+import { addItem, countPotions, newInventory, newPotion, takeFromBelt, type Inventory } from '../rules/inventory';
+import { POTIONS, potionEffect } from '../rules/potions';
 import { derive, NO_BONUS, spendPoint, type Bonus, type Weapon } from '../rules/stats';
 import { gainXp, killXp } from '../rules/xp';
 import { toast } from '../ui/store';
@@ -59,7 +61,31 @@ export function spendHeroPoint(a: Attr): boolean {
   return true;
 }
 
-/** D1 Potion of Healing: restores bonus·[1/8, 3/8] of max life (Warrior bonus 2 → 25–75 %). */
-export function potionHeal(h: Hero): number {
-  return CLASS[h.stats.cls].potion.heal * rr(1 / 8, 3 / 8) * h.d.maxLife;
+/** D1 Warrior kit: two Potions of Healing on the belt. */
+export function startingInventory(): Inventory {
+  const inv = newInventory();
+  addItem(inv, newPotion('heal')); addItem(inv, newPotion('heal'));
+  return inv;
+}
+
+const DRINK_RGB: Record<'life' | 'mana' | 'both', [number, number, number]> = { life: [1.4, .25, .4], mana: [.35, .6, 1.8], both: [1.1, .4, 1.6] };
+
+/** Drinks the potion in a belt slot (no-op when empty). Movement slows for the 0.7 s drink animation. */
+export function drinkFromBelt(slot: number): void {
+  const h = G.hero;
+  if (h.dead || h.descend > 0) return;
+  const it = takeFromBelt(h.inv, slot);
+  if (!it) return;
+  const e = potionEffect(it.potion, h.stats.cls, h.d.maxLife, h.d.maxMana, R);
+  h.life = Math.min(h.d.maxLife, h.life + e.life);
+  h.mana = Math.min(h.d.maxMana, h.mana + e.mana);
+  h.drink = .7;
+  SFX.drink();
+  const [r, g, b] = DRINK_RGB[e.life && e.mana ? 'both' : e.mana ? 'mana' : 'life'];
+  for (let k = 0; k < 26; k++) fxAdd.spawn(h.x + rr(-.4, .4), rr(.2, 1.2), h.z + rr(-.4, .4), rr(-.3, .3), rr(.8, 2), rr(-.3, .3), rr(.6, 1.2), r, g, b, rr(.05, .08), -.5, .5, 2);
+}
+
+/** Gives the hero a Potion of Healing if they carry no life potion at all (used after death, until Phase 7). */
+export function ensureHealingPotion(h: Hero): void {
+  if (countPotions(h.inv, p => POTIONS[p].life !== 'none') === 0) addItem(h.inv, newPotion('heal'));
 }

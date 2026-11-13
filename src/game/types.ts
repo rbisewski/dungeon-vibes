@@ -2,6 +2,8 @@ import type * as THREE from 'three';
 import type { MonsterRoll } from '../rules/monsters';
 import type { CharState, Derived } from '../rules/stats';
 import type { Progress } from '../rules/xp';
+import type { Inventory } from '../rules/inventory';
+import type { PotionId } from '../rules/potions';
 
 export type HeroStats = CharState & Progress;
 
@@ -38,7 +40,8 @@ export interface BladeTrap { kind: 'blade'; tx: number; tz: number; x: number; z
 export type Trap = SpikeTrap | BladeTrap;
 
 export type PickupKind = 'coin' | 'potion';
-export interface Pickup { kind: PickupKind; o: THREE.Object3D; x: number; z: number; y: number; vx: number; vz: number; vy: number; t: number }
+interface PickupBody { o: THREE.Object3D; x: number; z: number; y: number; vx: number; vz: number; vy: number; t: number }
+export type Pickup = PickupBody & ({ kind: 'coin' } | { kind: 'potion'; potion: PotionId });
 export interface Debris { o: THREE.Mesh; vx: number; vy: number; vz: number; sx: number; sz: number; t: number; life: number; rest: boolean }
 export interface Decal { o: THREE.Mesh; t: number }
 
@@ -128,8 +131,8 @@ export interface Hero extends HeroParts {
   /** Derived stats; refreshed only by `recompute`. */
   d: Derived;
   life: number; mana: number;
-  gold: number; potions: number; key: boolean; slain: number;
-  cd: number; atkT: number; hitDone: boolean; inv: number; flinch: number; flash: number; drink: number; phase: number;
+  gold: number; inv: Inventory; key: boolean; slain: number;
+  cd: number; atkT: number; hitDone: boolean; /** Post-hit invulnerability timer. */ invuln: number; flinch: number; flash: number; drink: number; phase: number;
   path: { x: number; z: number }[] | null; pi: number;
   goal: Goal | null; goalKey: string; goalT: number; repath: number; aiT: number;
   dead: boolean; deadT: number; descend: number;

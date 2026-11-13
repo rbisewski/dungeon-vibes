@@ -45,5 +45,7 @@ export const SFX = {
   block() { Snd.noise({ type: 'lowpass', f: 420, dur: .1, gain: .5 }); Snd.tone({ wave: 'triangle', f: 1550, f2: 1450, dur: .25, gain: .06, rev: .4 }); Snd.tone({ wave: 'triangle', f: 2330, dur: .18, gain: .03, delay: .01, rev: .4 }); },
   /** Critical hit layered over the normal hit sound. */
   crit() { Snd.noise({ type: 'bandpass', f: 1200, f2: 300, q: 1.2, dur: .22, gain: .45 }); Snd.tone({ wave: 'square', f: 90, f2: 40, dur: .25, gain: .12 }); },
+  /** Glass clink when a potion goes into the belt or backpack. */
+  potion() { Snd.tone({ wave: 'triangle', f: 2400, dur: .06, gain: .05, rev: .4 }); Snd.tone({ wave: 'triangle', f: 3150, dur: .1, gain: .035, delay: .05, rev: .4 }); },
   levelUp() { [523, 659, 784, 1047, 1319].forEach((f, i) => Snd.tone({ wave: 'triangle', f, dur: .5, gain: .07, delay: i * .09, rev: .7 })); Snd.noise({ type: 'highpass', f: 5000, dur: .9, gain: .05, a: .2, rev: .8 }); },
 };

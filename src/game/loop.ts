@@ -15,6 +15,7 @@ import { clamp, R, rr } from '../core/math';
 import { fade, tickToast } from '../ui/store';
 import { syncHud } from '../ui/syncHud';
 import { G } from './state';
+import { ensureHealingPotion } from '../actors/heroStats';
 
 /** Simulation step: the world always advances in 1/60 s increments. */
 export const STEP = 1 / 60;
@@ -36,7 +37,7 @@ function updateTransition(dt: number): void {
     const hero = G.hero;
     // Descending restores a fifth of max life (the legacy +2 of 10 hearts); dying restores everything.
     if (tr.kind === 'descend') { G.depth++; hero.life = Math.min(hero.d.maxLife, hero.life + hero.d.maxLife * .2); }
-    else { hero.life = hero.d.maxLife; hero.mana = hero.d.maxMana; hero.potions = Math.max(hero.potions, 1); }
+    else { hero.life = hero.d.maxLife; hero.mana = hero.d.maxMana; ensureHealingPotion(hero); }
     buildLevel(G.depth);
   } else {
     fade.value = Math.max(0, fade.value - dt * 1.4);

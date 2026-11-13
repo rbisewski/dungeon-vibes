@@ -3,21 +3,22 @@ import { SFX, vol } from '../audio/sfx';
 import { PI, R, TAU, pick, ri, rr } from '../core/math';
 import { G, addShake } from '../game/state';
 import { gBox, gCircle, gCyl, gSph, mesh } from '../render/geometry';
-import { MAT } from '../render/materials';
+import { MAT, POTION_MAT } from '../render/materials';
 import { fxAdd, fxNorm, impact } from '../render/particles';
 import { CLASS } from '../rules/classes';
 import { blockChance, monsterHitChance, roll, staggers } from '../rules/combat';
+import { POTIONS, rollPotion, type PotionId } from '../rules/potions';
 import { toast } from '../ui/store';
 import { computeField } from '../world/nav';
-import type { Chest, PickupKind, Monster } from '../game/types';
+import type { Chest, Monster } from '../game/types';
 import { awardKill, heroHasShield } from './heroStats';
 
 /** Trap damage scales with depth (spikes and blades hit heroes and monsters alike). */
 export const trapDamage = (): number => ri(5, 10) + 2 * G.L.depth;
 
 export function damageHero(dmg: number, nx: number, nz: number): void {
-  const h = G.hero; if (h.dead || h.inv > 0 || h.descend > 0) return;
-  h.life -= dmg; h.inv = .5; h.flash = .2; h.kx += nx * 5; h.kz += nz * 5; addShake(.35);
+  const h = G.hero; if (h.dead || h.invuln > 0 || h.descend > 0) return;
+  h.life -= dmg; h.invuln = .5; h.flash = .2; h.kx += nx * 5; h.kz += nz * 5; addShake(.35);
   // Chip damage below 5 % of max life does not interrupt the hero.
   if (dmg >= .05 * h.d.maxLife) h.flinch = CLASS[h.stats.cls].recover;
   SFX.hurt();
@@ -27,7 +28,7 @@ export function damageHero(dmg: number, nx: number, nz: number): void {
 
 /** A monster's blow lands on the hero's position: roll to-hit against AC, then the shield block, then damage. */
 export function monsterStrike(m: Monster, nx: number, nz: number): void {
-  const h = G.hero; if (h.dead || h.inv > 0 || h.descend > 0) return;
+  const h = G.hero; if (h.dead || h.invuln > 0 || h.descend > 0) return;
   const s = h.stats, r = m.roll;
   if (!roll(R, monsterHitChance(r.toHit, r.mlvl, s.clvl, h.d.ac))) { SFX.whiff(); return; }
   // D1: a shield blocks only while standing still or swinging.
@@ -89,23 +90,34 @@ function killMonster(m: Monster, nx: number, nz: number, byHero: boolean): void 
     m.remove = true;
   }
   const coins = m.type === 'boss' ? 12 : R() < .45 ? ri(1, 3) : 0;
-  for (let k = 0; k < coins; k++) spawnPickup('coin', m.x, m.z);
-  if (R() < (m.type === 'boss' ? 1 : .04)) spawnPickup('potion', m.x, m.z);
+  for (let k = 0; k < coins; k++) spawnCoin(m.x, m.z);
+  if (R() < (m.type === 'boss' ? 1 : .04)) spawnPotion(rollPotion(R, m.roll.mlvl), m.x, m.z);
   if (m.type === 'boss') toast('THE WARDEN FALLS');
 }
-export function spawnPickup(kind: PickupKind, x: number, z: number): void {
-  let o: THREE.Object3D;
-  if (kind === 'coin') { o = mesh(gCyl(.11, .11, .035, 10), MAT.gold, x, .5, z, G.L.group, false); o.rotation.x = PI / 2; }
-  else { o = new THREE.Group(); mesh(gSph(.12, 8, 6), MAT.potion, 0, 0, 0, o, false); mesh(gCyl(.04, .04, .1, 6), MAT.iron, 0, .14, 0, o, false); o.position.set(x, .5, z); G.L.group.add(o); }
+/** Tosses a pickup out of (x, z) in a random direction. */
+function toss(p: { kind: 'coin' } | { kind: 'potion'; potion: PotionId }, o: THREE.Object3D, x: number, z: number): void {
   const a = R() * TAU, s = rr(.8, 2.4);
-  G.L.pickups.push({ kind, o, x, z, y: .5, vx: Math.cos(a) * s, vz: Math.sin(a) * s, vy: rr(2.5, 4.5), t: 0 });
+  G.L.pickups.push({ ...p, o, x, z, y: .5, vx: Math.cos(a) * s, vz: Math.sin(a) * s, vy: rr(2.5, 4.5), t: 0 });
+}
+export function spawnCoin(x: number, z: number): void {
+  const o = mesh(gCyl(.11, .11, .035, 10), MAT.gold, x, .5, z, G.L.group, false); o.rotation.x = PI / 2;
+  toss({ kind: 'coin' }, o, x, z);
+}
+export function spawnPotion(potion: PotionId, x: number, z: number): void {
+  const o = new THREE.Group(), full = POTIONS[potion].life === 'full' || POTIONS[potion].mana === 'full';
+  mesh(gSph(.12, 8, 6), POTION_MAT[potion], 0, 0, 0, o, false);
+  mesh(gCyl(.04, .04, .1, 6), full ? MAT.gold : MAT.iron, 0, .14, 0, o, false);
+  if (full) o.scale.setScalar(1.35);
+  o.position.set(x, .5, z); G.L.group.add(o);
+  toss({ kind: 'potion', potion }, o, x, z);
 }
 export function openChest(c: Chest): void {
   if (c.open) return; c.open = true; SFX.chest();
   for (let k = 0; k < 24; k++) fxAdd.spawn(c.x, .6, c.z, rr(-1, 1), rr(1.5, 3.5), rr(-1, 1), rr(.6, 1.2), 1.6, 1.1, .35, rr(.04, .08), 4, .5, 1);
-  for (let k = 0; k < Math.ceil(c.gold / 3); k++) spawnPickup('coin', c.x, c.z);
+  for (let k = 0; k < Math.ceil(c.gold / 3); k++) spawnCoin(c.x, c.z);
   G.hero.gold += c.gold % 3;
-  if (c.potion) spawnPickup('potion', c.x, c.z);
+  // D1: chests create items at ilvl 2·dlvl.
+  if (c.potion) spawnPotion(rollPotion(R, 2 * G.L.depth), c.x, c.z);
   if (c.isKey) { G.hero.key = true; SFX.key(); toast('FOUND THE KEY', 'THE STAIR DOOR AWAITS'); if (c.glow) c.glow.visible = false; for (let k = 0; k < 30; k++) fxAdd.spawn(c.x, .8, c.z, rr(-1.2, 1.2), rr(2, 4), rr(-1.2, 1.2), rr(.8, 1.4), 1.8, 1.3, .4, rr(.05, .09), 2, .6, 2); }
 }
 export function unlockDoor(): void {

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GU, cutU } from './renderer';
 import { TEX } from './textures';
+import type { PotionId } from '../rules/potions';
 import flameFrag from './shaders/flame.frag.glsl?raw';
 
 function applyCut(mat: THREE.Material, factor: number): void {
@@ -33,9 +34,12 @@ export const MAT = {
   coal: new THREE.MeshStandardMaterial({ color: 0x1a0600, emissive: 0xff4a10, emissiveIntensity: 1.4, roughness: 1 }),
   dark: new THREE.MeshStandardMaterial({ color: 0x040404, roughness: 1 }),
   puddle: new THREE.MeshStandardMaterial({ color: 0x1c232c, roughness: .07, metalness: .5, transparent: true, opacity: .62, depthWrite: false }),
-  potion: new THREE.MeshStandardMaterial({ color: 0xa01828, emissive: 0x400008, roughness: .25 }),
   goo: new THREE.MeshStandardMaterial({ color: 0x2c5a1c, roughness: .2, transparent: true, opacity: .8, depthWrite: false })
 };
+/** Ground-potion glass per type: red healing, blue mana, purple rejuvenation. */
+const potionGlass = (color: number, emissive: number) => new THREE.MeshStandardMaterial({ color, emissive, roughness: .25 });
+const RED = potionGlass(0xa01828, 0x400008), BLUE = potionGlass(0x2040c0, 0x081040), PURPLE = potionGlass(0x8a30b0, 0x2a0840);
+export const POTION_MAT: Record<PotionId, THREE.Material> = { heal: RED, fullHeal: RED, mana: BLUE, fullMana: BLUE, rejuv: PURPLE, fullRejuv: PURPLE };
 applyCut(MAT.wallSide, .16); applyCut(MAT.wallTop, .16); applyCut(MAT.pillar, .2);
 MAT.banner.onBeforeCompile = sh => {
   sh.uniforms.uTime = GU.uTime;

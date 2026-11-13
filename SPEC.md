@@ -1,6 +1,6 @@
 # Dungeon Vibes — Diablo-Style Progression Spec
 
-Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phase 0 and Phase 1.
+Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phases 0–2.
 
 This spec layers a Diablo 1 (D1) style character, spell, and loot system onto the existing game. The game is first ported from the single `index.html` to a TypeScript project (§2.1). It keeps the game's look, controls, and AUTO mode.
 
@@ -780,11 +780,20 @@ const UNIQUES    = [{ id: 'gravewhisper', base: 'dagger', qlvl: 1, props: [{ sta
 
 - Drinking slows movement for 0.7 s, using the existing `drink` animation and particles.
 
-**Elixirs**
+**Elixirs** (ship with Phase 3, because they are used from the backpack UI)
 - Use with right-click or `X` in the backpack.
 - +1 permanently to an attribute.
 
-**Removed code:** `hero.potions`, `#pots`, and the auto-drink at L1422.
+**Using the belt [OURS]:** keys `1`–`8` or right-click a slot. Drinking from the belt never takes control away from AUTO. Left-click is reserved for moving items once the inventory exists (Phase 3).
+
+**Potion drops (until the §6.3 pipeline lands in Phase 3)** [OURS]
+- Rates are unchanged from the legacy game: 4 % per monster kill, 38 % of chests, guaranteed from the Bone Warden.
+- The type is a weighted pick among potions with `qlvl ≤ ilvl` (monster: mlvl; chest: 2·depth). Weights: Healing 50, Mana 22, Rejuvenation 10, Full Healing 8, Full Mana 5, Full Rejuvenation 5.
+- With a full belt and backpack, potions stay on the floor and AUTO ignores them.
+
+**Removed code:** `hero.potions`, `#pots`, and the auto-drink at L1422. After a death, the hero is given one Potion of Healing if they carry no life potion (until the Phase 7 death rules).
+
+**Starting kit:** two Potions of Healing on the belt (D1 Warrior kit).
 
 **Potion icons:**
 - Healing: red flask.

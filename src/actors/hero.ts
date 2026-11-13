@@ -1,16 +1,14 @@
 import { damageMonster, missMonster, openChest, unlockDoor } from './combat';
-import { potionHeal, recompute } from './heroStats';
+import { drinkFromBelt, recompute, startingInventory } from './heroStats';
 import { meleeHitChance, rollDamage, roll } from '../rules/combat';
 import { CLASS } from '../rules/classes';
 import { derive } from '../rules/stats';
-import { heroAuto } from './heroAuto';
+import { autoDrinkSlot, heroAuto } from './heroAuto';
 import { SFX } from '../audio/sfx';
-import { manualActive, readInput } from '../core/input';
-import { PI, R, clamp, damp, lerp, rr, wrapA } from '../core/math';
+import { manualActive, readInput, takeBeltPresses } from '../core/input';
+import { PI, R, clamp, damp, lerp, wrapA } from '../core/math';
 import { G, addShake } from '../game/state';
 import { trailMat } from '../render/materials';
-import { fxAdd } from '../render/particles';
-import { toast } from '../ui/store';
 import { T } from '../world/consts';
 import type { Hero, Monster } from '../game/types';
 import { buildHero } from './models/hero-warrior';
@@ -23,8 +21,8 @@ export function createHero(): Hero {
     ...buildHero(),
     x: 0, z: 0, vx: 0, vz: 0, kx: 0, kz: 0, face: PI * 1.25, r: .36, mass: 2.5, rise: 0,
     stats, d, life: d.maxLife, mana: d.maxMana,
-    gold: 0, potions: 1, key: false, slain: 0,
-    cd: 0, atkT: -1, hitDone: false, inv: 0, flinch: 0, flash: 0, drink: 0, phase: 0,
+    gold: 0, inv: startingInventory(), key: false, slain: 0,
+    cd: 0, atkT: -1, hitDone: false, invuln: 0, flinch: 0, flash: 0, drink: 0, phase: 0,
     path: null, pi: 0, goal: null, goalKey: '', goalT: 0, repath: 0, aiT: 0,
     dead: false, deadT: 0, descend: 0,
     stuckT: 0, stuck: 0, sx: 0, sz: 0, unstickT: 0, ux: 0, uz: 0, killsAtGoal: 0, waitTrap: false,
@@ -52,7 +50,7 @@ function heroHitCheck(): void {
 }
 export function updateHero(dt: number): void {
   const h = G.hero;
-  h.cd -= dt; h.inv -= dt; h.flinch -= dt; h.flash -= dt;
+  h.cd -= dt; h.invuln -= dt; h.flinch -= dt; h.flash -= dt;
   const fl = Math.max(0, h.flash) / .2;
   for (const m of h.flashMats) m.emissive.setRGB(fl * 1.2, fl * .15, fl * .1);
   if (h.dead) {
@@ -73,12 +71,8 @@ export function updateHero(dt: number): void {
     mx = inp.mx; mz = inp.mz; atk = inp.atk; h.goal = null; h.path = null;
     if (atk && !mx && !mz) { let bm: Monster | null = null, bd = 2.8; for (const m of G.L.monsters) { if (m.dead || m.rise > 0) continue; const d = Math.hypot(m.x - h.x, m.z - h.z); if (d < bd) { bd = d; bm = m; } } if (bm) faceT = Math.atan2(bm.x - h.x, bm.z - h.z); }
   } else { const o = heroAuto(dt); mx = o.mx; mz = o.mz; atk = o.atk; faceT = o.face; }
-  // potion
-  if (h.potions > 0 && h.drink <= 0 && h.atkT < 0 && h.life <= h.d.maxLife * (manual ? .3 : .4)) {
-    const heal = Math.round(Math.min(h.d.maxLife - h.life, potionHeal(h)));
-    h.potions--; h.drink = .7; h.life += heal; SFX.drink(); toast('POTION', `+${heal} LIFE`);
-    for (let k = 0; k < 26; k++) fxAdd.spawn(h.x + rr(-.4, .4), rr(.2, 1.2), h.z + rr(-.4, .4), rr(-.3, .3), rr(.8, 2), rr(-.3, .3), rr(.6, 1.2), 1.4, .25, .4, rr(.05, .08), -.5, .5, 2);
-  }
+  for (const slot of takeBeltPresses()) drinkFromBelt(slot);
+  if (!manual && h.drink <= 0 && h.atkT < 0) { const slot = autoDrinkSlot(h); if (slot >= 0) drinkFromBelt(slot); }
   h.drink -= dt;
   if (atk && h.cd <= 0 && h.atkT < 0 && h.flinch <= 0) { if (faceT !== null) h.face = faceT; startAttack(); }
   const attacking = h.atkT >= 0;

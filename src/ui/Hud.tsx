@@ -2,6 +2,9 @@ import { useEffect, useRef } from 'preact/hooks';
 import type { PixImage } from './pixel/pixArt';
 import { drawOrb, LIFE_ORB, MANA_ORB, ORB_PX, type OrbColors } from './pixel/orb';
 import { ICON } from './icons';
+import { POTION_ICON } from './pixel/potionIcons';
+import { POTIONS } from '../rules/potions';
+import { queueBelt } from '../core/input';
 import { openPanel } from './actions';
 import { CharacterPanel } from './CharacterPanel';
 import { fade, hud, panel, soundOn, toastOn, toastSub, toastText } from './store';
@@ -36,6 +39,25 @@ function Orbs() {
   );
 }
 
+/** D1 belt: 8 slots with hotkey digits. Right-click (or 1–8) drinks; hovering names the potion. */
+function Belt() {
+  return (
+    <div id="belt" class="px">
+      {hud.belt.value.map((p, i) => (
+        <div
+          key={i}
+          class="slot"
+          title={p ? `${POTIONS[p].name} - right-click or ${i + 1} to drink` : `Belt slot ${i + 1}`}
+          onContextMenu={e => { e.preventDefault(); if (p) queueBelt(i); }}
+        >
+          {p && <Pix img={POTION_ICON[p]} scale={2} />}
+          <span class="key">{i + 1}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function XpBar() {
   return (
     <div id="xp" class="px" title="Experience">
@@ -50,9 +72,8 @@ function Stats() {
     <div id="hud" class="px">
       <div class="row"><Pix img={ICON.gold} /><span>{hud.gold}</span></div>
       <div class="row"><Pix img={ICON.slain} /><span>{hud.slain}</span></div>
-      <div class="row"><Pix img={ICON.depth} /><span>DEPTH {hud.depth}</span></div>
       <div class="row">
-        <Pix img={ICON.potion} /><span>{hud.potions}</span>
+        <Pix img={ICON.depth} /><span>DEPTH {hud.depth}</span>
         {hud.key.value && <Pix img={ICON.key} style={{ marginLeft: '10px' }} />}
       </div>
     </div>
@@ -63,7 +84,7 @@ function Mode() {
   return (
     <div id="mode" class="px">
       <div>{hud.manual.value ? 'YOU' : 'AUTO'}</div>
-      <div class="sub">WASD/ARROWS MOVE<br />SPACE ATTACK<br />C CHARACTER</div>
+      <div class="sub">WASD/ARROWS MOVE<br />SPACE ATTACK<br />1-8 POTIONS<br />C CHARACTER</div>
     </div>
   );
 }
@@ -106,6 +127,7 @@ export function Hud() {
       <Mode />
       <Toast />
       <BossBar />
+      <Belt />
       <XpBar />
       <Orbs />
       {panel.value === 'char' && <CharacterPanel />}

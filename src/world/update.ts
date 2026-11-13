@@ -1,3 +1,6 @@
+import { toast } from '../ui/store';
+import { canCollect } from '../actors/heroAuto';
+import { addItem, newPotion } from '../rules/inventory';
 import { damageHero, damageMonster, trapDamage } from '../actors/combat';
 import { SFX, vol } from '../audio/sfx';
 import { PI, R, damp, lerp, rr } from '../core/math';
@@ -5,6 +8,8 @@ import { G, isHero } from '../game/state';
 import { runeMat } from '../render/materials';
 import { fxAdd, impacts } from '../render/particles';
 import { circleBlocked } from './nav';
+
+let fullToastAt = 0;
 
 /** Traps, doors, chests, pickups, debris, decals, runes, moonlight and impact flashes. */
 export function updateWorld(dt: number): void {
@@ -50,11 +55,14 @@ export function updateWorld(dt: number): void {
     const ox = p.x, oz = p.z; p.x += p.vx * dt; p.z += p.vz * dt;
     if (circleBlocked(p.x, p.z, .12, true)) { p.x = ox; p.z = oz; p.vx *= -.4; p.vz *= -.4; }
     const dx = h.x - p.x, dz = h.z - p.z, d = Math.hypot(dx, dz);
-    if (p.t > .45 && d < 1.8 && !h.dead) { p.x += dx / d * dt * 7; p.z += dz / d * dt * 7; }
+    // Only pickups the hero has room for are pulled in; full belt + backpack leaves potions on the floor.
+    const room = canCollect(h, p);
+    if (p.t > .45 && d < 1.8 && !h.dead && room) { p.x += dx / d * dt * 7; p.z += dz / d * dt * 7; }
     p.o.position.set(p.x, p.y + Math.sin(G.now * 4 + i) * .05, p.z); p.o.rotation.y += dt * 4;
     if (p.t > .45 && d < .55 && !h.dead) {
+      if (!room) { if (G.now > fullToastAt) { fullToastAt = G.now + 4; toast('BELT AND PACK FULL'); } continue; }
       if (p.kind === 'coin') { h.gold += 3; SFX.coin(); for (let k = 0; k < 6; k++) fxAdd.spawn(p.x, p.y + .2, p.z, rr(-.6, .6), rr(1, 2), rr(-.6, .6), rr(.3, .5), 1.6, 1.2, .4, .045, 3, 1, 1); }
-      else { h.potions++; SFX.drink(); }
+      else { addItem(h.inv, newPotion(p.potion)); SFX.potion(); }
       G.L.group.remove(p.o); G.L.pickups.splice(i, 1);
     }
   }

@@ -2,6 +2,8 @@ import { G } from '../game/state';
 
 const keys = new Set<string>();
 let lastInput = -1e9, atkQueued = false, padAtkPrev = false;
+/** Belt slots requested by hotkeys 1–8 or clicks, consumed by the next simulation step. */
+const beltQueue: number[] = [];
 const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 
 addEventListener('keydown', e => {
@@ -12,13 +14,20 @@ addEventListener('keydown', e => {
     keys.add(e.code);
     lastInput = G.now;
     if (e.code === 'Space') atkQueued = true;
+  } else if (/^Digit[1-8]$/.test(e.code) && !e.repeat) {
+    e.preventDefault();
+    queueBelt(+e.code.slice(5) - 1);
   }
 });
 addEventListener('keyup', e => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
 
-/** Drops held keys and any queued attack (used when a panel opens so the hero doesn't keep walking). */
-export function resetInput(): void { keys.clear(); atkQueued = false; }
+/** Requests using a belt slot (0-based). Ignored while paused. Does not take control from AUTO. */
+export function queueBelt(slot: number): void { if (!G.paused) beltQueue.push(slot); }
+export function takeBeltPresses(): number[] { return beltQueue.splice(0); }
+
+/** Drops held keys, a queued attack and queued belt uses (used when a panel opens so the hero doesn't keep walking). */
+export function resetInput(): void { keys.clear(); atkQueued = false; beltQueue.length = 0; }
 
 export interface InputState { mx: number; mz: number; atk: boolean }
 

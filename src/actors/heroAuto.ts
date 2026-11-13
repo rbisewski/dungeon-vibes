@@ -3,9 +3,25 @@ import { PI, pick, wrapA } from '../core/math';
 import { G } from '../game/state';
 import { DX8, DZ8, T } from '../world/consts';
 import { buildPath, clearLine, fieldAt, navOK } from '../world/nav';
-import type { Trap, Pickup, Monster, Goal } from '../game/types';
+import type { Goal, Hero, Monster, Pickup, Trap } from '../game/types';
+import { findBelt, storeTarget } from '../rules/inventory';
+import { POTIONS } from '../rules/potions';
 
 export interface AutoOut { mx: number; mz: number; atk: boolean; face: number | null }
+
+/**
+ * AUTO potion choice (SPEC §14): below 35 % life drink a partial life potion (Healing, Rejuvenation), falling back to a
+ * full one; below 20 % prefer a full life potion. Returns a belt slot or -1.
+ */
+export function autoDrinkSlot(h: Hero): number {
+  const frac = h.life / h.d.maxLife;
+  if (frac >= .35) return -1;
+  const full = findBelt(h.inv, p => POTIONS[p].life === 'full'), part = findBelt(h.inv, p => POTIONS[p].life === 'part');
+  return frac < .2 ? (full >= 0 ? full : part) : (part >= 0 ? part : full);
+}
+
+/** True when a ground pickup can be collected (coins always; potions need belt or backpack room). */
+export const canCollect = (h: Hero, p: Pickup): boolean => p.kind === 'coin' || storeTarget(h.inv, p) !== null;
 
 /** Sets the AUTO goal; a different goal (by kind, tile and, for monsters, identity) resets the path and goal timer. */
 function setGoal(goal: Goal): void {
@@ -21,7 +37,7 @@ function chooseGoal(): void {
   for (const m of L.monsters) { if (m.dead || m.rise > 0 || m.ignoreT > 0) continue; const fd = fieldAt(m.x, m.z); if (fd > (m.aware ? 11 : 8)) continue; const s = fd - (m.aware ? 3 : 0); if (s < bd) { bd = s; best = m; } }
   if (best) return setGoal({ kind: 'mon', ref: best, tx: Math.round(best.x / T), tz: Math.round(best.z / T) });
   let pk: Pickup | null = null; bd = 7;
-  for (const p of L.pickups) { if (p.t < .6) continue; const fd = fieldAt(p.x, p.z); if (fd < bd) { bd = fd; pk = p; } }
+  for (const p of L.pickups) { if (p.t < .6 || !canCollect(h, p)) continue; const fd = fieldAt(p.x, p.z); if (fd < bd) { bd = fd; pk = p; } }
   if (pk) return setGoal({ kind: 'pick', ref: pk, tx: Math.round(pk.x / T), tz: Math.round(pk.z / T) });
   const doorGoal: Goal = { kind: 'door', ref: L.lockedDoor, tx: L.lockedDoor.tx, tz: L.lockedDoor.tz };
   if (L.locked && h.key && L.rooms.filter(r => r.visited).length >= L.rooms.length * .6) return setGoal(doorGoal);

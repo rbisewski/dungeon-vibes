@@ -18,7 +18,8 @@ export function syncHud(): void {
   hud.gold.value = h.gold;
   hud.slain.value = h.slain;
   hud.depth.value = L.depth;
-  hud.potions.value = h.potions;
+  const belt = h.inv.belt.map(it => it?.potion ?? null);
+  if (belt.join() !== hud.belt.value.join()) hud.belt.value = belt;
   hud.key.value = h.key;
   hud.manual.value = manualActive();
   const boss = L.monsters.find(m => m.type === 'boss' && !m.dead && m.aware);

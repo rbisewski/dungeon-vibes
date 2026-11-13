@@ -1,5 +1,6 @@
 import { signal } from '@preact/signals';
 import type { Attrs, ClassId } from '../rules/classes';
+import type { PotionId } from '../rules/potions';
 
 /** HUD values mirrored from game state by `syncHud` (UI never reads game objects directly). */
 export const hud = {
@@ -14,7 +15,8 @@ export const hud = {
   gold: signal(0),
   slain: signal(0),
   depth: signal(1),
-  potions: signal(1),
+  /** Potion in each belt slot (null = empty). Replaced as a whole when anything changes. */
+  belt: signal<(PotionId | null)[]>(Array(8).fill(null)),
   key: signal(false),
   manual: signal(false),
   bossVisible: signal(false),
