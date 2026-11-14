@@ -20,7 +20,27 @@ export function makeChest(x: number, z: number, ry: number, isKey: boolean): Che
   for (const s of [-1, 1]) { const b = mesh(gCyl(.3, .3, .06, 10), trim, .3 * s, 0, .29, lid); b.rotation.z = PI / 2; b.scale.set(1, 1, 1); }
   let glow: THREE.Sprite | null = null; if (isKey) glow = glowSprite(0xffc060, 1.2, g, 0, .7, 0);
   G.L.group.add(g);
-  return { g, lid, glow, open: false, t: 0, x, z, isKey, gold: ri(6, 18), hasItem: R() < CHEST_ITEM_CHANCE };
+  return { g, lid, glow, open: false, t: 0, x, z, isKey, gold: ri(6, 18), hasItem: R() < CHEST_ITEM_CHANCE, shelf: false };
+}
+
+const BOOK_COLS = [0x8a2a20, 0x2a3a8a, 0x5a2a7a, 0x2a6a3a, 0x8a6a2a, 0x3a2a1a];
+const bookMats = BOOK_COLS.map(c => new THREE.MeshStandardMaterial({ color: c, roughness: .8 }));
+
+/** Bookshelf (D1 bookcase): a tall frame of books against the wall; opening it drops one book (SPEC §5.1). */
+export function makeShelf(x: number, z: number, ry: number): Chest {
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry;
+  mesh(gBox(1.3, 1.9, .36), MAT.wood, 0, .95, -.05, g);
+  const books = new THREE.Group(); g.add(books);
+  for (const y of [.35, .95, 1.55]) {
+    mesh(gBox(1.22, .05, .3), MAT.dark, 0, y - .26, .02, g, false);
+    for (let bx = -.52; bx < .52;) {
+      const w = .07 + R() * .06, h = .3 + R() * .14;
+      mesh(gBox(w, h, .22), bookMats[Math.floor(R() * bookMats.length)], bx + w / 2, y - .23 + h / 2, .06, books, false);
+      bx += w + .01;
+    }
+  }
+  G.L.group.add(g);
+  return { g, lid: books, glow: null, open: false, t: 0, x, z, isKey: false, gold: 0, hasItem: true, shelf: true };
 }
 /** Room ids and target group a door needs; satisfied by both a `Level` and a layout under construction. */
 export interface DoorCtx { roomId: Int16Array; W: number; group: THREE.Group }

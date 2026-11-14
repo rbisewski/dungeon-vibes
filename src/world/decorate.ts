@@ -5,7 +5,7 @@ import { gBox, gPlane } from '../render/geometry';
 import { beamMat, grateMat, runeMat } from '../render/materials';
 import { DX8, DZ8, T } from './consts';
 import { tileAt } from './nav';
-import { makeBlade, makeChest, makeDoor, makeSpikes } from './objects';
+import { makeBlade, makeChest, makeDoor, makeShelf, makeSpikes } from './objects';
 import { propBarrel, propBars, propBones, propBrazier, propCobweb, propCrate, propPillar, propPuddle, propRubble, propStairs, sittingSkeleton, wallFace } from './props';
 import type { Axis } from '../game/types';
 
@@ -48,6 +48,8 @@ export function decorate(): void {
   const normal = rooms.filter(r => r !== sr && r !== G.L.startRoom);
   const keyRoom = normal.reduce((a, b) => Math.hypot(b.cx - G.L.startRoom.cx, b.cy - G.L.startRoom.cy) > Math.hypot(a.cx - G.L.startRoom.cx, a.cy - G.L.startRoom.cy) ? b : a, normal[0]);
   const runeRoom = pick(normal), moonRoom = pick(rooms.filter(r => r !== runeRoom && r !== sr));
+  // D1 bookcase: one bookshelf on 35 % of levels [OURS rate].
+  const shelfRoom = R() < .35 ? pick(normal) : null;
   const torchAt: [number, number][] = [];
   const tooClose = (x: number, z: number, d: number): boolean => torchAt.some(p => Math.abs(p[0] - x) + Math.abs(p[1] - z) < d);
   for (const r of rooms) {
@@ -92,6 +94,9 @@ export function decorate(): void {
     if (r === keyRoom || (!isStairs && R() < .65)) {
       for (let k = 0; k < 10; k++) { const [x, z, ox, oz] = pick(edgeTiles); const px = x * T + ox * .4, pz = z * T + oz * .4; if (block(x, z, px, pz, .55)) { G.L.chests.push(makeChest(px, pz, oz ? 0 : PI / 2, r === keyRoom)); break; } }
       if (r === keyRoom && !G.L.chests.some(c => c.isKey)) { for (let z = r.y; z < r.y + r.h && !G.L.chests.some(c => c.isKey); z++) for (let x = r.x; x < r.x + r.w; x++) if (block(x, z, x * T, z * T, .55)) { G.L.chests.push(makeChest(x * T, z * T, 0, true)); break; } }
+    }
+    if (r === shelfRoom) {
+      for (let k = 0; k < 12; k++) { const [x, z, ox, oz] = pick(edgeTiles); const px = x * T + ox * .55, pz = z * T + oz * .55; if (block(x, z, px, pz, .6)) { G.L.chests.push(makeShelf(px, pz, oz ? 0 : PI / 2)); break; } }
     }
     // clutter
     const allEdge: [number, number][] = [];

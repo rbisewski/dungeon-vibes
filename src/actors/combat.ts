@@ -6,7 +6,8 @@ import { MAT } from '../render/materials';
 import { fxAdd, fxNorm, impact } from '../render/particles';
 import { CLASS } from '../rules/classes';
 import { blockChance, monsterHitChance, roll, staggers } from '../rules/combat';
-import { monsterDrops, rollItem } from '../rules/loot';
+import { monsterDrops, rollBookSpell, rollItem } from '../rules/loot';
+import { newBook } from '../rules/inventory';
 import { spawnDrops, spawnGold, spawnItem } from '../world/groundItems';
 import { toast } from '../ui/store';
 import { computeField } from '../world/nav';
@@ -18,6 +19,14 @@ export const trapDamage = (): number => ri(5, 10) + 2 * G.L.depth;
 
 export function damageHero(dmg: number, nx: number, nz: number): void {
   const h = G.hero; if (h.dead || h.invuln > 0 || h.descend > 0) return;
+  if (h.manaShield) {
+    // D1 Mana Shield: damage comes out of mana, reduced by a third; whatever mana cannot cover hits life.
+    const cost = dmg * 2 / 3;
+    if (h.mana >= cost) { h.mana -= cost; dmg = 0; }
+    else { dmg = Math.ceil((cost - h.mana) * 1.5); h.mana = 0; h.manaShield = false; toast('MANA SHIELD FADES'); }
+    impact(h.x, 1, h.z, 0x6a9aff, 1.6);
+    if (!dmg) { h.invuln = .5; SFX.block(); return; }
+  }
   h.life -= dmg; h.invuln = .5; h.flash = .2; h.kx += nx * 5; h.kz += nz * 5; addShake(.35);
   // Chip damage below 5 % of max life does not interrupt the hero.
   if (dmg >= .05 * h.d.maxLife) h.flinch = CLASS[h.stats.cls].recover;
@@ -97,6 +106,7 @@ function killMonster(m: Monster, nx: number, nz: number, byHero: boolean): void 
 export function openChest(c: Chest): void {
   if (c.open) return; c.open = true; SFX.chest();
   for (let k = 0; k < 24; k++) fxAdd.spawn(c.x, .6, c.z, rr(-1, 1), rr(1.5, 3.5), rr(-1, 1), rr(.6, 1.2), 1.6, 1.1, .35, rr(.04, .08), 4, .5, 1);
+  if (c.shelf) { c.lid.visible = false; spawnItem(newBook(rollBookSpell(R, 2 * G.L.depth)), c.x, c.z); return; }
   spawnGold(c.gold, c.x, c.z);
   // D1: chests create items at ilvl 2·dlvl.
   if (c.hasItem) spawnItem(rollItem(R, 2 * G.L.depth, G.L.depth, G.loot), c.x, c.z);

@@ -1,5 +1,6 @@
 import { manualActive } from '../core/input';
 import { G } from '../game/state';
+import { heroManaCost } from '../actors/spells';
 import { CLASS } from '../rules/classes';
 import { MAX_LEVEL, xpForLevel } from '../rules/xp';
 import { hud, isOpen, sheet } from './store';
@@ -15,6 +16,9 @@ export function syncHud(): void {
   const lo = xpForLevel(s.clvl), hi = s.clvl >= MAX_LEVEL ? lo : xpForLevel(s.clvl + 1);
   hud.xpFrac.value = hi > lo ? (s.xp - lo) / (hi - lo) : 1;
   hud.unspent.value = s.unspent;
+  hud.readied.value = h.readied;
+  hud.readyOk.value = !h.readied || h.mana >= heroManaCost(h, h.readied);
+  hud.manaShield.value = h.manaShield;
   hud.gold.value = h.gold;
   hud.slain.value = h.slain;
   hud.depth.value = L.depth;

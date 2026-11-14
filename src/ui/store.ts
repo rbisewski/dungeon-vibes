@@ -1,6 +1,7 @@
 import { signal } from '@preact/signals';
 import type { Attrs, ClassId } from '../rules/classes';
 import type { Item } from '../rules/inventory';
+import type { SpellId } from '../rules/spells';
 
 /** HUD values mirrored from game state by `syncHud` (UI never reads game objects directly). */
 export const hud = {
@@ -12,6 +13,10 @@ export const hud = {
   /** Progress from the current level's XP threshold to the next, 0–1. */
   xpFrac: signal(0),
   unspent: signal(0),
+  /** Spell Q casts, and whether the hero has the mana for it now. */
+  readied: signal<SpellId | null>(null),
+  readyOk: signal(true),
+  manaShield: signal(false),
   gold: signal(0),
   slain: signal(0),
   depth: signal(1),
@@ -46,7 +51,8 @@ export interface CharSheet {
 }
 export const sheet = signal<CharSheet | null>(null);
 
-export type Panel = 'char' | 'inv';
+/** `char` and `book` share the left half (opening one closes the other); `inv` is on the right. */
+export type Panel = 'char' | 'inv' | 'book';
 /** Open panels (character on the left, inventory on the right). Any open panel pauses the game. */
 export const openPanels = signal<readonly Panel[]>([]);
 export const isOpen = (p: Panel): boolean => openPanels.value.includes(p);

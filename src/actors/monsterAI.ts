@@ -1,3 +1,4 @@
+import { unpetrify } from './spells';
 import { monsterStrike } from './combat';
 import { monsterTypeFor, spawnMonster } from './monsters';
 import { SFX, vol } from '../audio/sfx';
@@ -34,6 +35,12 @@ export function updateMonsters(dt: number): void {
     }
     m.ignoreT -= dt;
     if (m.rise > 0) { m.rise -= dt; m.root.position.y = -Math.max(0, m.rise) * 1.6 * (m.type === 'boss' ? 2 : 1); m.root.position.x = m.x; m.root.position.z = m.z; if (R() < .5) fxNorm.spawn(m.x + rr(-.4, .4), .05, m.z + rr(-.4, .4), rr(-.3, .3), rr(.3, .9), rr(-.3, .3), rr(.5, .9), .15, .13, .12, rr(.1, .2), .3, 1.5, 3); continue; }
+    if (m.stoneT > 0) {
+      // Stone Curse: frozen in place, still takes damage.
+      m.stoneT -= dt; m.vx = m.vz = m.kx = m.kz = 0;
+      if (m.stoneT <= 0) unpetrify(m);
+      continue;
+    }
     m.cd -= dt; m.flash -= dt; m.staggerT -= dt; m.eyeBoost = Math.max(0, m.eyeBoost - dt);
     const fl = Math.max(0, m.flash) / .14; for (const mt of m.flashMats) mt.emissive.setRGB(fl * 1.6, fl * 1.5, fl * 1.3);
     if (m.type === 'slime' && fl <= 0) m.flashMats[0].emissive.setHex(0x0e2a08);

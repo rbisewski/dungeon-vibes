@@ -1,12 +1,17 @@
+import { glowSprite } from '../render/geometry';
+import type * as THREE from 'three';
 import { damageMonster, missMonster, openChest, unlockDoor } from './combat';
 import { drinkFromBelt, recompute, startingInventory } from './heroStats';
 import { meleeHitChance, rollDamage, roll } from '../rules/combat';
 import { CLASS } from '../rules/classes';
 import { derive } from '../rules/stats';
 import { autoDrinkSlot, heroAuto } from './heroAuto';
-import { readScroll } from '../ui/actions';
+import { castReadied, readScroll } from '../ui/actions';
+import { autoCastWanted, startCast, updateCast } from './spells';
+import { countPotions } from '../rules/inventory';
+import { POTIONS } from '../rules/potions';
 import { SFX } from '../audio/sfx';
-import { manualActive, readInput, takeBeltPresses } from '../core/input';
+import { manualActive, readInput, takeBeltPresses, takeCast } from '../core/input';
 import { PI, R, clamp, damp, lerp, wrapA } from '../core/math';
 import { G, addShake } from '../game/state';
 import { trailMat } from '../render/materials';
@@ -27,7 +32,10 @@ export function createHero(): Hero {
     path: null, pi: 0, goal: null, goalKey: '', goalT: 0, repath: 0, aiT: 0,
     dead: false, deadT: 0, descend: 0,
     stuckT: 0, stuck: 0, sx: 0, sz: 0, unstickT: 0, ux: 0, uz: 0, killsAtGoal: 0, waitTrap: false,
+    spells: {}, readied: null, hotkeys: [null, null, null, null], cast: null, manaShield: false, shieldFx: null as unknown as THREE.Sprite,
   };
+  h.shieldFx = glowSprite(0x4a7aff, 2.4, h.root, 0, 1, 0);
+  h.shieldFx.visible = false;
   recompute(h);
   h.life = h.d.maxLife; h.mana = h.d.maxMana;
   return h;
@@ -79,11 +87,18 @@ export function updateHero(dt: number): void {
     if (h.inv.belt[slot]?.kind === 'scroll') readScroll({ belt: slot });
     else drinkFromBelt(slot);
   }
+  // Mana regenerates slowly for every class [OURS, SPEC §4].
+  h.mana = Math.min(h.d.maxMana, h.mana + h.d.maxMana * .005 * dt);
+  if (takeCast()) castReadied();
+  else if (!manual && h.readied && autoCastWanted(h, countPotions(h.inv, p => POTIONS[p].life !== 'none'))) startCast(h.readied, false);
+  updateCast(dt);
+  h.shieldFx.visible = h.manaShield;
+  if (h.manaShield) h.shieldFx.material.opacity = .35 + .1 * Math.sin(G.now * 4);
   if (!manual && h.drink <= 0 && h.atkT < 0) { const slot = autoDrinkSlot(h); if (slot >= 0) drinkFromBelt(slot); }
   h.drink -= dt;
-  if (atk && h.cd <= 0 && h.atkT < 0 && h.flinch <= 0) { if (faceT !== null) h.face = faceT; startAttack(); }
+  if (atk && h.cd <= 0 && h.atkT < 0 && h.flinch <= 0 && !h.cast) { if (faceT !== null) h.face = faceT; startAttack(); }
   const attacking = h.atkT >= 0;
-  const sp = (manual ? 4.3 : 4.0) * (attacking ? .3 : 1) * (h.drink > 0 ? .5 : 1) * (h.flinch > 0 ? .3 : 1);
+  const sp = (manual ? 4.3 : 4.0) * (attacking || h.cast ? .3 : 1) * (h.drink > 0 ? .5 : 1) * (h.flinch > 0 ? .3 : 1);
   h.vx = damp(h.vx, mx * sp, 14, dt); h.vz = damp(h.vz, mz * sp, 14, dt);
   h.x += (h.vx + h.kx) * dt; h.z += (h.vz + h.kz) * dt; h.kx *= Math.exp(-9 * dt); h.kz *= Math.exp(-9 * dt);
   const spd = Math.hypot(h.vx, h.vz);
@@ -102,6 +117,8 @@ export function updateHero(dt: number): void {
   } else { h.trail.visible = false; h.shR.rotation.y = damp(h.shR.rotation.y, 0, 10, dt); h.torso.rotation.y = damp(h.torso.rotation.y, 0, 10, dt); }
   walkAnim(dt, spd);
   if (h.drink > 0) { h.armR.rotation.x = -2.2; h.shR.rotation.y = .6; }
+  // Casting: sword arm raised overhead.
+  if (h.cast) { h.armR.rotation.x = damp(h.armR.rotation.x, -2.7, 16, dt); h.shR.rotation.y = damp(h.shR.rotation.y, .3, 16, dt); }
   h.body.rotation.x = h.flinch > 0 ? -.35 * (h.flinch / .28) : damp(h.body.rotation.x, attacking ? .12 : 0, 10, dt);
   // interactions
   for (const c of G.L.chests) if (!c.open && Math.hypot(c.x - h.x, c.z - h.z) < 1.5) openChest(c);
@@ -115,7 +132,7 @@ function walkAnim(dt: number, spd: number): void {
   if (amt > .3 && Math.sign(prev) !== Math.sign(s)) SFX.step(.8);
   h.legs[0].rotation.x = s * .7 * amt; h.legs[1].rotation.x = -s * .7 * amt;
   h.body.position.y = Math.abs(s) * .055 * amt + Math.sin(G.now * 2) * .008;
-  if (h.atkT < 0 && h.drink <= 0) h.armR.rotation.x = damp(h.armR.rotation.x, -.35 - s * .35 * amt, 12, dt);
+  if (h.atkT < 0 && h.drink <= 0 && !h.cast) h.armR.rotation.x = damp(h.armR.rotation.x, -.35 - s * .35 * amt, 12, dt);
   h.armL.rotation.z = Math.sin(h.phase) * .09 * amt + Math.sin(G.now * 1.3) * .03;
   h.armL.rotation.x = -2.3 + Math.cos(h.phase * 2) * .06 * amt;
   h.torch.rotation.x = 2.3 - Math.cos(h.phase * 2) * .06 * amt;

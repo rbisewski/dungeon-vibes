@@ -3,10 +3,9 @@ import { AFFIXES, UNIQUES, type AffixId, type Prop, type UniqueId } from './affi
 import { ATTRS, type Attr, type Attrs } from './classes';
 import { base, type BaseId } from './bases';
 import { POTIONS, type PotionId } from './potions';
+import { SPELLS, type SpellId } from './spells';
 
 export type Quality = 'normal' | 'magic' | 'unique';
-/** Spells that exist as scrolls. Only Identify until Phase 5. */
-export type ScrollSpell = 'identify';
 
 export interface EquipItem {
   uid: number;
@@ -27,17 +26,20 @@ export interface EquipItem {
 export type Item =
   | { uid: number; kind: 'potion'; potion: PotionId }
   | { uid: number; kind: 'elixir'; attr: Attr }
-  | { uid: number; kind: 'scroll'; spell: ScrollSpell }
+  /** Casts its spell once, without mana (D1). */
+  | { uid: number; kind: 'scroll'; spell: SpellId }
+  /** Teaches its spell, or raises its level, when read. */
+  | { uid: number; kind: 'book'; spell: SpellId }
   | EquipItem;
 
 export const BELT_SLOTS = 8;
 export const PACK_W = 10, PACK_H = 4;
 
 let nextUid = 1;
-export const newUid = (): number => nextUid++;
 export const newPotion = (potion: PotionId): Item => ({ uid: nextUid++, kind: 'potion', potion });
 export const newElixir = (attr: Attr): Item => ({ uid: nextUid++, kind: 'elixir', attr });
-export const newScroll = (spell: ScrollSpell): Item => ({ uid: nextUid++, kind: 'scroll', spell });
+export const newScroll = (spell: SpellId): Item => ({ uid: nextUid++, kind: 'scroll', spell });
+export const newBook = (spell: SpellId): Item => ({ uid: nextUid++, kind: 'book', spell });
 /** A normal-quality item. `acRoll` in [0, 1) picks the armor class within the base's range. */
 export function newEquip(id: BaseId, acRoll = 0.5): EquipItem {
   const b = base(id);
@@ -46,7 +48,6 @@ export function newEquip(id: BaseId, acRoll = 0.5): EquipItem {
 }
 
 const ELIXIR_NAME: Record<Attr, string> = { str: 'Strength', int: 'Intelligence', dex: 'Dexterity', vit: 'Vitality' };
-const SCROLL_NAME: Record<ScrollSpell, string> = { identify: 'Identify' };
 
 export const quality = (it: Item): Quality => (it.kind === 'equip' ? it.q : 'normal');
 export const isUnidentified = (it: Item): boolean => it.kind === 'equip' && !it.identified;
@@ -56,7 +57,8 @@ export function itemName(it: Item): string {
   switch (it.kind) {
     case 'potion': return POTIONS[it.potion].name;
     case 'elixir': return `Elixir of ${ELIXIR_NAME[it.attr]}`;
-    case 'scroll': return `Scroll of ${SCROLL_NAME[it.spell]}`;
+    case 'scroll': return `Scroll of ${SPELLS[it.spell].name}`;
+    case 'book': return `Book of ${SPELLS[it.spell].name}`;
     case 'equip': {
       const b = base(it.base).name;
       if (!it.identified) return b;
@@ -77,7 +79,7 @@ export function itemAc(it: EquipItem, withProps = true): number {
 /** Footprint in backpack cells. */
 export function itemSize(it: Item): { w: number; h: number } {
   if (it.kind === 'equip') { const b = base(it.base); return { w: b.w, h: b.h }; }
-  return { w: 1, h: 1 };
+  return it.kind === 'book' ? { w: 2, h: 2 } : { w: 1, h: 1 };
 }
 
 /** Potions and scrolls may sit on the belt (D1). */

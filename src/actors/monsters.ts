@@ -18,7 +18,7 @@ export const MON: Record<MonsterType, MonsterBody> = {
 export function spawnMonster(type: MonsterType, x: number, z: number, rise = 0): Monster {
   const st = MON[type];
   const roll = rollMonster(type === 'boss' ? 'skeleton' : type, G.L.depth, type === 'boss', rr(.9, 1.1));
-  const common: MonsterCommon = { st, roll, x, z, kx: 0, kz: 0, vx: 0, vz: 0, face: R() * TAU, r: st.r, mass: st.mass, speed: st.speed * rr(.9, 1.1), hp: roll.hp, maxHp: roll.hp, state: 'idle', t: 0, lunge: 0, cd: rr(.3, 1), aware: false, home: { x, z }, wt: rr(0, 2), wx: x, wz: z, flash: 0, phase: R() * 10, rise, dead: false, deadT: 0, remove: false, eyeBoost: 0, ignoreT: 0, staggerT: 0 };
+  const common: MonsterCommon = { st, roll, x, z, kx: 0, kz: 0, vx: 0, vz: 0, face: R() * TAU, r: st.r, mass: st.mass, speed: st.speed * rr(.9, 1.1), hp: roll.hp, maxHp: roll.hp, state: 'idle', t: 0, lunge: 0, cd: rr(.3, 1), aware: false, home: { x, z }, wt: rr(0, 2), wx: x, wz: z, flash: 0, phase: R() * 10, rise, dead: false, deadT: 0, remove: false, eyeBoost: 0, ignoreT: 0, staggerT: 0, stoneT: 0, stoneCols: null };
   const m: Monster = type === 'rat' ? { type, ...buildRat(), ...common }
     : type === 'slime' ? { type, ...buildSlime(), ...common }
     : { type, ...buildSkeleton(type === 'boss'), ...common };

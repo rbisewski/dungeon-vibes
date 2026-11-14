@@ -4,7 +4,9 @@ import { itemIcon } from '../art/itemIcons';
 import { G } from '../game/state';
 import { base } from '../rules/bases';
 import { propText } from '../rules/affixes';
-import { fitsSlot, isTwoHanded, isUnidentified, itemAc, itemAt, itemName, itemSize, meetsReq, quality, PACK_H, PACK_W, type EquipSlot, type Item } from '../rules/inventory';
+import { learnReq, MAX_SLVL, scrollReq, spellEffectText } from '../rules/spells';
+import { spellLevel } from '../actors/spells';
+import { carried, fitsSlot, isTwoHanded, isUnidentified, itemAc, itemAt, itemName, itemSize, meetsReq, quality, PACK_H, PACK_W, type EquipSlot, type Item } from '../rules/inventory';
 import { POTIONS } from '../rules/potions';
 import { clickEquip, clickPack, closePanel, cursor, dropHeld, held, identifying, invVersion, sparkle, unequip, usePackItem } from './actions';
 import { panelStyle } from './pixel/frame';
@@ -42,7 +44,18 @@ function describe(it: Item): { text: string; cls?: string }[] {
   } else if (it.kind === 'elixir') {
     lines.push({ text: `+1 ${{ str: 'STRENGTH', int: 'INTELLIGENCE', dex: 'DEXTERITY', vit: 'VITALITY' }[it.attr]} PERMANENTLY` }, { text: 'RIGHT-CLICK OR X TO DRINK', cls: 'hint' });
   } else if (it.kind === 'scroll') {
-    lines.push({ text: 'IDENTIFIES ONE ITEM' }, { text: 'RIGHT-CLICK OR X TO READ', cls: 'hint' });
+    const need = scrollReq(it.spell), h = G.hero;
+    lines.push({ text: spellEffectText(it.spell, { cls: h.stats.cls, clvl: h.stats.clvl, slvl: spellLevel(h, it.spell), int: h.d.attr.int }) });
+    lines.push({ text: `REQUIRES ${need} INT`, cls: attrs().int >= need ? undefined : 'red' }, { text: 'RIGHT-CLICK OR X TO READ', cls: 'hint' });
+  } else if (it.kind === 'book') {
+    // D1: a book shows the requirement for the level the hero would learn next.
+    const known = G.hero.spells[it.spell] ?? 0, n = known + 1;
+    if (n > MAX_SLVL) lines.push({ text: 'ALREADY MASTERED', cls: 'red' });
+    else {
+      lines.push({ text: known ? `RAISES TO SPELL LEVEL ${n}` : 'TEACHES THE SPELL' });
+      lines.push({ text: `REQUIRES ${learnReq(it.spell, n)} INT`, cls: attrs().int >= learnReq(it.spell, n) ? undefined : 'red' });
+    }
+    lines.push({ text: 'RIGHT-CLICK OR X TO READ', cls: 'hint' });
   } else {
     const b = base(it.base);
     if (b.kind === 'weapon') lines.push({ text: `DAMAGE: ${b.dmg[0]}-${b.dmg[1]}` }, { text: b.twoHanded ? 'TWO-HANDED' : 'ONE-HANDED' });
@@ -80,7 +93,8 @@ export function InventoryPanel() {
   const packMenu = (e: MouseEvent) => { e.preventDefault(); const [x, y] = cellOf(e); const p = itemAt(inv.pack, x, y); if (p) usePackItem(p.item); };
   const packMove = (e: MouseEvent) => { const [x, y] = cellOf(e); setHover(itemAt(inv.pack, x, y)?.item ?? null); };
 
-  const shown = hover ?? h;
+  // A hovered item that was just used up (book read, potion drunk) no longer describes anything.
+  const shown = (hover && carried(inv).includes(hover) ? hover : null) ?? h;
   const fitsHeld = (s: EquipSlot) => !!h && !identifying.value && fitsSlot(h, s) && meetsReq(h, attrs());
   const mark = (it: Item | null) => (it && identifying.value && isUnidentified(it) ? ' target' : '') + (it && sparkle.value === it.uid ? ' sparkle' : '');
   const box = (x: number, y: number, w: number, hh: number): JSX.CSSProperties => ({ left: x * CELL, top: y * CELL, width: w * CELL - 1, height: hh * CELL - 1 });

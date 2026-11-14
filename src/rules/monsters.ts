@@ -33,6 +33,8 @@ export interface MonsterRoll {
   toHit: number;
   /** Base XP before the clvl adjustment in `killXp`. */
   baseXp: number;
+  /** Holy Bolt only hurts undead. */
+  undead: boolean;
 }
 
 /** Base experience for a monster level before the family multiplier. */
@@ -55,5 +57,6 @@ export function rollMonster(family: FamilyId, depth: number, boss: boolean, hpVa
     ac: f.ac + 2 * mlvl,
     toHit: f.toHit,
     baseXp: Math.round(f.xpMul * (boss ? BOSS.xpMul : 1) * xpCurve(mlvl)),
+    undead: f.undead,
   };
 }

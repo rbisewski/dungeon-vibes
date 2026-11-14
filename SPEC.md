@@ -1,6 +1,6 @@
 # Dungeon Vibes — Diablo-Style Progression Spec
 
-Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phases 0–4.
+Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phases 0–5.
 
 This spec layers a Diablo 1 (D1) style character, spell, and loot system onto the existing game. The game is first ported from the single `index.html` to a TypeScript project (§2.1). It keeps the game's look, controls, and AUTO mode.
 
@@ -546,6 +546,24 @@ Data comes from D1 (§1.4) unless tagged.
 Notes:
 - Minimum mana costs are **[OURS]**: `ceil(initial/2)`. The web copy of Jarulf's table drops the minimum column.
 - `slvl` raises damage as in D1. It also lowers mana cost by the per-level decrease (§1.4) down to the minimum.
+
+**As implemented in Phase 5** [OURS unless noted]
+- **Damage formulas** follow §1.4 for Firebolt, Charged Bolt, Holy Bolt, Fireball (with `Rec`) and Healing. D1's formulas for the others are not reproduced; ours are:
+  - Lightning and Chain Lightning: `4 … 4 + 2·clvl`, +10 % per spell level above 1.
+  - Inferno: `1 … 3 + clvl/2` per 0.15 s tick for 0.6 s, in a ±30° cone 3.5 m long; +10 % per level.
+  - Fire Wall: `1 … 4 + clvl/2` every 0.5 s to anything standing in it (the hero included); +10 % per level. It lasts `4 + 2·slvl` s: the v1 table's `8 + 8·slvl` reads like D1 game ticks rather than seconds (unverified), and 16+ s walls would block corridors for too long.
+  - Flash: `2 + clvl … 4 + 3·clvl` to every monster within 3.2 m, once; +10 % per level.
+- **Spell level** used for casting is the learned level plus +spell-level items; scrolls of unknown spells cast at level 1 plus that bonus.
+- **Release:** the spell takes effect at 40 % of the class cast time; the hero moves at 30 % speed while casting and cannot swing.
+- **Lightning** is an instant line to its 10 m range or the first wall, striking each monster on it once. **Chain Lightning** adds a bolt to every other monster within `2·(2 + slvl)` m (max 14) that has a clear line from the hero.
+- **Charged Bolt** sparks fly ±0.6 rad around the aim and wander randomly; each spark hits one monster.
+- **Mana Shield:** each hit costs ⅔ of its damage in mana; when mana cannot cover it, the remainder ×1.5 hits life and the shield ends.
+- **Telekinesis** picks up the nearest item within 8 m (or pulls it to the hero's feet when there is no room), or opens the nearest closed chest or bookshelf, whichever is closer. It does not knock back monsters.
+- **Phasing** lands on a random walkable, reachable tile 4–8 m away, never on stairs or traps.
+- **Stone Curse** fires a bolt; the first monster hit is frozen (it still takes damage). Bosses are immune.
+- **Mana regeneration** (§4) and **AUTO casting** (§14) are in. AUTO only casts what the player has readied.
+- **Bookshelves** appear on 35 % of levels, against a room wall. AUTO treats them like chests.
+- **Scroll drops:** Identify 50 %, Healing 15 %, the rest uniform among scrolls with `scrollQ ≤ ilvl`. **Book drops:** uniform among spells with `bookQ ≤ ilvl`.
 
 ### 5.3 Scrolls
 

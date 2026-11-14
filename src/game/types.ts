@@ -3,6 +3,7 @@ import type { MonsterRoll } from '../rules/monsters';
 import type { CharState, Derived } from '../rules/stats';
 import type { Progress } from '../rules/xp';
 import type { Inventory, Item } from '../rules/inventory';
+import type { SpellId } from '../rules/spells';
 
 export type HeroStats = CharState & Progress;
 
@@ -29,6 +30,8 @@ export interface PropBlock { x: number; z: number; r: number }
 export interface Chest {
   g: THREE.Group; lid: THREE.Group; glow: THREE.Sprite | null;
   open: boolean; t: number; x: number; z: number; isKey: boolean; gold: number; /** Rolled at creation: the chest also holds an item. */ hasItem: boolean;
+  /** A bookshelf (D1 bookcase): opening it drops one book instead of gold. */
+  shelf: boolean;
 }
 export interface Door {
   pivot: THREE.Group; axis: Axis; sign: number; open: number; locked: boolean;
@@ -59,6 +62,8 @@ export interface Level extends Layout {
   propAt: (PropBlock | null)[];
   dist: Float64Array;
   traps: Trap[]; doors: Door[]; chests: Chest[]; monsters: Monster[]; pickups: Pickup[];
+  /** Live spell effects: missiles, flame jets and fire walls. */
+  spellFx: SpellFx[];
   debris: Debris[]; decals: Decal[]; lights: LightSrc[]; flames: FlameSpec[];
   pillars: { x: number; z: number }[]; runes: THREE.Mesh[]; moons: { x: number; z: number }[];
   disposeGeo: THREE.BufferGeometry[]; disposeInst: THREE.InstancedMesh[]; disposeMat: THREE.Material[];
@@ -113,6 +118,10 @@ export interface MonsterCommon {
   dead: boolean; deadT: number; remove: boolean; eyeBoost: number; ignoreT: number;
   /** Boss stagger cooldown (bosses stagger at most once per 3 s). */
   staggerT: number;
+  /** Stone Curse time left; while > 0 the monster cannot act. */
+  stoneT: number;
+  /** Original material colours, kept while petrified. */
+  stoneCols: THREE.Color[] | null;
 }
 export type Monster = MonsterCommon & (
   | ({ type: 'skeleton' | 'boss' } & SkeletonParts)
@@ -148,8 +157,29 @@ export interface Hero extends HeroParts {
   dead: boolean; deadT: number; descend: number;
   stuckT: number; stuck: number; sx: number; sz: number; unstickT: number; ux: number; uz: number;
   killsAtGoal: number; waitTrap: boolean;
+  /** Learned spells and their level (before +spell-level items). */
+  spells: Partial<Record<SpellId, number>>;
+  readied: SpellId | null;
+  /** Spells assigned to F5–F8. */
+  hotkeys: (SpellId | null)[];
+  /** Spell being cast: fires at 40 % of the class cast time. */
+  cast: { spell: SpellId; slvl: number; t: number; fired: boolean; aim: number } | null;
+  manaShield: boolean;
+  /** Blue bubble shown while Mana Shield is up. */
+  shieldFx: THREE.Sprite;
 }
 
 export type Actor = Hero | Monster;
 
 export interface Transition { t: number; kind: 'descend' | 'death'; built?: boolean }
+
+/* ---------- spells ---------- */
+
+interface FxBase { spell: SpellId; slvl: number; t: number; light?: LightSrc }
+/** A flying spell: Firebolt, Holy Bolt, Fireball, Stone Curse bolt or a Charged Bolt spark. */
+export interface Missile extends FxBase { kind: 'missile'; x: number; z: number; dx: number; dz: number; speed: number; life: number; sprite: THREE.Sprite }
+/** Inferno: a flame jet in front of the hero, damaging every 0.15 s. */
+export interface Jet extends FxBase { kind: 'jet'; life: number; tick: number }
+/** One Fire Wall flame: burns anything standing in it every 0.5 s, the hero included. */
+export interface WallFlame extends FxBase { kind: 'flame'; x: number; z: number; life: number; burnT: Map<Actor, number>; sprite: THREE.Sprite }
+export type SpellFx = Missile | Jet | WallFlame;

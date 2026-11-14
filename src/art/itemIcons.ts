@@ -9,6 +9,7 @@ import type { Attr } from '../rules/classes';
 import type { Item } from '../rules/inventory';
 import { POTION_ICON } from '../ui/pixel/potionIcons';
 import type { PixImage } from '../ui/pixel/pixArt';
+import { SPELL_IDS, SPELLS, type School, type SpellId } from '../rules/spells';
 
 export const CELL_PX = 14;
 const OUTLINE = '#120c0a';
@@ -282,20 +283,83 @@ function uniqueIcon(id: BaseId): Icon {
   return ic;
 }
 
-/** Rolled parchment with a wax seal. */
-const SCROLL_ICON: Icon = (() => {
+/* ---------- spells, books, scrolls ---------- */
+
+/** Light / dark colour per spell school (SPEC §10.3): fire red, lightning blue, magic purple, holy white, utility green. */
+const SCHOOL_COL: Record<School, [string, string]> = {
+  fire: ['#d04a20', '#6a2010'], lightning: ['#3a6ad8', '#18306a'], magic: ['#8a40c0', '#401860'],
+  holy: ['#e8e0c8', '#8a8070'], utility: ['#3a9a48', '#185a20'],
+};
+const FIRE = ['#fff0a0', '#ffb030', '#e05a18'], BOLT = ['#ffffff', '#a8c8ff', '#4a7ae0'];
+
+function flame(p: Painter, x: number, y: number, h: number): void {
+  for (let j = 0; j < h; j++) {
+    const w = Math.max(1, Math.round(Math.sin((j / h) * Math.PI * .9 + .25) * h * .35));
+    for (let i = -w; i <= w; i++) p.px(x + i, y + h - j, Math.abs(i) < w * .35 && j < h * .6 ? FIRE[0] : Math.abs(i) < w * .7 ? FIRE[1] : FIRE[2]);
+  }
+}
+function zig(p: Painter, pts: [number, number][]): void {
+  for (let k = 1; k < pts.length; k++) { p.line(pts[k - 1][0] + 1, pts[k - 1][1], pts[k][0] + 1, pts[k][1], BOLT[2]); p.line(...pts[k - 1], ...pts[k], BOLT[1]); }
+  p.px(...pts[pts.length - 1], BOLT[0]);
+}
+
+/** Draws a spell's 14×14 glyph with its top-left at (ox, oy). */
+function glyph(p: Painter, id: SpellId, ox: number, oy: number): void {
+  const P = (x: number, y: number, c: string) => p.px(ox + x, oy + y, c);
+  const at = (x: number, y: number) => [ox + x, oy + y] as [number, number];
+  switch (id) {
+    case 'firebolt': flame(p, ox + 7, oy + 1, 11); break;
+    case 'fireball': p.ball(ox + 7, oy + 7, 5, FIRE[2], FIRE[1], FIRE[0]); break;
+    case 'inferno': flame(p, ox + 3, oy + 4, 8); flame(p, ox + 7, oy + 1, 11); flame(p, ox + 11, oy + 4, 8); break;
+    case 'fire_wall': for (const x of [2, 5, 8, 11]) flame(p, ox + x, oy + 4, 8); p.rect(ox + 1, oy + 12, 12, 1, FIRE[2]); break;
+    case 'charged_bolt': for (const [x, y] of [[3, 3], [9, 5], [5, 9]]) zig(p, [at(x, y), at(x + 2, y + 1), at(x + 1, y + 2), at(x + 3, y + 3)]); break;
+    case 'lightning': zig(p, [at(9, 0), at(5, 6), at(8, 6), at(4, 13)]); break;
+    case 'chain_lightning': zig(p, [at(7, 0), at(5, 5), at(8, 6), at(5, 13)]); zig(p, [at(8, 6), at(12, 9), at(11, 13)]); zig(p, [at(5, 5), at(1, 8)]); break;
+    case 'holy_bolt': p.rect(ox + 6, oy + 1, 2, 12, '#fff4d0'); p.rect(ox + 2, oy + 5, 10, 2, '#fff4d0'); P(7, 1, '#ffffff'); p.rect(ox + 6, oy + 5, 2, 2, '#ffffff'); break;
+    case 'healing': p.rect(ox + 5, oy + 2, 4, 10, '#e03a3a'); p.rect(ox + 2, oy + 5, 10, 4, '#e03a3a'); p.rect(ox + 5, oy + 2, 1, 10, '#ff8a7a'); break;
+    case 'mana_shield': for (let y = 0; y < 14; y++) for (let x = 0; x < 14; x++) { const d = Math.hypot(x - 6.5, y - 6.5); if (d < 6.2 && d > 4.4) P(x, y, d > 5.4 ? '#2a4ab0' : '#7aa8ff'); } P(4, 3, '#ffffff'); break;
+    case 'flash': for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2; p.line(ox + 7, oy + 7, ox + 7 + Math.cos(a) * 6, oy + 7 + Math.sin(a) * 6, k % 2 ? '#b080ff' : '#ffffff'); } p.disc(ox + 7, oy + 7, 1.5, '#ffffff'); break;
+    case 'stone_curse': p.ball(ox + 7, oy + 7, 5.5, '#4a4844', '#8a8884', '#c8c4bc'); p.rect(ox + 4, oy + 6, 2, 2, '#2a2826'); p.rect(ox + 8, oy + 6, 2, 2, '#2a2826'); p.line(ox + 6, oy + 2, ox + 8, oy + 5, '#4a4844'); break;
+    case 'telekinesis': p.rect(ox + 4, oy + 6, 6, 6, '#e8c8a0'); for (const x of [4, 6, 8]) p.rect(ox + x, oy + 2, 1, 4, '#e8c8a0'); p.rect(ox + 10, oy + 4, 1, 4, '#e8c8a0'); for (const [x, y] of [[1, 1], [12, 2], [2, 11], [12, 12]]) P(x, y, '#9ae0a0'); break;
+    case 'phasing': for (let k = 0; k < 40; k++) { const a = k * .45, r = k * .14; P(Math.round(6.5 + Math.cos(a) * r), Math.round(6.5 + Math.sin(a) * r), k % 3 ? '#b080ff' : '#ffffff'); } break;
+    case 'identify': p.disc(ox + 6, oy + 6, 4.5, '#c8a040'); p.disc(ox + 6, oy + 6, 3, '#a8d8ff'); P(5, 4, '#ffffff'); p.line(ox + 9, oy + 9, ox + 12, oy + 12, '#8a5a30'); p.line(ox + 10, oy + 9, ox + 13, oy + 12, '#5a3818'); break;
+  }
+}
+
+const SPELL_ICON = Object.fromEntries(SPELL_IDS.map(id => {
+  const p = new Painter(CELL_PX, CELL_PX);
+  glyph(p, id, 0, 0);
+  return [id, toIcon(p.outline())];
+})) as Record<SpellId, Icon>;
+
+export const spellIcon = (id: SpellId): Icon => SPELL_ICON[id];
+
+/** 2×2 tome in the school's colour with the spell's glyph on the cover. */
+const BOOK_ICON = Object.fromEntries(SPELL_IDS.map(id => {
+  const p = new Painter(2 * CELL_PX, 2 * CELL_PX), [l, d] = SCHOOL_COL[SPELLS[id].school];
+  p.rect(5, 3, 19, 23, d); p.rect(7, 3, 17, 22, l); p.rect(5, 3, 3, 23, d);
+  p.rect(22, 5, 2, 20, '#e8d8a8'); p.rect(7, 24, 17, 1, '#e8d8a8');
+  for (const [x, y] of [[7, 3], [23, 3], [7, 23], [23, 23]]) p.rect(x, y, 2, 2, C.gold);
+  p.rect(9, 6, 12, 15, d);
+  glyph(p, id, 8, 7);
+  return [id, toIcon(p.outline())];
+})) as Record<SpellId, Icon>;
+
+/** Rolled parchment with a wax seal in the spell school's colour. */
+const SCROLL_ICON = Object.fromEntries(SPELL_IDS.map(id => {
   const p = new Painter(CELL_PX, CELL_PX), paper = '#e8d8a8', paperD = '#b8a070';
   p.rect(3, 3, 8, 8, paper); p.rect(3, 3, 1, 8, paperD);
   for (let y = 4; y < 10; y += 2) p.rect(5, y, 5, 1, paperD);
   p.rect(2, 1, 10, 2, paperD); p.rect(2, 11, 10, 2, paperD); p.rect(3, 1, 8, 1, paper); p.rect(3, 11, 8, 1, paper);
-  p.disc(9.5, 9.5, 1.6, C.red);
-  return toIcon(p.outline());
-})();
+  p.disc(9.5, 9.5, 1.6, SCHOOL_COL[SPELLS[id].school][0]);
+  return [id, toIcon(p.outline())];
+})) as Record<SpellId, Icon>;
 
 export function itemIcon(it: Item): Icon {
   switch (it.kind) {
     case 'equip': return it.q === 'unique' ? uniqueIcon(it.base) : BASE_ICON[it.base];
-    case 'scroll': return SCROLL_ICON;
+    case 'scroll': return SCROLL_ICON[it.spell];
+    case 'book': return BOOK_ICON[it.spell];
     case 'elixir': return ELIXIR_ICON[it.attr];
     case 'potion': return POTION_ICON[it.potion];
   }

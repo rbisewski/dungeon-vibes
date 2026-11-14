@@ -51,5 +51,14 @@ export const SFX = {
   pickup() { Snd.noise({ type: 'lowpass', f: 700, dur: .08, gain: .35 }); Snd.tone({ wave: 'triangle', f: 640, f2: 520, dur: .09, gain: .04, delay: .02 }); },
   /** Item revealed: rising shimmer. */
   identify() { [880, 1175, 1568].forEach((f, i) => Snd.tone({ wave: 'sine', f, dur: .35, gain: .06, delay: i * .06, rev: .8 })); Snd.noise({ type: 'highpass', f: 6000, dur: .5, gain: .04, a: .05, rev: .7 }); },
+  /** Spell start: a soft rising hum. */
+  cast() { Snd.tone({ wave: 'triangle', f: 330, f2: 660, dur: .25, gain: .05, rev: .6 }); Snd.noise({ type: 'bandpass', f: 1800, f2: 3200, q: 2, dur: .2, gain: .05, rev: .5 }); },
+  fireWhoosh() { Snd.noise({ type: 'bandpass', f: 500, f2: 1400, q: .8, dur: .35, gain: .35, a: .03, rev: .4 }); Snd.noise({ type: 'lowpass', f: 300, dur: .3, gain: .2 }); },
+  zap() { Snd.noise({ type: 'highpass', f: 2500, dur: .18, gain: .3, rev: .5 }); Snd.tone({ wave: 'square', f: 1400, f2: 300, dur: .15, gain: .05 }); Snd.tone({ wave: 'sawtooth', f: 90, f2: 60, dur: .2, gain: .06 }); },
+  heal() { [523, 659, 880].forEach((f, i) => Snd.tone({ wave: 'sine', f, dur: .5, gain: .05, delay: i * .05, rev: .8 })); },
+  /** Spell failed or had no effect. */
+  fizzle() { Snd.noise({ type: 'bandpass', f: 900, f2: 300, q: 3, dur: .25, gain: .12 }); },
+  /** A spell learned from a book. */
+  learn() { [392, 523, 659, 784].forEach((f, i) => Snd.tone({ wave: 'triangle', f, dur: .6, gain: .06, delay: i * .1, rev: .8 })); },
   levelUp() { [523, 659, 784, 1047, 1319].forEach((f, i) => Snd.tone({ wave: 'triangle', f, dur: .5, gain: .07, delay: i * .09, rev: .7 })); Snd.noise({ type: 'highpass', f: 5000, dur: .9, gain: .05, a: .2, rev: .8 }); },
 };

@@ -14,6 +14,8 @@ import {
   itemSize, meetsReq, placeAt, putInGrid, removeFromGrid, takeFromBelt, unequipToPack, PACK_W, PACK_H, type EquipSlot, type Item,
 } from '../rules/inventory';
 import { pickupNearest, spawnItem } from '../world/groundItems';
+import { heroManaCost, startCast } from '../actors/spells';
+import { canLearn, learnReq, MAX_SLVL, scrollReq, SPELLS, type SpellId } from '../rules/spells';
 import { isOpen, openPanels, toast, type Panel } from './store';
 import { syncHud, syncSheet } from './syncHud';
 
@@ -28,7 +30,11 @@ export const cursor = signal<Cursor>({ area: 'pack', x: 0, y: 0 });
 
 /** Where the Scroll of Identify being read sits; while set, inventory clicks choose the item to identify. */
 export type ScrollSource = { belt: number } | { pack: Item };
-export const identifying = signal<ScrollSource | null>(null);
+/** What pays for an identification: a scroll, or the Identify spell's mana. */
+export type IdentifySource = ScrollSource | { spell: true };
+export const identifying = signal<IdentifySource | null>(null);
+/** Spell under the mouse in the spellbook (F5–F8 assigns it). */
+export const hoverSpell = signal<SpellId | null>(null);
 /** uid of the item that was just identified (its cell sparkles briefly). */
 export const sparkle = signal<number | null>(null);
 
@@ -44,7 +50,8 @@ function changed(): void {
 
 export function openPanel(p: Panel): void {
   if (!canOpen() || isOpen(p)) return;
-  openPanels.value = [...openPanels.value, p];
+  const left = p === 'char' || p === 'book';
+  openPanels.value = [...openPanels.value.filter(q => !(left && (q === 'char' || q === 'book'))), p];
   G.paused = true;
   resetInput();
   syncSheet();
@@ -97,21 +104,92 @@ function reqText(it: Item): string {
 }
 
 /**
- * Reading a Scroll of Identify (SPEC §6.4): opens the inventory in target mode. The scroll is used up only when an
- * item is chosen; with nothing to identify it is not read at all.
+ * Identification (SPEC §6.4): opens the inventory in target mode. The scroll (or the spell's mana) is used only when
+ * an item is chosen; with nothing to identify nothing is spent.
  */
-export function readScroll(src: ScrollSource): void {
+function beginIdentify(src: IdentifySource): void {
   if (!carried(G.hero.inv).some(isUnidentified)) { toast('NOTHING TO IDENTIFY'); return; }
+  if ('spell' in src && G.hero.mana < heroManaCost(G.hero, 'identify')) { SFX.fizzle(); toast('NOT ENOUGH MANA'); return; }
   openPanel('inv');
   if (!isOpen('inv')) return;
   identifying.value = src;
   toast('IDENTIFY', 'CHOOSE AN ITEM - ESC CANCELS');
 }
 
+/**
+ * Reads a scroll from the belt or backpack (SPEC §5.3): needs Intelligence but no mana, and casts at the known spell
+ * level (at least 1). Reading from the backpack closes the panels first so the spell plays out.
+ */
+export function readScroll(src: ScrollSource): void {
+  const h = G.hero, it = 'belt' in src ? h.inv.belt[src.belt] : src.pack;
+  if (!it || it.kind !== 'scroll') return;
+  const need = scrollReq(it.spell);
+  if (h.d.attr.int < need) { SFX.fizzle(); toast('NOT ENOUGH INTELLIGENCE', `NEEDS ${need} INT`); return; }
+  if (it.spell === 'identify') { beginIdentify(src); return; }
+  if (G.paused) closePanels();
+  if (!startCast(it.spell, true)) return;
+  if ('belt' in src) takeFromBelt(h.inv, src.belt);
+  else removeFromGrid(h.inv.pack, it);
+  changed();
+}
+
+/** Casts the readied spell (Q / gamepad RB). Identify opens the inventory in target mode instead. */
+export function castReadied(): void {
+  const id = G.hero.readied;
+  if (!id) { toast('NO SPELL READIED', 'PRESS B FOR THE SPELLBOOK'); return; }
+  if (id === 'identify') beginIdentify({ spell: true });
+  else startCast(id, false);
+}
+
+/** Reads a spellbook (SPEC §5.1): learn or raise the spell when Intelligence allows; refused otherwise. */
+function learnBook(it: Extract<Item, { kind: 'book' }>): void {
+  const h = G.hero, known = h.spells[it.spell] ?? 0, n = canLearn(it.spell, known, h.d.attr.int);
+  if (n === null) {
+    SFX.fizzle();
+    if (known >= MAX_SLVL) toast('ALREADY MASTERED');
+    else toast('NOT ENOUGH INTELLIGENCE', `NEEDS ${learnReq(it.spell, known + 1)} INT`);
+    return;
+  }
+  const def = SPELLS[it.spell];
+  h.spells[it.spell] = n;
+  // D1: reading a book restores mana equal to the spell's initial cost.
+  h.mana = Math.min(h.d.maxMana, h.mana + def.mana.initial);
+  if (!h.readied) h.readied = it.spell;
+  removeFromGrid(h.inv.pack, it);
+  SFX.learn();
+  toast(n === 1 ? `LEARNED ${def.name.toUpperCase()}` : `${def.name.toUpperCase()} LEVEL ${n}`);
+  changed();
+}
+
+/** Makes `id` the spell Q casts. */
+export function readySpell(id: SpellId): void {
+  if (!G.hero.spells[id]) return;
+  G.hero.readied = id;
+  invVersion.value++;
+  syncHud();
+}
+
+/** F5–F8: with the spellbook open, assigns the hovered spell; otherwise readies the assigned spell (D1). */
+function spellHotkey(i: number): void {
+  const h = G.hero;
+  if (isOpen('book') && hoverSpell.value) {
+    h.hotkeys = h.hotkeys.map((s, j) => (j === i ? hoverSpell.value : s === hoverSpell.value ? null : s));
+    toast(`F${i + 5}: ${SPELLS[hoverSpell.value].name.toUpperCase()}`);
+    invVersion.value++;
+    return;
+  }
+  const id = h.hotkeys[i];
+  if (id) { readySpell(id); toast(SPELLS[id].name.toUpperCase()); }
+}
+
 function identify(it: Item | null): void {
   const src = identifying.value, inv = G.hero.inv;
   if (!src || !it || it.kind !== 'equip' || it.identified) return;
-  if ('belt' in src) takeFromBelt(inv, src.belt);
+  if ('spell' in src) {
+    const cost = heroManaCost(G.hero, 'identify');
+    if (G.hero.mana < cost) { SFX.fizzle(); toast('NOT ENOUGH MANA'); identifying.value = null; return; }
+    G.hero.mana -= cost;
+  } else if ('belt' in src) takeFromBelt(inv, src.belt);
   else removeFromGrid(inv.pack, src.pack);
   it.identified = true;
   identifying.value = null;
@@ -193,6 +271,7 @@ export function usePackItem(it: Item): void {
   if (it.kind === 'potion') { removeFromGrid(inv.pack, it); drinkPotion(it.potion); changed(); return; }
   if (it.kind === 'elixir') { if (drinkElixir(it.attr)) { removeFromGrid(inv.pack, it); changed(); } return; }
   if (it.kind === 'scroll') { readScroll({ pack: it }); return; }
+  if (it.kind === 'book') { learnBook(it); return; }
   if (!meetsReq(it, attrs())) { toast('CANNOT USE', `NEEDS ${reqText(it)}`); return; }
   if (equipFromPack(inv, it)) { SFX.pickup(); changed(); }
   else toast('NO ROOM IN THE BACKPACK');
@@ -241,6 +320,8 @@ function cursorItem(): Item | null {
 addEventListener('keydown', e => {
   if (e.code === 'KeyC') { e.preventDefault(); togglePanel('char'); return; }
   if (e.code === 'KeyI') { e.preventDefault(); togglePanel('inv'); return; }
+  if (e.code === 'KeyB') { e.preventDefault(); togglePanel('book'); return; }
+  if (/^F[5-8]$/.test(e.code)) { e.preventDefault(); spellHotkey(+e.code.slice(1) - 5); return; }
   if (identifying.value && e.code === 'Escape') { e.preventDefault(); identifying.value = null; toast('IDENTIFY CANCELLED'); return; }
   if (openPanels.value.length && (e.code === 'Escape' || e.code === 'Space')) { e.preventDefault(); closePanels(); return; }
   if (!isOpen('inv')) {

@@ -42,7 +42,7 @@ export function buildLevel(depth: number): void {
   const L: Level = {
     ...lay, depth, group,
     navBlock: new Uint8Array(lay.N), trap: new Int16Array(lay.N).fill(-1), propAt: new Array(lay.N).fill(null), dist: new Float64Array(lay.N),
-    traps: [], doors: [], chests: [], monsters: [], pickups: [], debris: [], decals: [], lights: [], flames: [], pillars: [], runes: [], moons: [],
+    traps: [], doors: [], chests: [], monsters: [], pickups: [], spellFx: [], debris: [], decals: [], lights: [], flames: [], pillars: [], runes: [], moons: [],
     disposeGeo: [], disposeInst: [], disposeMat: [], locked: true, fieldT: 0, quietT: 0, killsHere: 0,
     startIdx: lay.startRoom.cy * lay.W + lay.startRoom.cx,
     stairs: { tx: sr.cx, tz: sr.cy, x: sr.cx * T, z: sr.cy * T },
@@ -60,6 +60,8 @@ export function buildLevel(depth: number): void {
   const hero = G.hero;
   hero.x = L.startRoom.cx * T; hero.z = L.startRoom.cy * T; hero.vx = hero.vz = hero.kx = hero.kz = 0; hero.key = false;
   hero.path = null; hero.goal = null; hero.dead = false; hero.descend = 0;
+  // D1: Mana Shield ends when the level changes.
+  hero.cast = null; hero.manaShield = false;
   hero.root.position.set(hero.x, 0, hero.z); hero.body.rotation.set(0, 0, 0); hero.body.position.set(0, 0, 0);
   hero.root.visible = true;
   computeField();

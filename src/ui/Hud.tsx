@@ -8,6 +8,9 @@ import { beltClick, invVersion, openPanel } from './actions';
 import { CharacterPanel } from './CharacterPanel';
 import { fade, hud, isOpen, openPanels, soundOn, toastOn, toastSub, toastText } from './store';
 import { InventoryPanel } from './InventoryPanel';
+import { SpellbookPanel } from './SpellbookPanel';
+import { spellIcon } from '../art/itemIcons';
+import { SPELLS } from '../rules/spells';
 import { GroundLabels } from './GroundLabels';
 
 function Pix({ img, scale = 3, style }: { img: PixImage; scale?: number; style?: Record<string, string> }) {
@@ -33,6 +36,7 @@ function Orbs() {
     <>
       <Orb id="lifeOrb" label="LIFE" cur={hud.life.value} max={hud.maxLife.value} colors={LIFE_ORB} />
       <Orb id="manaOrb" label="MANA" cur={hud.mana.value} max={hud.maxMana.value} colors={MANA_ORB} />
+      <ReadiedSpell />
       {hud.unspent.value > 0 && !openPanels.value.length && (
         <button id="lvlUp" class="px" onClick={() => openPanel('char')} title="Level up! Spend points (C)">+</button>
       )}
@@ -57,6 +61,19 @@ function Belt() {
           <span class="key">{i + 1}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+/** The readied spell beside the mana orb; greyed without enough mana. Click opens the spellbook. */
+function ReadiedSpell() {
+  const id = hud.readied.value;
+  const ic = id ? spellIcon(id) : null;
+  return (
+    <div id="readied" class={'px' + (hud.readyOk.value ? '' : ' low') + (hud.manaShield.value ? ' shield' : '')} onMouseDown={() => openPanel('book')}
+      title={id ? `${SPELLS[id].name} - Q to cast, B for the spellbook` : 'No spell readied - B for the spellbook'}>
+      {ic ? <img src={ic.src} width={ic.w * 3} height={ic.h * 3} alt="" draggable={false} /> : <span>B</span>}
+      <span class="key">Q</span>
     </div>
   );
 }
@@ -87,7 +104,7 @@ function Mode() {
   return (
     <div id="mode" class="px">
       <div>{hud.manual.value ? 'YOU' : 'AUTO'}</div>
-      <div class="sub">WASD/ARROWS MOVE<br />SPACE ATTACK<br />1-8 POTIONS<br />C CHARACTER<br />I INVENTORY<br />E PICK UP · ALT ITEMS</div>
+      <div class="sub">WASD/ARROWS MOVE<br />SPACE ATTACK<br />1-8 POTIONS<br />C CHARACTER<br />I INVENTORY<br />B SPELLS · Q CAST<br />E PICK UP · ALT ITEMS</div>
     </div>
   );
 }
@@ -136,6 +153,7 @@ export function Hud() {
       <Orbs />
       {isOpen('char') && <CharacterPanel />}
       {isOpen('inv') && <InventoryPanel />}
+      {isOpen('book') && <SpellbookPanel />}
       {openPanels.value.length > 0 && <div id="paused" class="px">PAUSED</div>}
       <Fade />
       <SoundPrompt />
