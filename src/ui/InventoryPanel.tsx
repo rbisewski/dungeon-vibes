@@ -3,9 +3,10 @@ import type { JSX } from 'preact';
 import { itemIcon } from '../art/itemIcons';
 import { G } from '../game/state';
 import { base } from '../rules/bases';
-import { isTwoHanded, itemAt, itemName, itemSize, meetsReq, PACK_H, PACK_W, slotFor, type EquipSlot, type Item } from '../rules/inventory';
+import { propText } from '../rules/affixes';
+import { fitsSlot, isTwoHanded, isUnidentified, itemAc, itemAt, itemName, itemSize, meetsReq, quality, PACK_H, PACK_W, type EquipSlot, type Item } from '../rules/inventory';
 import { POTIONS } from '../rules/potions';
-import { clickEquip, clickPack, closePanel, cursor, dropHeld, held, invVersion, unequip, usePackItem } from './actions';
+import { clickEquip, clickPack, closePanel, cursor, dropHeld, held, identifying, invVersion, sparkle, unequip, usePackItem } from './actions';
 import { panelStyle } from './pixel/frame';
 
 /** One backpack cell in CSS px (28 px art + 1 px separator). */
@@ -23,7 +24,8 @@ const DOLL: Record<EquipSlot, { x: number; y: number; w: number; h: number; labe
 };
 const SLOTS = Object.keys(DOLL) as EquipSlot[];
 
-const attrs = () => G.hero.stats.base;
+/** Current attributes (base + items), what requirements are checked against. */
+const attrs = () => G.hero.d.attr;
 
 function Icon({ it, dim }: { it: Item; dim?: boolean }) {
   const ic = itemIcon(it);
@@ -32,17 +34,21 @@ function Icon({ it, dim }: { it: Item; dim?: boolean }) {
 
 /** Description lines for the hovered or held item (D1 description box). */
 function describe(it: Item): { text: string; cls?: string }[] {
-  const lines: { text: string; cls?: string }[] = [{ text: itemName(it).toUpperCase(), cls: 'name' }];
+  const lines: { text: string; cls?: string }[] = [{ text: itemName(it).toUpperCase(), cls: `name q-${quality(it)}` }];
   if (it.kind === 'potion') {
     const p = POTIONS[it.potion];
     const what = [p.life !== 'none' && (p.life === 'full' ? 'ALL LIFE' : 'SOME LIFE'), p.mana !== 'none' && (p.mana === 'full' ? 'ALL MANA' : 'SOME MANA')].filter(Boolean).join(' AND ');
     lines.push({ text: `RESTORES ${what}` }, { text: 'RIGHT-CLICK OR X TO DRINK', cls: 'hint' });
   } else if (it.kind === 'elixir') {
     lines.push({ text: `+1 ${{ str: 'STRENGTH', int: 'INTELLIGENCE', dex: 'DEXTERITY', vit: 'VITALITY' }[it.attr]} PERMANENTLY` }, { text: 'RIGHT-CLICK OR X TO DRINK', cls: 'hint' });
+  } else if (it.kind === 'scroll') {
+    lines.push({ text: 'IDENTIFIES ONE ITEM' }, { text: 'RIGHT-CLICK OR X TO READ', cls: 'hint' });
   } else {
     const b = base(it.base);
     if (b.kind === 'weapon') lines.push({ text: `DAMAGE: ${b.dmg[0]}-${b.dmg[1]}` }, { text: b.twoHanded ? 'TWO-HANDED' : 'ONE-HANDED' });
-    else lines.push({ text: `ARMOR: ${it.ac}` });
+    else if (b.kind === 'armor') lines.push({ text: `ARMOR: ${itemAc(it, it.identified)}` });
+    if (!it.identified) lines.push({ text: 'NOT IDENTIFIED' });
+    else for (const p of it.props) lines.push({ text: propText(p), cls: 'blue' });
     const req = (['str', 'dex', 'int'] as const).filter(a => b.req[a]);
     if (req.length) lines.push({ text: 'REQUIRES ' + req.map(a => `${b.req[a]} ${a.toUpperCase()}`).join(', '), cls: meetsReq(it, attrs()) ? undefined : 'red' });
     lines.push({ text: 'RIGHT-CLICK OR X TO EQUIP', cls: 'hint' });
@@ -75,13 +81,14 @@ export function InventoryPanel() {
   const packMove = (e: MouseEvent) => { const [x, y] = cellOf(e); setHover(itemAt(inv.pack, x, y)?.item ?? null); };
 
   const shown = hover ?? h;
-  const fitsHeld = (s: EquipSlot) => !!h && slotFor(h) === s && meetsReq(h, attrs());
+  const fitsHeld = (s: EquipSlot) => !!h && !identifying.value && fitsSlot(h, s) && meetsReq(h, attrs());
+  const mark = (it: Item | null) => (it && identifying.value && isUnidentified(it) ? ' target' : '') + (it && sparkle.value === it.uid ? ' sparkle' : '');
   const box = (x: number, y: number, w: number, hh: number): JSX.CSSProperties => ({ left: x * CELL, top: y * CELL, width: w * CELL - 1, height: hh * CELL - 1 });
 
   return (
-    <div id="invPanel" class="px panel" style={panelStyle}>
+    <div id="invPanel" class={'px panel' + (identifying.value ? ' identifying' : '')} style={panelStyle}>
       <div class="panelHead">
-        <span>INVENTORY</span>
+        <span>{identifying.value ? 'IDENTIFY' : 'INVENTORY'}</span>
         <span>GOLD {G.hero.gold}</span>
         <button class="close" onClick={() => closePanel('inv')} title="Close (I / Esc)">X</button>
       </div>
@@ -94,7 +101,7 @@ export function InventoryPanel() {
           return (
             <div
               key={s}
-              class={'slot' + (it && !meetsReq(it, attrs()) ? ' bad' : '') + (fitsHeld(s) ? ' ok' : '') + (sel ? ' cur' : '')}
+              class={'slot' + (it && !G.hero.gearOk.has(it.uid) ? ' bad' : '') + (fitsHeld(s) ? ' ok' : '') + (sel ? ' cur' : '') + mark(it)}
               style={box(d.x, d.y, d.w, d.h)}
               onMouseDown={e => { if (e.button === 0) clickEquip(s); }}
               onContextMenu={e => { e.preventDefault(); unequip(s); }}
@@ -113,7 +120,7 @@ export function InventoryPanel() {
         {inv.pack.items.map(p => {
           const s = itemSize(p.item);
           return (
-            <div key={p.item.uid} class={'item' + (meetsReq(p.item, attrs()) ? '' : ' bad')} style={box(p.x, p.y, s.w, s.h)}>
+            <div key={p.item.uid} class={'item' + (meetsReq(p.item, attrs()) ? '' : ' bad') + mark(p.item)} style={box(p.x, p.y, s.w, s.h)}>
               <Icon it={p.item} />
             </div>
           );

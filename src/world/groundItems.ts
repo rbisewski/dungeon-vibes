@@ -3,10 +3,10 @@ import * as THREE from 'three';
 import { itemIcon, CELL_PX } from '../art/itemIcons';
 import { PI, R, TAU, rr } from '../core/math';
 import { G } from '../game/state';
-import { gCyl, gSph, mesh } from '../render/geometry';
+import { gCyl, glowSprite, gSph, mesh } from '../render/geometry';
 import { MAT, POTION_MAT } from '../render/materials';
-import { addItem, type Item } from '../rules/inventory';
-import type { Pickup } from '../game/types';
+import { addItem, quality, type Item, type Quality } from '../rules/inventory';
+import type { LightSrc, Pickup } from '../game/types';
 import { SFX } from '../audio/sfx';
 import { fxAdd } from '../render/particles';
 import { toast } from '../ui/store';
@@ -21,7 +21,10 @@ function toss(p: { kind: 'coin'; amount: number } | { kind: 'item'; item: Item; 
   const a = R() * TAU, s = rr(.8, 2.4) * speed;
   o.position.set(x, .5, z);
   G.L.group.add(o);
-  G.L.pickups.push({ ...p, o, x, z, y: .5, vx: Math.cos(a) * s, vz: Math.sin(a) * s, vy: rr(2.5, 4.5), t: 0 });
+  // Uniques borrow a pooled warm light so they show in the dark (SPEC §10.4).
+  const light: LightSrc | undefined = p.kind === 'item' && quality(p.item) === 'unique' ? { x, y: .8, z, base: 6, cold: false, seed: R() * 100, steady: true, d: 0 } : undefined;
+  if (light) G.L.lights.push(light);
+  G.L.pickups.push({ ...p, o, x, z, y: .5, vx: Math.cos(a) * s, vz: Math.sin(a) * s, vy: rr(2.5, 4.5), t: 0, light });
 }
 
 /** A gold pile: up to 6 coins share the amount. */
@@ -53,8 +56,18 @@ function itemSprite(it: Item): THREE.Sprite {
 }
 
 /** Potions keep their 3D flask; everything else lies on the floor as its pixel icon. */
+/** Magic and unique items glow blue and gold under their sprite. */
+const GLOW: Partial<Record<Quality, number>> = { magic: 0x3a6aff, unique: 0xffb040 };
+
 function itemObject(it: Item): THREE.Object3D {
-  if (it.kind !== 'potion') return itemSprite(it);
+  if (it.kind !== 'potion') {
+    const glow = GLOW[quality(it)];
+    if (glow === undefined) return itemSprite(it);
+    const o = new THREE.Group();
+    o.add(itemSprite(it));
+    glowSprite(glow, 1.1, o, 0, .15, 0);
+    return o;
+  }
   const o = new THREE.Group(), p = POTIONS[it.potion], full = p.life === 'full' || p.mana === 'full';
   mesh(gSph(.12, 8, 6), POTION_MAT[it.potion], 0, 0, 0, o, false);
   mesh(gCyl(.04, .04, .1, 6), full ? MAT.gold : MAT.iron, 0, .14, 0, o, false);
@@ -82,10 +95,11 @@ export function collect(p: Pickup): boolean {
     for (let k = 0; k < 6; k++) fxAdd.spawn(p.x, p.y + .2, p.z, rr(-.6, .6), rr(1, 2), rr(-.6, .6), rr(.3, .5), 1.6, 1.2, .4, .045, 3, 1, 1);
   } else {
     if (!addItem(h.inv, p.item)) return false;
-    if (p.item.kind === 'equip') SFX.pickup(); else SFX.potion();
+    if (p.item.kind === 'potion') SFX.potion(); else SFX.pickup();
   }
   G.L.group.remove(p.o);
   G.L.pickups.splice(G.L.pickups.indexOf(p), 1);
+  if (p.light) G.L.lights.splice(G.L.lights.indexOf(p.light), 1);
   return true;
 }
 

@@ -4,6 +4,7 @@ import { meleeHitChance, rollDamage, roll } from '../rules/combat';
 import { CLASS } from '../rules/classes';
 import { derive } from '../rules/stats';
 import { autoDrinkSlot, heroAuto } from './heroAuto';
+import { readScroll } from '../ui/actions';
 import { SFX } from '../audio/sfx';
 import { manualActive, readInput, takeBeltPresses } from '../core/input';
 import { PI, R, clamp, damp, lerp, wrapA } from '../core/math';
@@ -20,7 +21,7 @@ export function createHero(): Hero {
   const h: Hero = {
     ...buildHero(),
     x: 0, z: 0, vx: 0, vz: 0, kx: 0, kz: 0, face: PI * 1.25, r: .36, mass: 2.5, rise: 0,
-    stats, d, life: d.maxLife, mana: d.maxMana,
+    stats, d, dShown: d, gearOk: new Set(), life: d.maxLife, mana: d.maxMana,
     gold: 0, inv: startingInventory(), key: false, slain: 0,
     cd: 0, atkT: -1, hitDone: false, invuln: 0, flinch: 0, flash: 0, drink: 0, phase: 0,
     path: null, pi: 0, goal: null, goalKey: '', goalT: 0, repath: 0, aiT: 0,
@@ -44,6 +45,9 @@ function heroHitCheck(): void {
     if (!roll(R, meleeHitChance(s.cls, h.d, s.clvl, m.roll.ac))) { missMonster(m, dx / d, dz / d); continue; }
     const hit = rollDamage(R, h.d);
     damageMonster(m, hit.dmg, dx / d, dz / d, true, hit.crit);
+    // D1 life/mana steal returns a share of the damage dealt.
+    h.life = Math.min(h.d.maxLife, h.life + hit.dmg * h.d.lifeSteal / 100);
+    h.mana = Math.min(h.d.maxMana, h.mana + hit.dmg * h.d.manaSteal / 100);
     any = true; crit ||= hit.crit;
   }
   if (any) { G.hitstop = crit ? .11 : .055; addShake(crit ? .4 : .22); }
@@ -71,7 +75,10 @@ export function updateHero(dt: number): void {
     mx = inp.mx; mz = inp.mz; atk = inp.atk; h.goal = null; h.path = null;
     if (atk && !mx && !mz) { let bm: Monster | null = null, bd = 2.8; for (const m of G.L.monsters) { if (m.dead || m.rise > 0) continue; const d = Math.hypot(m.x - h.x, m.z - h.z); if (d < bd) { bd = d; bm = m; } } if (bm) faceT = Math.atan2(bm.x - h.x, bm.z - h.z); }
   } else { const o = heroAuto(dt); mx = o.mx; mz = o.mz; atk = o.atk; faceT = o.face; }
-  for (const slot of takeBeltPresses()) drinkFromBelt(slot);
+  for (const slot of takeBeltPresses()) {
+    if (h.inv.belt[slot]?.kind === 'scroll') readScroll({ belt: slot });
+    else drinkFromBelt(slot);
+  }
   if (!manual && h.drink <= 0 && h.atkT < 0) { const slot = autoDrinkSlot(h); if (slot >= 0) drinkFromBelt(slot); }
   h.drink -= dt;
   if (atk && h.cd <= 0 && h.atkT < 0 && h.flinch <= 0) { if (faceT !== null) h.face = faceT; startAttack(); }
@@ -83,7 +90,8 @@ export function updateHero(dt: number): void {
   if (!attacking) { let want: number | null = null; if (faceT !== null && (spd < 1 || (h.goal && h.goal.kind === 'mon' && Math.hypot(h.goal.ref.x - h.x, h.goal.ref.z - h.z) < 3.5))) want = faceT; else if (spd > .3) want = Math.atan2(h.vx, h.vz); if (want !== null) h.face += wrapA(want - h.face) * Math.min(1, 14 * dt); }
   // attack anim
   if (attacking) {
-    h.atkT += dt; const t = h.atkT;
+    // The 0.42 s swing animation speeds up when attack-speed items make the attack faster than that.
+    h.atkT += dt * Math.max(1, .42 / h.d.attackTime); const t = h.atkT;
     let sw: number, ax: number, wx: number, tw: number;
     if (t < .1) { const k = t / .1; sw = lerp(0, -1.7, k); ax = lerp(-.4, -1.45, k); wx = lerp(PI / 2, PI, k); tw = lerp(0, -.5, k); trailMat.uniforms.uA.value = 0; }
     else if (t < .22) { const k = 1 - Math.pow(1 - (t - .1) / .12, 2); sw = lerp(-1.7, 1.5, k); ax = -1.45; wx = PI; tw = lerp(-.5, .5, k); trailMat.uniforms.uA.value = 1; if (!h.hitDone && k > .4) { h.hitDone = true; heroHitCheck(); } }

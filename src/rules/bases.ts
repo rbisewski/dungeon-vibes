@@ -1,6 +1,6 @@
 /**
  * Equipment base items: D1 stats (Jarulf's Guide §3.1), footprints [OURS]. SPEC.md §6.1.
- * Bows (bow attacks, Phase 6) and jewelry (always magic, Phase 4) are added with those phases.
+ * Bows are added with bow attacks (Phase 6).
  */
 import type { Attrs, WeaponKind } from './classes';
 
@@ -10,12 +10,15 @@ export type ArmorSlot = 'head' | 'body' | 'shield';
 interface BaseCommon { name: string; w: number; h: number; qlvl: number; req: Req }
 export interface WeaponBase extends BaseCommon { kind: 'weapon'; wk: Exclude<WeaponKind, 'bare'>; dmg: readonly [number, number]; twoHanded: boolean }
 export interface ArmorBase extends BaseCommon { kind: 'armor'; slot: ArmorSlot; ac: readonly [number, number] }
-export type Base = WeaponBase | ArmorBase;
+/** Rings and amulets: no stats of their own and always magic or unique (D1). */
+export interface JewelryBase extends BaseCommon { kind: 'jewelry'; slot: 'ring' | 'amulet' }
+export type Base = WeaponBase | ArmorBase | JewelryBase;
 
 const W = (name: string, wk: WeaponBase['wk'], w: number, h: number, dmg: [number, number], qlvl: number, req: Req = {}, twoHanded = false): WeaponBase =>
   ({ kind: 'weapon', name, wk, w, h, dmg, qlvl, req, twoHanded });
 const A = (name: string, slot: ArmorSlot, w: number, h: number, ac: [number, number], qlvl: number, req: Req = {}): ArmorBase =>
   ({ kind: 'armor', name, slot, w, h, ac, qlvl, req });
+const J = (name: string, slot: JewelryBase['slot'], qlvl: number): JewelryBase => ({ kind: 'jewelry', name, slot, w: 1, h: 1, qlvl, req: {} });
 
 export const BASES = {
   // swords
@@ -80,6 +83,12 @@ export const BASES = {
   kite_shield: A('Kite Shield', 'shield', 2, 3, [8, 15], 14, { str: 50 }),
   tower_shield: A('Tower Shield', 'shield', 2, 3, [12, 20], 20, { str: 60 }),
   gothic_shield: A('Gothic Shield', 'shield', 2, 3, [14, 18], 23, { str: 80 }),
+  // jewelry: D1 has three Ring and two Amulet bases that differ only in qlvl
+  ring: J('Ring', 'ring', 5),
+  ring_q10: J('Ring', 'ring', 10),
+  ring_q15: J('Ring', 'ring', 15),
+  amulet: J('Amulet', 'amulet', 8),
+  amulet_q16: J('Amulet', 'amulet', 16),
 } as const satisfies Record<string, Base>;
 
 export type BaseId = keyof typeof BASES;

@@ -59,6 +59,7 @@ export function updateWorld(dt: number): void {
     // Coins and small items are pulled in when there is room; equipment waits to be walked over.
     const room = canCollect(h, p), small = p.kind === 'coin' || p.item.kind !== 'equip';
     if (p.t > .45 && d < 1.8 && !h.dead && room && small) { p.x += dx / d * dt * 7; p.z += dz / d * dt * 7; }
+    if (p.light) { p.light.x = p.x; p.light.z = p.z; }
     if (small) { p.o.position.set(p.x, p.y + Math.sin(G.now * 4 + i) * .05, p.z); p.o.rotation.y += dt * 4; }
     else p.o.position.set(p.x, p.y - .1, p.z);
     if (p.t > .45 && d < pickupReach(p) && !h.dead) {

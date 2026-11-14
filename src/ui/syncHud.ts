@@ -18,8 +18,7 @@ export function syncHud(): void {
   hud.gold.value = h.gold;
   hud.slain.value = h.slain;
   hud.depth.value = L.depth;
-  const belt = h.inv.belt.map(it => (it?.kind === 'potion' ? it.potion : null));
-  if (belt.join() !== hud.belt.value.join()) hud.belt.value = belt;
+  if (h.inv.belt.some((it, i) => it !== hud.belt.value[i])) hud.belt.value = [...h.inv.belt];
   hud.key.value = h.key;
   hud.manual.value = manualActive();
   const boss = L.monsters.find(m => m.type === 'boss' && !m.dead && m.aware);
@@ -30,7 +29,8 @@ export function syncHud(): void {
 
 /** Character-screen snapshot (D1 layout: base vs current attributes, then combat stats). */
 export function syncSheet(): void {
-  const h = G.hero, s = h.stats, d = h.d, def = CLASS[s.cls];
+  // D1: unidentified items' properties are left out of the character screen (life and mana show the real pools).
+  const h = G.hero, s = h.stats, d = h.dShown, def = CLASS[s.cls];
   sheet.value = {
     cls: s.cls,
     clvl: s.clvl,
@@ -40,8 +40,8 @@ export function syncSheet(): void {
     cur: { ...d.attr },
     cap: def.cap,
     unspent: s.unspent,
-    life: Math.max(0, Math.round(h.life)), maxLife: d.maxLife,
-    mana: Math.round(h.mana), maxMana: d.maxMana,
+    life: Math.max(0, Math.round(h.life)), maxLife: h.d.maxLife,
+    mana: Math.round(h.mana), maxMana: h.d.maxMana,
     ac: d.ac,
     toHit: d.toHitShown,
     spellHit: 50 + d.attr.int + def.hit.magic,

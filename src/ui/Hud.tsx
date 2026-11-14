@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'preact/hooks';
 import type { PixImage } from './pixel/pixArt';
 import { drawOrb, LIFE_ORB, MANA_ORB, ORB_PX, type OrbColors } from './pixel/orb';
 import { ICON } from './icons';
-import { POTION_ICON } from './pixel/potionIcons';
-import { POTIONS } from '../rules/potions';
+import { itemIcon } from '../art/itemIcons';
+import { itemName } from '../rules/inventory';
 import { beltClick, invVersion, openPanel } from './actions';
 import { CharacterPanel } from './CharacterPanel';
 import { fade, hud, isOpen, openPanels, soundOn, toastOn, toastSub, toastText } from './store';
@@ -40,20 +40,20 @@ function Orbs() {
   );
 }
 
-/** D1 belt: 8 slots with hotkey digits. Right-click (or 1–8) drinks; with the inventory open, left-click moves potions. */
+/** D1 belt: 8 slots with hotkey digits. Right-click (or 1–8) drinks or reads; with the inventory open, left-click moves items. */
 function Belt() {
   void invVersion.value; // paused inventory edits refresh the belt immediately
   return (
     <div id="belt" class="px">
-      {hud.belt.value.map((p, i) => (
+      {hud.belt.value.map((it, i) => (
         <div
           key={i}
           class="slot"
-          title={p ? `${POTIONS[p].name} - right-click or ${i + 1} to drink` : `Belt slot ${i + 1}`}
+          title={it ? `${itemName(it)} - right-click or ${i + 1} to ${it.kind === 'scroll' ? 'read' : 'drink'}` : `Belt slot ${i + 1}`}
           onMouseDown={e => { if (e.button === 0) beltClick(i, 'left'); }}
           onContextMenu={e => { e.preventDefault(); beltClick(i, 'right'); }}
         >
-          {p && <Pix img={POTION_ICON[p]} scale={2} />}
+          {it && <Pix img={itemIcon(it)} scale={2} />}
           <span class="key">{i + 1}</span>
         </div>
       ))}

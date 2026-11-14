@@ -1,12 +1,12 @@
 /** Derived character stats from class, level, base attributes and item bonuses. SPEC.md §1.1, §3.1. */
 import { ATTRS, CLASS, type Attr, type Attrs, type ClassId, type PoolFormula, type WeaponKind } from './classes';
 
-/** Sum of all applied item bonuses. Every field is additive. */
+/** Sum of all applied item bonuses. Every field is additive except `critMul`. */
 export interface Bonus {
   attr: Attrs;
   life: number;
   mana: number;
-  /** Flat armor class from items (armor, helm, shield and +AC affixes). */
+  /** Armor class from items (each item's own armor, +% armor and flat armor). */
   ac: number;
   /** +% To-Hit from items. */
   toHit: number;
@@ -14,9 +14,24 @@ export interface Bonus {
   pctDmg: number;
   /** Flat damage added to each hit. */
   flatDmg: number;
+  /** Damage from enemies reduced by this much per hit. */
+  dmgTaken: number;
+  /** % of melee damage dealt returned as life / mana. */
+  lifeSteal: number;
+  manaSteal: number;
+  /** % shorter attack time. */
+  attackSpeed: number;
+  /** Thorns points: attackers take 1–3 damage per point. */
+  thorns: number;
+  spellLevels: number;
+  /** Multiplier on critical-hit chance. */
+  critMul: number;
 }
 
-export const NO_BONUS: Readonly<Bonus> = { attr: { str: 0, int: 0, dex: 0, vit: 0 }, life: 0, mana: 0, ac: 0, toHit: 0, pctDmg: 0, flatDmg: 0 };
+export const NO_BONUS: Readonly<Bonus> = {
+  attr: { str: 0, int: 0, dex: 0, vit: 0 }, life: 0, mana: 0, ac: 0, toHit: 0, pctDmg: 0, flatDmg: 0,
+  dmgTaken: 0, lifeSteal: 0, manaSteal: 0, attackSpeed: 0, thorns: 0, spellLevels: 0, critMul: 1,
+};
 
 export interface Weapon { kind: WeaponKind; min: number; max: number }
 /** Bare hands. */
@@ -41,8 +56,14 @@ export interface Derived {
   dmgMax: number;
   /** Chance (%) of a critical hit; 0 for classes without crits. */
   critPct: number;
-  /** Seconds per weapon swing. */
+  /** Seconds per weapon swing, after attack-speed bonuses. */
   attackTime: number;
+  /** Combat properties passed through from items. */
+  dmgTaken: number;
+  lifeSteal: number;
+  manaSteal: number;
+  thorns: number;
+  spellLevels: number;
 }
 
 function pool(f: PoolFormula, base: number, items: number, clvl: number, flat: number): number {
@@ -65,8 +86,13 @@ export function derive(ch: CharState, bonus: Readonly<Bonus> = NO_BONUS, weapon:
     toHitShown: 50 + Math.floor(attr.dex / 2) + bonus.toHit,
     dmgMin: Math.floor(weapon.min * mul + bonus.flatDmg + charDmg),
     dmgMax: Math.floor(weapon.max * mul + bonus.flatDmg + charDmg),
-    critPct: def.crit ? ch.clvl : 0,
-    attackTime: def.swing[weapon.kind],
+    critPct: def.crit ? Math.min(100, ch.clvl * bonus.critMul) : 0,
+    attackTime: def.swing[weapon.kind] * (1 - bonus.attackSpeed / 100),
+    dmgTaken: bonus.dmgTaken,
+    lifeSteal: bonus.lifeSteal,
+    manaSteal: bonus.manaSteal,
+    thorns: bonus.thorns,
+    spellLevels: bonus.spellLevels,
   };
 }
 

@@ -1,35 +1,77 @@
-/** Items, backpack grid, belt and equipped gear. SPEC.md §1.3, §6.6, §7, §10.2. */
+/** Items, backpack grid, belt and equipped gear. SPEC.md §1.3, §6.4–6.6, §7, §10.2. */
+import { AFFIXES, UNIQUES, type AffixId, type Prop, type UniqueId } from './affixes';
 import { ATTRS, type Attr, type Attrs } from './classes';
 import { base, type BaseId } from './bases';
 import { POTIONS, type PotionId } from './potions';
 
+export type Quality = 'normal' | 'magic' | 'unique';
+/** Spells that exist as scrolls. Only Identify until Phase 5. */
+export type ScrollSpell = 'identify';
+
+export interface EquipItem {
+  uid: number;
+  kind: 'equip';
+  base: BaseId;
+  /** Armor class rolled at creation (0 for weapons and jewelry), before +% armor. */
+  ac: number;
+  q: Quality;
+  /** Magic and unique items drop unidentified: their properties apply but are hidden (D1). */
+  identified: boolean;
+  pre: AffixId | null;
+  suf: AffixId | null;
+  uniq: UniqueId | null;
+  /** Rolled properties (affix values or the unique's fixed list). */
+  props: Prop[];
+}
+
 export type Item =
   | { uid: number; kind: 'potion'; potion: PotionId }
   | { uid: number; kind: 'elixir'; attr: Attr }
-  | { uid: number; kind: 'equip'; base: BaseId; /** Armor class rolled at creation (0 for weapons). */ ac: number };
-export type EquipItem = Extract<Item, { kind: 'equip' }>;
+  | { uid: number; kind: 'scroll'; spell: ScrollSpell }
+  | EquipItem;
 
 export const BELT_SLOTS = 8;
 export const PACK_W = 10, PACK_H = 4;
 
 let nextUid = 1;
+export const newUid = (): number => nextUid++;
 export const newPotion = (potion: PotionId): Item => ({ uid: nextUid++, kind: 'potion', potion });
 export const newElixir = (attr: Attr): Item => ({ uid: nextUid++, kind: 'elixir', attr });
-/** `acRoll` in [0, 1) picks the armor class within the base's range. */
+export const newScroll = (spell: ScrollSpell): Item => ({ uid: nextUid++, kind: 'scroll', spell });
+/** A normal-quality item. `acRoll` in [0, 1) picks the armor class within the base's range. */
 export function newEquip(id: BaseId, acRoll = 0.5): EquipItem {
   const b = base(id);
   const ac = b.kind === 'armor' ? b.ac[0] + Math.floor(acRoll * (b.ac[1] - b.ac[0] + 1)) : 0;
-  return { uid: nextUid++, kind: 'equip', base: id, ac };
+  return { uid: nextUid++, kind: 'equip', base: id, ac, q: 'normal', identified: true, pre: null, suf: null, uniq: null, props: [] };
 }
 
 const ELIXIR_NAME: Record<Attr, string> = { str: 'Strength', int: 'Intelligence', dex: 'Dexterity', vit: 'Vitality' };
+const SCROLL_NAME: Record<ScrollSpell, string> = { identify: 'Identify' };
 
+export const quality = (it: Item): Quality => (it.kind === 'equip' ? it.q : 'normal');
+export const isUnidentified = (it: Item): boolean => it.kind === 'equip' && !it.identified;
+
+/** Name as the player sees it: unidentified magic and unique items show only their base name (D1). */
 export function itemName(it: Item): string {
   switch (it.kind) {
     case 'potion': return POTIONS[it.potion].name;
     case 'elixir': return `Elixir of ${ELIXIR_NAME[it.attr]}`;
-    case 'equip': return base(it.base).name;
+    case 'scroll': return `Scroll of ${SCROLL_NAME[it.spell]}`;
+    case 'equip': {
+      const b = base(it.base).name;
+      if (!it.identified) return b;
+      if (it.uniq) return UNIQUES[it.uniq].name;
+      return [it.pre && AFFIXES[it.pre].name, b, it.suf && AFFIXES[it.suf].name].filter(Boolean).join(' ');
+    }
   }
+}
+
+/** Armor class of one item: rolled AC raised by its own +% armor, plus flat armor properties (D1). */
+export function itemAc(it: EquipItem, withProps = true): number {
+  if (!withProps) return it.ac;
+  let pct = 0, flat = 0;
+  for (const p of it.props) { if (p.stat === 'pctAc') pct += p.v; else if (p.stat === 'ac') flat += p.v; }
+  return Math.floor(it.ac * (1 + pct / 100)) + flat;
 }
 
 /** Footprint in backpack cells. */
@@ -38,8 +80,8 @@ export function itemSize(it: Item): { w: number; h: number } {
   return { w: 1, h: 1 };
 }
 
-/** Only potions (later also scrolls) may sit on the belt. */
-export const beltable = (it: Item): boolean => it.kind === 'potion';
+/** Potions and scrolls may sit on the belt (D1). */
+export const beltable = (it: Item): boolean => it.kind === 'potion' || it.kind === 'scroll';
 
 /** Requirements are checked against current attributes (base + item bonuses), as in D1. */
 export function meetsReq(it: Item, attrs: Attrs): boolean {
@@ -107,11 +149,17 @@ export type EquipSlot = 'head' | 'amulet' | 'weapon' | 'body' | 'shield' | 'ring
 export const EQUIP_SLOTS: readonly EquipSlot[] = ['head', 'amulet', 'weapon', 'body', 'shield', 'ring1', 'ring2'];
 export type Equipment = Record<EquipSlot, EquipItem | null>;
 
-/** Slot an equipment piece goes into by default. */
+/** Slot an equipment piece goes into by default (rings: the left ring slot). */
 export function slotFor(it: Item): EquipSlot | null {
   if (it.kind !== 'equip') return null;
   const b = base(it.base);
-  return b.kind === 'weapon' ? 'weapon' : b.slot;
+  return b.kind === 'weapon' ? 'weapon' : b.slot === 'ring' ? 'ring1' : b.slot;
+}
+
+/** Whether `it` may be worn in `slot`; rings fit either ring slot. */
+export function fitsSlot(it: Item, slot: EquipSlot): boolean {
+  const s = slotFor(it);
+  return s === slot || (s === 'ring1' && slot === 'ring2');
 }
 
 export function isTwoHanded(it: Item | null): boolean {
@@ -147,20 +195,29 @@ export function addItem(inv: Inventory, it: Item): Stored {
   return to;
 }
 
+/** Same potion type or same scroll spell: what may refill an emptied belt slot. */
+function sameKind(a: Item, b: Item): boolean {
+  if (a.kind === 'potion' && b.kind === 'potion') return a.potion === b.potion;
+  if (a.kind === 'scroll' && b.kind === 'scroll') return a.spell === b.spell;
+  return false;
+}
+
 /**
- * Removes and returns the item in a belt slot. The emptied slot is refilled with the same kind of potion from the
- * backpack, if there is one [OURS].
+ * Removes and returns the item in a belt slot. The emptied slot is refilled with the same kind of potion or scroll
+ * from the backpack, if there is one [OURS].
  */
 export function takeFromBelt(inv: Inventory, slot: number): Item | null {
   const it = inv.belt[slot];
   if (!it) return null;
   inv.belt[slot] = null;
-  if (it.kind === 'potion') {
-    const p = inv.pack.items.find(q => q.item.kind === 'potion' && q.item.potion === it.potion);
-    if (p) { removeFromGrid(inv.pack, p.item); inv.belt[slot] = p.item; }
-  }
+  const p = inv.pack.items.find(q => sameKind(q.item, it));
+  if (p) { removeFromGrid(inv.pack, p.item); inv.belt[slot] = p.item; }
   return it;
 }
+
+/** Every carried item: equipped, belt and backpack. */
+export const carried = (inv: Inventory): Item[] =>
+  [...EQUIP_SLOTS.map(s => inv.equip[s]), ...inv.belt, ...inv.pack.items.map(p => p.item)].filter((it): it is Item => !!it);
 
 const potionOf = (it: Item | null): PotionId | null => (it && it.kind === 'potion' ? it.potion : null);
 
@@ -177,7 +234,7 @@ export const countPotions = (inv: Inventory, pick: (p: PotionId) => boolean): nu
  * displaces the shield, and a shield displaces a two-handed weapon. Returns false for a wrong slot.
  */
 export function equipInto(inv: Inventory, slot: EquipSlot, it: EquipItem): EquipItem[] | false {
-  if (slotFor(it) !== slot) return false;
+  if (!fitsSlot(it, slot)) return false;
   const out: EquipItem[] = [];
   const prev = inv.equip[slot];
   if (prev) out.push(prev);
@@ -189,11 +246,12 @@ export function equipInto(inv: Inventory, slot: EquipSlot, it: EquipItem): Equip
 
 /**
  * Right-click equip from the backpack: moves `it` from the pack into its slot and puts displaced gear back in the
- * pack. Refuses (changing nothing) when the displaced gear would not fit.
+ * pack. Rings prefer an empty ring slot. Refuses (changing nothing) when the displaced gear would not fit.
  */
 export function equipFromPack(inv: Inventory, it: EquipItem): boolean {
-  const slot = slotFor(it);
+  let slot = slotFor(it);
   if (!slot) return false;
+  if (slot === 'ring1' && inv.equip.ring1 && !inv.equip.ring2) slot = 'ring2';
   const trial: Inventory = { belt: inv.belt, pack: { ...inv.pack, items: inv.pack.items.filter(p => p.item !== it) }, equip: { ...inv.equip } };
   const out = equipInto(trial, slot, it);
   if (!out || !out.every(o => putInGrid(trial.pack, o))) return false;

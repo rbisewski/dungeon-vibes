@@ -4,25 +4,12 @@ import { G } from '../game/state';
 import type { Hero, Monster } from '../game/types';
 import { fxAdd } from '../render/particles';
 import { CLASS, type Attr } from '../rules/classes';
-import { base } from '../rules/bases';
-import { addItem, countPotions, EQUIP_SLOTS, meetsReq, newEquip, newInventory, newPotion, putInGrid, takeFromBelt, type Inventory } from '../rules/inventory';
+import { gear } from '../rules/gear';
+import { addItem, countPotions, newEquip, newInventory, newPotion, putInGrid, takeFromBelt, type Inventory } from '../rules/inventory';
 import { POTIONS, potionEffect, type PotionId } from '../rules/potions';
-import { derive, FISTS, NO_BONUS, spendPoint, type Bonus, type Weapon } from '../rules/stats';
+import { derive, spendPoint } from '../rules/stats';
 import { gainXp, killXp } from '../rules/xp';
 import { toast } from '../ui/store';
-
-/** Equipment bonuses: only gear whose requirements are met counts (D1). Item attribute bonuses arrive in Phase 4. */
-function gear(h: Hero): { bonus: Bonus; weapon: Weapon } {
-  const attrs = h.stats.base, eq = h.inv.equip;
-  let ac = 0;
-  for (const s of EQUIP_SLOTS) { const it = eq[s]; if (it && meetsReq(it, attrs)) ac += it.ac; }
-  const w = eq.weapon, wb = w && meetsReq(w, attrs) ? base(w.base) : null;
-  const weapon: Weapon = wb && wb.kind === 'weapon' ? { kind: wb.wk, min: wb.dmg[0], max: wb.dmg[1] } : FISTS;
-  return { bonus: { ...NO_BONUS, ac }, weapon };
-}
-
-/** A usable shield is equipped (needed to block). */
-export const heroHasShield = (h: Hero): boolean => !!h.inv.equip.shield && meetsReq(h.inv.equip.shield, h.stats.base);
 
 /**
  * Re-derives stats after any change to level, attributes or equipment. Raising max life/mana raises the current
@@ -30,8 +17,10 @@ export const heroHasShield = (h: Hero): boolean => !!h.inv.equip.shield && meets
  */
 export function recompute(h: Hero): void {
   const prev = h.d;
-  const g = gear(h);
+  const g = gear(h.inv.equip, h.stats.base), shown = gear(h.inv.equip, h.stats.base, true);
   h.d = derive(h.stats, g.bonus, g.weapon);
+  h.dShown = derive(h.stats, shown.bonus, shown.weapon);
+  h.gearOk = g.active;
   if (prev) {
     h.life += Math.max(0, h.d.maxLife - prev.maxLife);
     h.mana += Math.max(0, h.d.maxMana - prev.maxMana);

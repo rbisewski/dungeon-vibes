@@ -1,6 +1,6 @@
 # Dungeon Vibes — Diablo-Style Progression Spec
 
-Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phases 0–3.
+Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phases 0–4.
 
 This spec layers a Diablo 1 (D1) style character, spell, and loot system onto the existing game. The game is first ported from the single `index.html` to a TypeScript project (§2.1). It keeps the game's look, controls, and AUTO mode.
 
@@ -666,7 +666,14 @@ Notes:
 - **Attack speed [OURS]:** scales `hero.cd` (0.44 s) and the swing animation by `1 − bonus`.
 - **Cursed affixes [OURS]:** affixes with negative values are left out of the first pass.
 - **Slot eligibility:** follows D1's occurrence table (Jarulf §3.13.6).
-- **Spell-level affixes:** Angel's and Arch-Angel's are limited to jewelry and helms **[OURS]**.
+- **Spell-level affixes:** Angel's and Arch-Angel's are limited to jewelry and helms **[OURS]**. Their bonus is stored and shown; it takes effect when spells arrive (Phase 5).
+
+**As implemented in Phase 4**
+- **Which affixes:** a magic item gets a prefix with 1/4 chance and a suffix with 2/3 chance; if neither, one of the two at random (D1, devilutionX `GetItemPower`). Each affix is drawn uniformly from those allowed on the base with qlvl in `[ilvl/2, ilvl]` (D1); when that window has none for the slot, any qlvl ≤ ilvl.
+- **Two-effect affixes** (Sharp … King's) roll both values at the same point of their ranges.
+- **Slot tags [OURS, approximating Jarulf §3.13.6]:** To-Hit on weapons and jewelry; +% damage, To-Hit/damage, flat damage and attack speed on weapons; +% armor and Thorns on armor; +mana on jewelry and staves; attributes on everything; +life and −damage taken on armor and jewelry; life and mana steal on weapons and jewelry.
+- **+% armor** raises only that item's own armor class (D1). **−Damage taken** never lowers a hit below 1. **Thorns:** an attacker that hits takes 1–3 damage per Thorns point (kills by Thorns give XP). **Life / mana steal** returns that % of each melee hit's damage. **Attack speed** shortens the attack time and speeds up the swing animation to match.
+- **Requirements** use current attributes (base + items), so one item can enable another (D1); items whose requirements are unmet give nothing.
 
 ### 6.3 Drop pipeline
 
@@ -693,6 +700,12 @@ Notes:
 
 **4. Identification state:** magic and unique items are created with `identified: false`.
 
+**Uniques [OURS]:** when the 2 % unique roll succeeds, a unique is picked uniformly among those with `qlvl ≤ ilvl` not yet generated this run, and the item takes *that unique's* base. D1 instead requires the unique to match the already-chosen base; with our 26 uniques that would make them far rarer than D1's ~0.4 % at ilvl 10. With no eligible unique the item stays magic. A unique counts as generated when it drops, even if it is never picked up.
+
+**Boss drops:** one equipment item that is always magic with a 16 % unique chance (D1 unique-monster rule), one potion, one Scroll of Identify, and 10× a gold pile.
+
+**Scrolls:** until Phase 5, every scroll drop is a Scroll of Identify (weight 15).
+
 **Item level**
 - Monster drops: `ilvl = mlvl`.
 - Chests and bookshelves: `ilvl = 2·depth`.
@@ -717,7 +730,8 @@ Notes:
 - **Unidentified magic and unique items:**
   - Their name shows only the base name, e.g. *Short Sword*, in blue (magic) or gold (unique).
   - The tooltip shows `NOT IDENTIFIED` plus the base stats and requirements.
-  - Their properties **do apply** when equipped, as in D1, but are hidden in the tooltip and the character screen (§3.4).
+  - Their properties **do apply** when equipped, as in D1, but are hidden in the tooltip and the character screen (§3.4). The character screen still shows the real life and mana pools, so the numbers there never exceed their shown maximum.
+  - **Reading a scroll** (belt key, belt right-click, or right-click / `X` in the backpack) opens the inventory with every unidentified item highlighted; clicking one identifies it and uses up the scroll. `Esc` cancels without using the scroll; with nothing to identify the scroll is not read.
 - **Ways to identify:**
   - **Scroll of Identify:** common; see §6.3.
   - **Identify spell:** learned from a *Book of Identify* (qlvl 10, Int 60) **[OURS/USER]**. Each cast costs 10 mana.
@@ -736,23 +750,38 @@ Unique mechanics follow D1:
 - At most one of each per run.
 - Gold name.
 
-D1's unique names are Blizzard IP, so ours are original. Starter set:
+D1's unique names are Blizzard IP, so ours are original. The full list (26, qlvl 1–20):
 
 | Unique | Base | qlvl | Properties |
 |---|---|---|---|
-| Gravewhisper | Dagger | 1 | +30 % dmg, +3 Dex, of the Leech |
+| Tinker's Mallet | Club | 1 | +10 To-Hit, +2 damage, +3 Str |
+| Gravewhisper | Dagger | 1 | +30 % dmg, +3 Dex, 3 % life steal |
+| Mourning Cloak | Cloak | 2 | +60 % AC, +4 Dex, Thorns 2 |
+| Whisperwind | Sabre | 3 | 8 % faster attack, +6 Dex, +15 To-Hit |
+| Hearthguard | Buckler | 3 | +100 % AC, +4 Vit, −1 dmg taken |
 | Bonecrown | Skull Cap | 4 | +15 AC, +10 Life, −1 dmg taken |
+| Pilgrim's Staff | Long Staff | 4 | +10 Int, +15 Mana, +20 % dmg |
 | Mossbark Aegis | Small Shield | 5 | +40 % AC, +5 Vit, Thorns |
+| Coppercoil | Ring | 5 | +6 Dex, +10 To-Hit, +10 Mana |
+| Bloodletter | Morning Star | 5 | +60 % dmg, 3 % life steal, −3 Vit |
 | Rustfang | Falchion | 6 | +70 % dmg, +10 To-Hit, −5 Dex |
+| Thornbriar | Hard Leather Armor | 7 | +50 % AC, Thorns 3, +5 Str |
 | Ember Band | Ring | 8 | +5 Str, +5 Vit, +10 Life |
+| Stonejaw | War Hammer | 8 | +90 % dmg, +4 damage, −8 Dex |
+| Grimwarden's Hide | Studded Leather Armor | 9 | +12 AC, +8 Str, +15 Life |
 | The Lantern Eye | Amulet | 10 | +10 all attributes, −10 Life |
 | Scholar's Cowl | Cap | 10 | +15 Int, +20 Mana, +1 spell level |
-| Widowmaker | Broad Axe | 12 | +120 % dmg, 5 % life steal, −20 % AC |
+| Bulwark of Saints | Large Shield | 11 | +120 % AC, +10 Vit, −3 dmg taken |
+| Widowmaker | Broad Axe | 12 | +120 % dmg, 5 % life steal, −10 AC |
+| Moonshard | Amulet | 12 | +12 Int, +25 Mana, 3 % mana steal |
 | Ironhide Coat | Chain Mail | 13 | +80 % AC, +20 Life, −2 dmg taken |
-| Spinneret | Scimitar | 15 | +60 % dmg, Haste, +15 Dex (spider mini-boss, §9) |
+| Spinneret | Scimitar | 15 | +60 % dmg, 16 % faster attack, +15 Dex (spider mini-boss, §9) |
+| Serpent's Coil | Ring (q15) | 15 | +4 all attributes, 3 % life steal, 3 % mana steal |
+| Crown of Ash | Crown | 16 | +6 all attributes, +20 Life, +1 spell level |
+| Sunder | Great Axe | 18 | +140 % dmg, +20 To-Hit, 8 % faster attack |
 | Kingslayer's Oath | Bastard Sword | 20 | +150 % dmg, +30 To-Hit, +10 Str, crit chance ×2 |
 
-The full list is about 25 uniques, spread over qlvl 1–30.
+Widowmaker's "−20 % AC" from v1 became a flat −10 AC: +% armor only applies to an item's own armor, and an axe has none.
 
 ### 6.6 Item data model
 

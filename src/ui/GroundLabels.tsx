@@ -2,9 +2,9 @@ import { signal } from '@preact/signals';
 import * as THREE from 'three';
 import { G } from '../game/state';
 import { camera } from '../render/renderer';
-import { itemName } from '../rules/inventory';
+import { itemName, quality, type Quality } from '../rules/inventory';
 
-interface Label { key: number; x: number; y: number; text: string; dim: boolean }
+interface Label { key: number; x: number; y: number; text: string; dim: boolean; q: Quality }
 const labels = signal<Label[]>([]);
 
 let altHeld = false;
@@ -31,6 +31,7 @@ export function updateGroundLabels(): void {
       y: (-_v.y * .5 + .5) * innerHeight,
       text: itemName(p.item).toUpperCase(),
       dim: p.discarded,
+      q: quality(p.item),
     });
   }
   if (out.length || labels.value.length) labels.value = out;
@@ -40,7 +41,7 @@ export function GroundLabels() {
   return (
     <>
       {labels.value.map(l => (
-        <div key={l.key} class={'groundLabel px' + (l.dim ? ' dim' : '')} style={{ left: l.x, top: l.y }}>{l.text}</div>
+        <div key={l.key} class={`groundLabel px q-${l.q}` + (l.dim ? ' dim' : '')} style={{ left: l.x, top: l.y }}>{l.text}</div>
       ))}
     </>
   );

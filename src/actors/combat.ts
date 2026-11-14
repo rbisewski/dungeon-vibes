@@ -11,7 +11,7 @@ import { spawnDrops, spawnGold, spawnItem } from '../world/groundItems';
 import { toast } from '../ui/store';
 import { computeField } from '../world/nav';
 import type { Chest, Monster } from '../game/types';
-import { awardKill, heroHasShield } from './heroStats';
+import { awardKill } from './heroStats';
 
 /** Trap damage scales with depth (spikes and blades hit heroes and monsters alike). */
 export const trapDamage = (): number => ri(5, 10) + 2 * G.L.depth;
@@ -32,14 +32,16 @@ export function monsterStrike(m: Monster, nx: number, nz: number): void {
   const s = h.stats, r = m.roll;
   if (!roll(R, monsterHitChance(r.toHit, r.mlvl, s.clvl, h.d.ac))) { SFX.whiff(); return; }
   // D1: a shield blocks only while standing still or swinging.
-  const canBlock = heroHasShield(h) && (h.atkT >= 0 || Math.hypot(h.vx, h.vz) < .6);
+  const canBlock = !!h.inv.equip.shield && h.gearOk.has(h.inv.equip.shield.uid) && (h.atkT >= 0 || Math.hypot(h.vx, h.vz) < .6);
   if (canBlock && roll(R, blockChance(s.cls, h.d, s.clvl, r.mlvl))) {
     SFX.block(); h.kx += nx * 2; h.kz += nz * 2;
     impact(h.x - nx * .35, 1.0, h.z - nz * .35, 0xbfd8ff, 1.2);
     for (let k = 0; k < 10; k++) fxAdd.spawn(h.x - nx * .35, 1.0, h.z - nz * .35, -nx * rr(1, 3) + rr(-1, 1), rr(.5, 2), -nz * rr(1, 3) + rr(-1, 1), rr(.15, .3), 1.2, 1.4, 1.8, rr(.03, .05), 9, 1, 1);
     return;
   }
-  damageHero(ri(r.dmgMin, r.dmgMax), nx, nz);
+  // Item damage reduction leaves at least 1 point (D1).
+  damageHero(Math.max(1, ri(r.dmgMin, r.dmgMax) - h.d.dmgTaken), nx, nz);
+  if (h.d.thorns > 0 && !m.dead) damageMonster(m, ri(1, 3 * h.d.thorns), -nx, -nz, true);
 }
 
 /** Hero attack roll that failed: the monster notices and is nudged, but takes no damage. */
@@ -89,7 +91,7 @@ function killMonster(m: Monster, nx: number, nz: number, byHero: boolean): void 
     const d = mesh(gCircle(1), MAT.goo, m.x, .02, m.z, G.L.group, false); d.rotation.x = -PI / 2; d.scale.set(rr(.6, .9), rr(.5, .8), 1); G.L.decals.push({ o: d, t: 0 });
     m.remove = true;
   }
-  spawnDrops(monsterDrops(R, m.roll.mlvl, G.L.depth, m.type === 'boss'), m.x, m.z);
+  spawnDrops(monsterDrops(R, m.roll.mlvl, G.L.depth, m.type === 'boss', G.loot), m.x, m.z);
   if (m.type === 'boss') toast('THE WARDEN FALLS');
 }
 export function openChest(c: Chest): void {
@@ -97,7 +99,7 @@ export function openChest(c: Chest): void {
   for (let k = 0; k < 24; k++) fxAdd.spawn(c.x, .6, c.z, rr(-1, 1), rr(1.5, 3.5), rr(-1, 1), rr(.6, 1.2), 1.6, 1.1, .35, rr(.04, .08), 4, .5, 1);
   spawnGold(c.gold, c.x, c.z);
   // D1: chests create items at ilvl 2·dlvl.
-  if (c.hasItem) spawnItem(rollItem(R, 2 * G.L.depth, G.L.depth), c.x, c.z);
+  if (c.hasItem) spawnItem(rollItem(R, 2 * G.L.depth, G.L.depth, G.loot), c.x, c.z);
   if (c.isKey) { G.hero.key = true; SFX.key(); toast('FOUND THE KEY', 'THE STAIR DOOR AWAITS'); if (c.glow) c.glow.visible = false; for (let k = 0; k < 30; k++) fxAdd.spawn(c.x, .8, c.z, rr(-1.2, 1.2), rr(2, 4), rr(-1.2, 1.2), rr(.8, 1.4), 1.8, 1.3, .4, rr(.05, .09), 2, .6, 2); }
 }
 export function unlockDoor(): void {

@@ -47,6 +47,15 @@ class Painter {
     for (const [x, y] of edge) this.px(x, y, OUTLINE);
     return this;
   }
+  /** Recolours the outer outline pixels (those touching transparency): the 1 px gold rim of unique items [OURS]. */
+  rim(col: string): this {
+    const d = this.g.getImageData(0, 0, this.w, this.h), a = (x: number, y: number) => x >= 0 && y >= 0 && x < this.w && y < this.h && d.data[(y * this.w + x) * 4 + 3] > 0;
+    for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) {
+      const i = (y * this.w + x) * 4;
+      if (d.data[i + 3] > 0 && d.data[i] === 0x12 && d.data[i + 1] === 0x0c && (!a(x - 1, y) || !a(x + 1, y) || !a(x, y - 1) || !a(x, y + 1))) this.px(x, y, col);
+    }
+    return this;
+  }
 }
 
 /* ---------- weapons ---------- */
@@ -194,6 +203,21 @@ function shield(p: Painter, look: ShieldLook): void {
   if (look === 'tower') for (let y = 6; y < h - 2; y += 6) p.rect(cx - 9, y, 18, 1, C.steelD);
 }
 
+/* ---------- jewelry ---------- */
+
+function ring(p: Painter, gem: string): void {
+  for (let y = 0; y < p.h; y++) for (let x = 0; x < p.w; x++) {
+    const d = Math.hypot(x - 6.5, y - 8);
+    if (d <= 4.6 && d >= 2.6) p.px(x, y, x < 6 ? C.goldL : y > 9 ? C.goldD : C.gold);
+  }
+  p.disc(6.5, 3.4, 2.1, OUTLINE); p.disc(6.5, 3.4, 1.5, gem); p.px(6, 3, '#ffffff');
+}
+
+function amulet(p: Painter, gem: string): void {
+  for (let k = 0; k <= 10; k++) { const x = 2 + k, y = 1 + Math.round(4 * Math.sin((k / 10) * Math.PI)); if (k % 2 === 0) p.px(x, y, C.goldD); else p.px(x, y, C.gold); }
+  p.disc(7, 9.5, 3.4, C.goldD); p.disc(6.7, 9.2, 2.6, C.gold); p.disc(7, 9.5, 1.6, gem); p.px(6, 9, '#ffffff');
+}
+
 /* ---------- table ---------- */
 
 type Draw = (p: Painter) => void;
@@ -223,6 +247,8 @@ const DRAW: Record<BaseId, Draw> = {
   full_plate_mail: p => body(p, 'full'),
   buckler: p => shield(p, 'buckler'), small_shield: p => shield(p, 'small'), large_shield: p => shield(p, 'large'),
   kite_shield: p => shield(p, 'kite'), tower_shield: p => shield(p, 'tower'), gothic_shield: p => shield(p, 'gothic'),
+  ring: p => ring(p, C.red), ring_q10: p => ring(p, C.blue), ring_q15: p => ring(p, C.green),
+  amulet: p => amulet(p, C.red), amulet_q16: p => amulet(p, C.blue),
 };
 
 export type Icon = PixImage;
@@ -243,9 +269,33 @@ const ELIXIR_ICON = Object.fromEntries((Object.keys(ELIXIR_COL) as Attr[]).map(a
   return [a, toIcon(p.outline())];
 })) as Record<Attr, Icon>;
 
+/** Base icon redrawn with a gold rim, built on first use per base. */
+const UNIQUE_ICON = new Map<BaseId, Icon>();
+function uniqueIcon(id: BaseId): Icon {
+  let ic = UNIQUE_ICON.get(id);
+  if (!ic) {
+    const b = BASES[id], p = new Painter(b.w * CELL_PX, b.h * CELL_PX);
+    DRAW[id](p);
+    ic = toIcon(p.outline().rim(C.goldL));
+    UNIQUE_ICON.set(id, ic);
+  }
+  return ic;
+}
+
+/** Rolled parchment with a wax seal. */
+const SCROLL_ICON: Icon = (() => {
+  const p = new Painter(CELL_PX, CELL_PX), paper = '#e8d8a8', paperD = '#b8a070';
+  p.rect(3, 3, 8, 8, paper); p.rect(3, 3, 1, 8, paperD);
+  for (let y = 4; y < 10; y += 2) p.rect(5, y, 5, 1, paperD);
+  p.rect(2, 1, 10, 2, paperD); p.rect(2, 11, 10, 2, paperD); p.rect(3, 1, 8, 1, paper); p.rect(3, 11, 8, 1, paper);
+  p.disc(9.5, 9.5, 1.6, C.red);
+  return toIcon(p.outline());
+})();
+
 export function itemIcon(it: Item): Icon {
   switch (it.kind) {
-    case 'equip': return BASE_ICON[it.base];
+    case 'equip': return it.q === 'unique' ? uniqueIcon(it.base) : BASE_ICON[it.base];
+    case 'scroll': return SCROLL_ICON;
     case 'elixir': return ELIXIR_ICON[it.attr];
     case 'potion': return POTION_ICON[it.potion];
   }

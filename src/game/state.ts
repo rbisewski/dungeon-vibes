@@ -1,3 +1,4 @@
+import type { LootCtx } from '../rules/loot';
 import type { Actor, Hero, Level, Transition } from './types';
 
 /** Mutable world state shared across systems. Single instance; never reassigned. */
@@ -14,6 +15,8 @@ export const G = {
   transition: null as Transition | null,
   /** True while a UI panel is open: the world does not advance. */
   paused: false,
+  /** Run-wide loot state (uniques already generated). */
+  loot: { found: new Set() } as LootCtx,
 };
 
 export const isHero = (a: Actor): a is Hero => a === G.hero;

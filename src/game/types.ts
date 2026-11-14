@@ -38,7 +38,11 @@ export interface SpikeTrap { kind: 'spike'; tx: number; tz: number; x: number; z
 export interface BladeTrap { kind: 'blade'; tx: number; tz: number; x: number; z: number; along: Axis; sw: THREE.Group; ph: number; w: number; ang: number; prev: number; hitT: Map<Actor, number> }
 export type Trap = SpikeTrap | BladeTrap;
 
-interface PickupBody { o: THREE.Object3D; x: number; z: number; y: number; vx: number; vz: number; vy: number; t: number }
+interface PickupBody {
+  o: THREE.Object3D; x: number; z: number; y: number; vx: number; vz: number; vy: number; t: number;
+  /** Borrowed warm light that follows a unique item (registered in `Level.lights`). */
+  light?: LightSrc;
+}
 /**
  * Something lying on the floor. `discarded` items were dropped by the player: they are only picked up again with `E`,
  * never by walking over them or by AUTO.
@@ -132,6 +136,10 @@ export interface Hero extends HeroParts {
   stats: HeroStats;
   /** Derived stats; refreshed only by `recompute`. */
   d: Derived;
+  /** Derived stats as shown on the character screen: unidentified items' properties are hidden (D1). */
+  dShown: Derived;
+  /** uids of equipped items whose requirements are met. */
+  gearOk: ReadonlySet<number>;
   life: number; mana: number;
   gold: number; inv: Inventory; key: boolean; slain: number;
   cd: number; atkT: number; hitDone: boolean; /** Post-hit invulnerability timer. */ invuln: number; flinch: number; flash: number; drink: number; phase: number;

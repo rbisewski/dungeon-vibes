@@ -10,8 +10,8 @@ import { G } from '../game/state';
 import { base } from '../rules/bases';
 import type { Attr } from '../rules/classes';
 import {
-  addItem, beltable, equipFromPack, equipInto, findSpot, isTwoHanded, itemAt, itemSize, meetsReq,
-  placeAt, putInGrid, removeFromGrid, slotFor, takeFromBelt, unequipToPack, PACK_W, PACK_H, type EquipSlot, type Item,
+  addItem, beltable, carried, equipFromPack, equipInto, findSpot, fitsSlot, isTwoHanded, isUnidentified, itemAt, itemName,
+  itemSize, meetsReq, placeAt, putInGrid, removeFromGrid, takeFromBelt, unequipToPack, PACK_W, PACK_H, type EquipSlot, type Item,
 } from '../rules/inventory';
 import { pickupNearest, spawnItem } from '../world/groundItems';
 import { isOpen, openPanels, toast, type Panel } from './store';
@@ -25,6 +25,12 @@ export const invVersion = signal(0);
 /** Keyboard cursor in the inventory: a backpack cell or an equipment slot. */
 export type Cursor = { area: 'pack'; x: number; y: number } | { area: 'equip'; slot: EquipSlot };
 export const cursor = signal<Cursor>({ area: 'pack', x: 0, y: 0 });
+
+/** Where the Scroll of Identify being read sits; while set, inventory clicks choose the item to identify. */
+export type ScrollSource = { belt: number } | { pack: Item };
+export const identifying = signal<ScrollSource | null>(null);
+/** uid of the item that was just identified (its cell sparkles briefly). */
+export const sparkle = signal<number | null>(null);
 
 /** Panels cannot open mid-transition or while the hero is dead or descending. */
 const canOpen = (): boolean => !G.transition && !G.hero.dead && G.hero.descend <= 0;
@@ -55,7 +61,7 @@ function stowHeld(): void {
 }
 
 export function closePanel(p: Panel): void {
-  if (p === 'inv') stowHeld();
+  if (p === 'inv') { stowHeld(); identifying.value = null; }
   openPanels.value = openPanels.value.filter(q => q !== p);
   G.paused = openPanels.value.length > 0;
   resetInput();
@@ -63,6 +69,7 @@ export function closePanel(p: Panel): void {
 
 export function closePanels(): void {
   stowHeld();
+  identifying.value = null;
   openPanels.value = [];
   G.paused = false;
   resetInput();
@@ -80,7 +87,8 @@ export function spendPoint(a: Attr): void {
 
 /* ---------- inventory commands ---------- */
 
-const attrs = () => G.hero.stats.base;
+/** Current attributes (base + items): what D1 checks requirements against. */
+const attrs = () => G.hero.d.attr;
 
 function reqText(it: Item): string {
   if (it.kind !== 'equip') return '';
@@ -88,9 +96,36 @@ function reqText(it: Item): string {
   return (['str', 'dex', 'int'] as const).filter(a => (r[a] ?? 0) > attrs()[a]).map(a => `${r[a]} ${a.toUpperCase()}`).join(', ');
 }
 
+/**
+ * Reading a Scroll of Identify (SPEC §6.4): opens the inventory in target mode. The scroll is used up only when an
+ * item is chosen; with nothing to identify it is not read at all.
+ */
+export function readScroll(src: ScrollSource): void {
+  if (!carried(G.hero.inv).some(isUnidentified)) { toast('NOTHING TO IDENTIFY'); return; }
+  openPanel('inv');
+  if (!isOpen('inv')) return;
+  identifying.value = src;
+  toast('IDENTIFY', 'CHOOSE AN ITEM - ESC CANCELS');
+}
+
+function identify(it: Item | null): void {
+  const src = identifying.value, inv = G.hero.inv;
+  if (!src || !it || it.kind !== 'equip' || it.identified) return;
+  if ('belt' in src) takeFromBelt(inv, src.belt);
+  else removeFromGrid(inv.pack, src.pack);
+  it.identified = true;
+  identifying.value = null;
+  sparkle.value = it.uid;
+  setTimeout(() => { if (sparkle.value === it.uid) sparkle.value = null; }, 900);
+  SFX.identify();
+  toast(itemName(it).toUpperCase());
+  changed();
+}
+
 /** Left-click on a backpack cell: pick up, place, or swap (D1). The held item is anchored so the clicked cell is near its middle. */
 export function clickPack(x: number, y: number): void {
   const inv = G.hero.inv, h = held.value;
+  if (identifying.value) { identify(itemAt(inv.pack, x, y)?.item ?? null); return; }
   if (!h) {
     const p = itemAt(inv.pack, x, y);
     if (!p) return;
@@ -113,6 +148,7 @@ export function clickPack(x: number, y: number): void {
 /** Left-click on an equipment slot: take the item, or put the held item on (swapping with what was there). */
 export function clickEquip(slot: EquipSlot): void {
   const inv = G.hero.inv, h = held.value;
+  if (identifying.value) { identify(inv.equip[slot]); return; }
   if (!h) {
     const it = inv.equip[slot];
     if (!it) return;
@@ -122,7 +158,7 @@ export function clickEquip(slot: EquipSlot): void {
     changed();
     return;
   }
-  if (h.kind !== 'equip' || slotFor(h) !== slot) return;
+  if (h.kind !== 'equip' || !fitsSlot(h, slot)) return;
   if (!meetsReq(h, attrs())) { toast('CANNOT USE', `NEEDS ${reqText(h)}`); return; }
   // Equipping a two-handed weapon over a weapon *and* a shield: the shield goes to the backpack.
   const extra = slot === 'weapon' && isTwoHanded(h) && inv.equip.weapon && inv.equip.shield ? inv.equip.shield : null;
@@ -141,6 +177,7 @@ export function clickEquip(slot: EquipSlot): void {
 /** Left-click on a belt slot while the inventory is open: take or place potions. */
 export function clickBelt(slot: number): void {
   const inv = G.hero.inv, h = held.value;
+  if (identifying.value) return;
   if (h && !beltable(h)) return;
   const prev = inv.belt[slot];
   if (!h && !prev) return;
@@ -155,6 +192,7 @@ export function usePackItem(it: Item): void {
   const inv = G.hero.inv;
   if (it.kind === 'potion') { removeFromGrid(inv.pack, it); drinkPotion(it.potion); changed(); return; }
   if (it.kind === 'elixir') { if (drinkElixir(it.attr)) { removeFromGrid(inv.pack, it); changed(); } return; }
+  if (it.kind === 'scroll') { readScroll({ pack: it }); return; }
   if (!meetsReq(it, attrs())) { toast('CANNOT USE', `NEEDS ${reqText(it)}`); return; }
   if (equipFromPack(inv, it)) { SFX.pickup(); changed(); }
   else toast('NO ROOM IN THE BACKPACK');
@@ -203,6 +241,7 @@ function cursorItem(): Item | null {
 addEventListener('keydown', e => {
   if (e.code === 'KeyC') { e.preventDefault(); togglePanel('char'); return; }
   if (e.code === 'KeyI') { e.preventDefault(); togglePanel('inv'); return; }
+  if (identifying.value && e.code === 'Escape') { e.preventDefault(); identifying.value = null; toast('IDENTIFY CANCELLED'); return; }
   if (openPanels.value.length && (e.code === 'Escape' || e.code === 'Space')) { e.preventDefault(); closePanels(); return; }
   if (!isOpen('inv')) {
     if (e.code === 'KeyE' && !G.paused) { e.preventDefault(); pickupNearest(); }
@@ -223,6 +262,7 @@ addEventListener('keydown', e => {
 /** Belt slot clicks: with the inventory open the belt takes and places potions; otherwise right-click drinks. */
 export function beltClick(slot: number, button: 'left' | 'right'): void {
   if (isOpen('inv') && button === 'left') clickBelt(slot);
+  else if (button === 'right' && G.hero.inv.belt[slot]?.kind === 'scroll') readScroll({ belt: slot });
   else if (button === 'right') {
     if (G.paused) {
       const it = takeFromBelt(G.hero.inv, slot);
