@@ -4,9 +4,11 @@ import { G } from '../game/state';
 import { DX8, DZ8, T } from './consts';
 
 export const tileAt = (tx: number, tz: number): number => (tx < 0 || tz < 0 || tx >= G.L.W || tz >= G.L.H) ? 0 : G.L.tiles[tz * G.L.W + tx];
-export const solidFor = (t: number, isHero: boolean): boolean => t === 0 || t === 4 || t === 5 || (t === 6 && !isHero);
+/** Tiles: 0 wall, 1 floor, 2 corridor, 3 door, 4 locked door, 5 closed, 6 stairs down, 7 stairs up. Monsters keep off stairs. */
+export const isStairs = (t: number): boolean => t === 6 || t === 7;
+export const solidFor = (t: number, isHero: boolean): boolean => t === 0 || t === 4 || t === 5 || (isStairs(t) && !isHero);
 /** Walkable for pathing (floor, corridor, open door, stairs) and not blocked by a prop. */
-export const navOK = (i: number): boolean => { const t = G.L.tiles[i]; return (t === 1 || t === 2 || t === 3 || t === 6) && !G.L.navBlock[i]; };
+export const navOK = (i: number): boolean => { const t = G.L.tiles[i]; return (t === 1 || t === 2 || t === 3 || isStairs(t)) && !G.L.navBlock[i]; };
 export function circleBlocked(x: number, z: number, r: number, isHero: boolean): boolean {
   const tx0 = Math.round((x - r) / T), tx1 = Math.round((x + r) / T), tz0 = Math.round((z - r) / T), tz1 = Math.round((z + r) / T);
   for (let tz = tz0; tz <= tz1; tz++) for (let tx = tx0; tx <= tx1; tx++) {

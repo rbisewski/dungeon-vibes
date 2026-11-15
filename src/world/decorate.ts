@@ -12,7 +12,7 @@ import type { Axis } from '../game/types';
 /** True when every walkable tile is still reachable from the start (used before placing a blocking prop). */
 function connected(): boolean {
   const { W, H, N, tiles, navBlock } = G.L, seen = new Uint8Array(N), st = [G.L.startIdx]; seen[G.L.startIdx] = 1; let cnt = 1, total = 0;
-  const ok = (i: number): boolean => { const t = tiles[i]; return (t === 1 || t === 2 || t === 3 || t === 4 || t === 6) && !navBlock[i]; };
+  const ok = (i: number): boolean => { const t = tiles[i]; return (t === 1 || t === 2 || t === 3 || t === 4 || t === 6 || t === 7) && !navBlock[i]; };
   for (let i = 0; i < N; i++) if (ok(i)) total++;
   while (st.length) { const c = st.pop()!, cx = c % W, cz = (c / W) | 0; for (let k = 0; k < 4; k++) { const nx = cx + DX8[k], nz = cz + DZ8[k]; if (nx < 0 || nz < 0 || nx >= W || nz >= H) continue; const n = nz * W + nx; if (!seen[n] && ok(n)) { seen[n] = 1; cnt++; st.push(n); } } }
   return cnt === total;
@@ -43,7 +43,7 @@ export function decorate(): void {
       tiles[i] = 3; G.L.doors.push(makeDoor(G.L, x, z, wx ? 'x' : 'z', false));
     }
   }
-  G.L.doors.push(G.L.lockedDoor);
+  if (G.L.lockedDoor) G.L.doors.push(G.L.lockedDoor);
   // pick special rooms
   const normal = rooms.filter(r => r !== sr && r !== G.L.startRoom);
   const keyRoom = normal.reduce((a, b) => Math.hypot(b.cx - G.L.startRoom.cx, b.cy - G.L.startRoom.cy) > Math.hypot(a.cx - G.L.startRoom.cx, a.cy - G.L.startRoom.cy) ? b : a, normal[0]);
@@ -143,7 +143,8 @@ export function decorate(): void {
   if (straight.length > 6 && R() < .7) { const [x, z] = pick(straight); if (free(x, z)) makeSpikes(x, z); }
   if (G.L.depth % 2 === 0 || !moonRoom) { const c = pick(straight); if (c) addMoon(c[0] * T, c[1] * T); }
 }
-function addMoon(x: number, z: number): void {
+/** A moonlight shaft through a ceiling grate. */
+export function addMoon(x: number, z: number): void {
   const d = new THREE.Mesh(gPlane(1.9, 1.9), grateMat); d.rotation.x = -PI / 2; d.position.set(x, .025, z); G.L.group.add(d);
   const b = new THREE.Mesh(gBox(1.5, 7, 1.5), beamMat); b.position.set(x + .6, 3.5, z - .3); b.rotation.set(-.08, 0, .16); G.L.group.add(b);
   G.L.lights.push({ x, y: 3.4, z, base: 13, cold: true, seed: R() * 100, steady: true, d: 0 });

@@ -1,6 +1,6 @@
 # Dungeon Vibes — Diablo-Style Progression Spec
 
-Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phases 0–10.
+Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phases 0–11.
 
 This spec layers a Diablo 1 (D1) style character, spell, and loot system onto the existing game. The game is first ported from the single `index.html` to a TypeScript project (§2.1). It keeps the game's look, controls, and AUTO mode.
 
@@ -550,7 +550,6 @@ Data comes from D1 (§1.4) unless tagged.
 | Spell | Scroll qlvl | Deferred until |
 |---|---|---|
 | Nova | 14 | The scroll-only spell set ships |
-| Town Portal | 4 | Town exists (§13) |
 
 Notes:
 - Minimum mana costs are **[OURS]**: `ceil(initial/2)`. The web copy of Jarulf's table drops the minimum column.
@@ -578,7 +577,7 @@ Notes:
 
 - A scroll is a 1×1 item that casts its spell once, at the known slvl or slvl 1.
 - It costs **no mana**, as in D1.
-- Its Int requirement is `ceil(0.75 · learnInt)` **[OURS]**. D1 only says "a bit less". **Scrolls of Identify have no Int requirement [USER].**
+- Its Int requirement is `ceil(0.75 · learnInt)` **[OURS]**. D1 only says "a bit less". **Scrolls of Identify have no Int requirement [USER]; neither do Scrolls of Town Portal [OURS, as in D1].**
 - Scrolls can go on the **belt**, as in D1. Belt hotkeys `1`–`8` read them.
 - Identify scrolls are common [USER]. Weights are in §6.3.
 
@@ -1128,7 +1127,7 @@ The target behaviour, once the town exists:
 1. All carried items and all gold drop on the ground where the hero died.
 2. The hero respawns in town.
 
-**Until the town exists:**
+**Until the town exists** (Phases 7–10; since Phase 11 the hero wakes in town, §13, and the respawn rules below no longer apply):
 
 **Drop**
 - Everything drops at the death spot:
@@ -1176,7 +1175,7 @@ The target behaviour, once the town exists:
 
 **Leaving the level** (taking the stairs down) with piles still on the floor:
 - The level's delta is saved with the piles on it (Q7, §12.2). They stay where they are.
-- There is no way back up until up-stairs and the town exist (§13). So a confirmation toast warns before descending: `YOUR BELONGINGS REMAIN ABOVE — PRESS AGAIN TO DESCEND`.
+- A confirmation toast warns before leaving: `YOUR BELONGINGS REMAIN HERE`. Since Phase 11 the level can be reached again by up-stairs, town entrances or Town Portal (§13), and this applies to every exit.
 
 ---
 
@@ -1226,18 +1225,48 @@ Saved to `localStorage['dv.save.v3']`. There are up to 6 character slots:
 
 ---
 
-## 13. Town (future) [USER]
+## 13. Town [USER]
 
-Planned, not specified in detail yet. Hooks to keep in mind now:
-- **Respawn target on death** (§11).
-- **Town Portal:** spell and scroll, with D1 data (§5.2).
-- **Identify service:** a Cain-like NPC.
-- **Merchants:**
-  - potions and Scrolls of Identify
-  - basic equipment
-  - books
-- **Up-stairs and returning:** each level gets an up-stair next to the start room. Together with Town Portal, this makes the persisted levels (§12.2) reachable again.
-- **Town ground items persist [USER]:** anything dropped in town stays where it was dropped.
+**Scope (Phase 11) [USER Q13]:** the town, the stash, travel between town and dungeon, and Town Portal. Merchants (potions, Scrolls of Identify, basic equipment, books), a Cain-like identify service, and Repair/Recharge come in a later phase.
+
+**The town [OURS]** is depth 0: a fixed, hand-built walled square, the same on every run. It has no monsters and no traps.
+- A courtyard of about 24×18 tiles, with a well in the middle, a few house blocks, braziers, barrels, crates and banners. Moonlight shafts stand in for open sky, and ambient light is brighter than in the dungeon.
+- Fixed spots: the **stash** chest (§13.1), the **dungeon entrances** along one wall, the **portal** spot, and the **respawn** point by the well.
+- **Items dropped in town stay there [USER Q7]:** the town keeps a level delta like any dungeon level (depth 0 in the save).
+- **New characters start in town [OURS, as in D1]**, and the class select stands in the town.
+
+**Dungeon entrances [USER Q14, D1-like]**
+- An entrance to depth 1 is always open.
+- An entrance to depths 5, 10, 15, … opens once the character has reached that depth (`deepest`). Unopened ones show as a sealed grate.
+- Each entrance is labelled with its depth, and stepping on it leads to that depth's start room.
+
+**Up-stairs [USER Q16]:** every dungeon level has up-stairs in its start room.
+- Up-stairs lead to the level above, arriving next to its down-stairs. Depth 1's up-stairs lead to town, arriving at the depth 1 entrance.
+- Down-stairs work as before.
+- Leaving a level that still has grave piles, by any stairs or portal, warns once (§11).
+
+**Town Portal [USER Q15, D1]:** Learn Int 20; mana 35, −3 per slvl, at least 18; book qlvl 3; scroll qlvl 4.
+- Cast in the dungeon, it opens a blue portal at the hero's feet and a matching one at the town's portal spot.
+- Stepping into either portal travels to the other one. Returning to the dungeon through it closes the pair.
+- Only one pair exists at a time; casting again moves it. In town the spell fizzles.
+- The portal is saved with the character.
+
+**Death [USER Q5]:** belongings drop at the death spot under a grave marker (§11), and the hero wakes in town at the respawn point with full life and mana. The "until the town exists" respawn rules of §11 no longer apply.
+
+**AUTO in town:** AUTO never uses the stash.
+- It leaves town through an open portal if there is one. Otherwise it takes the deepest open entrance at or above its target depth: the depth of its deepest grave, else the deepest depth reached.
+- In the dungeon it plays as before and never takes up-stairs.
+
+**Save (§12.2):** each character adds `deepest`, `portal` (depth and position), and `stash` (grid and gold). The town's delta is `levels[0]`.
+
+**As implemented in Phase 11** [OURS unless noted]
+- **Town map:** 30×26 tiles, with a 24×20 courtyard and four 3×3 house blocks. Six entrances along the north wall lead to depths 1, 5, 10, 15, 20 and 25; deeper shortcuts are not offered. The courtyard has a well with the respawn point just south of it, five braziers, two closed market stalls (where merchants will stand), banners, torches and four moonlight shafts. Ambient light is 3.2, against 1.6–2.2 in the dungeon. Its props draw from a fixed seed. The HUD shows `TOWN`.
+- **Exits** are one system on every level: down-stairs, up-stairs, town entrances and portals. Stepping on one (the player) leaves at once. AUTO only uses the exit it is heading for. With a grave pile on the level, the first step warns (`STEP ON AGAIN TO LEAVE`). Leaving by the down-stairs still restores a fifth of max life. Labels name exits within 5 m (`DEPTH 5`, `DEPTH 10 - SEALED`, `UP TO TOWN`, `PORTAL TO DEPTH 3`), and the stash.
+- **Up-stairs:** a new tile (7). The hero can walk on it, monsters cannot, and the floor is drawn. It sits on an edge cell of the start room with a wall behind it, away from the room's openings and the start landing. It is drawn as four steps rising into a dark archway.
+- **The key belongs to its level:** whenever a level is rebuilt with its key chest open and its door still locked, the hero holds the key. Leaving through a portal and returning keeps it, and saves no longer store it.
+- **Town Portal:** the portal opens 1.4 m in front of the hero, or at the hero's feet if that spot is blocked. Arriving through a portal puts the hero on the other end, which works only after stepping off and on again. Scrolls of Town Portal need no Int, as in D1. AUTO never casts or reads it.
+- **Stash:** walking into the stash opens it, only when the player is moving the hero (never in AUTO); it opens again after stepping away. Click to pick up, place or swap. Right-click or X sends an item across: stash to backpack, or backpack to stash while the stash is open. Arrow keys cross between the two grids, and Enter places. `DEPOSIT` and `WITHDRAW` move all gold. Closing the stash saves.
+- **Pacing (AUTO from a new character to depth 6):** all classes arrive at clvl 8–9. On dying (Thief at depth 4, Mage four times at depth 5), AUTO woke in town, walked back down through its cleared levels (about 30 s each) or took the depth 5 entrance, and recovered its grave.
 
 ### 13.1 Stash [USER]
 
@@ -1288,7 +1317,7 @@ Each phase ships playable and is verified in the browser before the next starts.
 | 8 | **New monsters** | §8 | Each family's behaviour is visible in play. Pacing targets hold in a simulation for every class. Fallen flee. Bats drop no items. Archers' arrows can be blocked. |
 | 9 | **Mini-bosses** | §9 | Depths 5, 10, 15, and 20 have the right boss, mechanics, and guaranteed drops. |
 | 10 | **Persistence and polish** | §12.2 (character slots, level deltas), §8.4, settings (damage numbers) | Reloading mid-level continues with the same layout, ground items, and gear. Several characters can be saved side by side. |
-| 11 | **Town** (to be specced separately) | §13, §13.1 | Death respawns the hero in town. The stash stores items across sessions. Items dropped in town stay there. |
+| 11 | **Town** | §13, §13.1 | Death respawns the hero in town. The stash stores items across sessions. Items dropped in town stay there. |
 
 ---
 

@@ -12,7 +12,7 @@ import { clickEquip, clickPack, closePanel, cursor, dropHeld, held, identifying,
 import { panelStyle } from './pixel/frame';
 
 /** One backpack cell in CSS px (28 px art + 1 px separator). */
-const CELL = 29;
+export const CELL = 29;
 
 /** Paper-doll slot rectangles in cells (D1 layout, 10 × 6). */
 const DOLL: Record<EquipSlot, { x: number; y: number; w: number; h: number; label: string }> = {
@@ -27,15 +27,15 @@ const DOLL: Record<EquipSlot, { x: number; y: number; w: number; h: number; labe
 const SLOTS = Object.keys(DOLL) as EquipSlot[];
 
 /** Current attributes (base + items), what requirements are checked against. */
-const attrs = () => G.hero.d.attr;
+export const attrs = () => G.hero.d.attr;
 
-function Icon({ it, dim }: { it: Item; dim?: boolean }) {
+export function Icon({ it, dim }: { it: Item; dim?: boolean }) {
   const ic = itemIcon(it);
   return <img src={ic.src} width={ic.w * 2} height={ic.h * 2} style={dim ? { opacity: .3, filter: 'grayscale(1)' } : undefined} alt="" draggable={false} />;
 }
 
 /** Description lines for the hovered or held item (D1 description box). */
-function describe(it: Item): { text: string; cls?: string }[] {
+export function describe(it: Item): { text: string; cls?: string }[] {
   const lines: { text: string; cls?: string }[] = [{ text: itemName(it).toUpperCase(), cls: `name q-${quality(it)}` }];
   if (it.kind === 'potion') {
     const p = POTIONS[it.potion];

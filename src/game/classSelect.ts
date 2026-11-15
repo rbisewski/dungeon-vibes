@@ -1,6 +1,6 @@
 /**
- * Class select (SPEC §3.1): the three heroes stand on the first level's start landing; the chosen one steps forward
- * into the torchlight. Runs while the world is paused, through the loop's menu tick.
+ * Class select (SPEC §3.1): the three heroes stand in the town square; the chosen one steps forward into the
+ * torchlight. Runs while the world is paused, through the loop's menu tick.
  */
 import { signal } from '@preact/signals';
 import { createHero } from '../actors/hero';
@@ -43,14 +43,14 @@ function tick(dt: number): void {
 }
 
 /**
- * Shows the class select over depth 1. `fresh` rebuilds depth 1 from a new run seed first (coming from the title
+ * Shows the class select in town. `fresh` rebuilds the town and draws a new run seed first (coming from the title
  * screen, where some other character's level may be on screen).
  */
 export function openClassSelect(fresh = false): void {
   if (fresh) {
-    G.charId = null; G.levels = {};
-    G.runSeed = (Math.random() * 2 ** 32) >>> 0; G.depth = 1;
-    buildLevel(1);
+    G.charId = null; G.levels = {}; G.portal = null; G.deepest = 0;
+    G.runSeed = (Math.random() * 2 ** 32) >>> 0; G.depth = 0;
+    buildLevel(0);
   }
   scene.remove(G.hero.root);
   heroes = CLASS_IDS.map(c => createHero(c, ''));
@@ -78,7 +78,7 @@ export function chooseClass(c: ClassId): void {
   G.hero = heroes[CLASS_IDS.indexOf(c)];
 }
 
-/** Starts the run with the chosen class and name on a fresh depth 1. */
+/** Starts the run with the chosen class and name in town (as in D1, SPEC §13). */
 export function startRun(name: string): void {
   const chosen = G.hero;
   for (const h of heroes) if (h !== chosen) scene.remove(h.root);
@@ -91,8 +91,8 @@ export function startRun(name: string): void {
   G.inMenu = false;
   G.paused = false;
   fade.value = 1;
-  G.depth = 1;
+  G.depth = 0;
   beginNewCharacter();
-  buildLevel(1);
+  buildLevel(0);
   saveGame();
 }

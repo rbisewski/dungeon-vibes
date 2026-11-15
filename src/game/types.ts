@@ -88,8 +88,14 @@ export interface Level extends Layout {
   /** `genId`s of generated monsters killed on this level (dead monsters leave `monsters` once their corpse is gone). */
   killedGen: Set<number>;
   startIdx: number;
+  /** Down-stairs (in town: the depth 1 entrance). */
   stairs: { tx: number; tz: number; x: number; z: number };
-  lockedDoor: Door;
+  /** Ways off the level: stairs down and up, town entrances, an open Town Portal (SPEC §13). */
+  exits: Exit[];
+  /** The town's stash chest; null in the dungeon. */
+  stash: { x: number; z: number } | null;
+  /** The stairs room's locked door; null in town. */
+  lockedDoor: Door | null;
   flameMesh: THREE.InstancedMesh | null;
 }
 
@@ -187,14 +193,14 @@ export type Monster = MonsterCommon & (
   | ({ type: 'eggsac' } & EggParts)
 );
 
-export type GoalKind = 'mon' | 'pick' | 'chest' | 'room' | 'door' | 'stairs';
+export type GoalKind = 'mon' | 'pick' | 'chest' | 'room' | 'door' | 'exit';
 export type Goal =
   | { kind: 'mon'; ref: Monster; tx: number; tz: number }
   | { kind: 'pick'; ref: Pickup; tx: number; tz: number }
   | { kind: 'chest'; ref: Chest; tx: number; tz: number }
   | { kind: 'room'; ref: Room; tx: number; tz: number }
   | { kind: 'door'; ref: Door; tx: number; tz: number }
-  | { kind: 'stairs'; ref: null; tx: number; tz: number };
+  | { kind: 'exit'; ref: Exit; tx: number; tz: number };
 
 export interface Hero extends HeroParts {
   x: number; z: number; vx: number; vz: number; kx: number; kz: number;
@@ -230,8 +236,8 @@ export interface Hero extends HeroParts {
   skillCd: number;
   /** Weapon kind whose mesh the hero holds (the equipped weapon, usable or not). */
   heldKind: WeaponKind;
-  /** Standing on the stairs last step, and for how long (AUTO descends after a warning). */
-  onStairs: boolean;
+  /** The exit the hero stood on last step (null: none), and for how long (AUTO leaves 2 s after a warning). */
+  onExit: Exit | null;
   stairsT: number;
   /** Spider web: 40 % slower while > 0. */
   slowT: number;
@@ -243,7 +249,14 @@ export interface Hero extends HeroParts {
 
 export type Actor = Hero | Monster;
 
-export interface Transition { t: number; kind: 'descend' | 'death'; built?: boolean }
+/** Leaving a level: through an exit (`travel`, to depth `to`) or by dying (to town). */
+export type Transition = { t: number; built?: boolean } & ({ kind: 'travel'; exit: Exit } | { kind: 'death' });
+
+/**
+ * A way off the level. `down` and `up` are stairs; `portal` is a Town Portal. `to` is the depth it leads to (0 =
+ * town). Sealed town entrances are listed with `open` false. `r` is the half-size of the square that triggers it.
+ */
+export interface Exit { kind: 'down' | 'up' | 'portal'; to: number; tx: number; tz: number; x: number; z: number; r: number; open: boolean; /** Portal visuals, removed when the pair closes. */ o?: THREE.Object3D }
 
 /* ---------- spells ---------- */
 

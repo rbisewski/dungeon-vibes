@@ -11,7 +11,7 @@ import { BOSSES } from '../rules/bosses';
 import { ELITE_MOD_NAME } from '../rules/elites';
 import { toast } from '../ui/store';
 import { DX8, DZ8, T } from '../world/consts';
-import { clearLine, fieldAt, navOK } from '../world/nav';
+import { clearLine, fieldAt, isStairs, navOK } from '../world/nav';
 import type { Monster } from '../game/types';
 
 /** Next tile centre downhill on the hero distance field (stairs excluded). */
@@ -21,7 +21,7 @@ function flowStep(m: Monster): { x: number; z: number } | null {
   let best = -1, bd = dist[tz * W + tx]; if (!(bd < Infinity)) bd = 1e9;
   for (let k = 0; k < 8; k++) {
     const dx = DX8[k], dz = DZ8[k], nx = tx + dx, nz = tz + dz; if (nx < 0 || nz < 0 || nx >= W || nz >= H) continue;
-    const n = nz * W + nx; if (!navOK(n) || tiles[n] === 6) continue;
+    const n = nz * W + nx; if (!navOK(n) || isStairs(tiles[n])) continue;
     if (dx && dz && (!navOK(tz * W + nx) || !navOK(nz * W + tx))) continue;
     if (dist[n] < bd) { bd = dist[n]; best = n; }
   }

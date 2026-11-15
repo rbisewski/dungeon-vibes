@@ -1,4 +1,5 @@
 import type * as THREE from 'three';
+import { spinPortals } from './town';
 import { toast } from '../ui/store';
 import { canCollect } from '../actors/heroAuto';
 import { collect, pickupReach } from './groundItems';
@@ -81,6 +82,7 @@ export function updateWorld(dt: number): void {
     if (b.t > b.life) { b.o.position.y -= dt * .25; if (b.t > b.life + 1.2) { G.L.group.remove(b.o); G.L.debris.splice(i, 1); } }
   }
   for (let i = G.L.decals.length - 1; i >= 0; i--) { const d = G.L.decals[i]; d.t += dt; if (d.t > 10) { d.o.scale.multiplyScalar(1 - dt * 1.5); if (d.t > 12) { G.L.group.remove(d.o); G.L.decals.splice(i, 1); } } }
+  spinPortals(dt);
   for (const r of G.L.runes) {
     r.rotation.z += dt * .15; runeMat.opacity = .75 + .25 * Math.sin(G.now * 1.7);
     const c = (r.material as THREE.MeshBasicMaterial).color;

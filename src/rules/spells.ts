@@ -45,6 +45,8 @@ export const SPELLS = {
   fireball: S('Fireball', 'fire', 'bolt', 48, [16, 1], 8, 8, 16, true),
   stone_curse: S('Stone Curse', 'magic', 'bolt', 51, [60, 3], 6, 6, 10, false),
   chain_lightning: S('Chain Lightning', 'lightning', 'line', 54, [30, 1], 8, 10, 10, true),
+  // D1: mana 35, −3 per level; min 18 by our ceil(initial/2) rule (SPEC §13)
+  town_portal: S('Town Portal', 'utility', 'utility', 20, [35, 3], 3, 4, 0, false),
   identify: { name: 'Identify', school: 'utility', delivery: 'utility', learnInt: 60, mana: { initial: 10, dec: 0, min: 10 }, bookQ: 10, scrollQ: 1, range: 0, attack: false },
 } as const satisfies Record<string, SpellDef>;
 
@@ -61,8 +63,11 @@ export function learnReq(id: SpellId, n: number): number {
   return r >= 213 ? 255 : r;
 }
 
-/** Int needed to read a scroll [OURS]: three quarters of the book requirement; Scrolls of Identify need none [USER]. */
-export const scrollReq = (id: SpellId): number => (id === 'identify' ? 0 : Math.ceil(.75 * SPELLS[id].learnInt));
+/**
+ * Int needed to read a scroll [OURS]: three quarters of the book requirement. Scrolls of Identify [USER] and Town
+ * Portal [OURS, as in D1] need none, so every class can use them.
+ */
+export const scrollReq = (id: SpellId): number => (id === 'identify' || id === 'town_portal' ? 0 : Math.ceil(.75 * SPELLS[id].learnInt));
 
 /** Whether a book of `id` can be read now; returns the level it would teach, or null. */
 export function canLearn(id: SpellId, known: number, int: number): number | null {
@@ -141,6 +146,7 @@ export function spellEffectText(id: SpellId, c: Caster): string {
     case 'stone_curse': return `PETRIFIES FOR ${stoneTime(c.slvl).toFixed(1)} S`;
     case 'mana_shield': return 'DAMAGE TAKEN FROM MANA';
     case 'telekinesis': return 'FETCHES ITEMS, OPENS CHESTS';
+    case 'town_portal': return 'OPENS A PORTAL TO TOWN';
     case 'phasing': return 'SHORT RANDOM TELEPORT';
     case 'identify': return 'IDENTIFIES ONE ITEM';
   }

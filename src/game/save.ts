@@ -8,13 +8,13 @@ import { clearShots } from '../actors/shots';
 import { scene } from '../render/renderer';
 import type { UniqueId } from '../rules/affixes';
 import type { ClassId } from '../rules/classes';
-import { carried, reserveUids, type Inventory } from '../rules/inventory';
+import { carried, reserveUids, type Grid, type Inventory } from '../rules/inventory';
 import type { SpellId } from '../rules/spells';
 import { buildLevel } from '../world/level';
 import { captureLevel, type LevelDelta } from '../world/levelDelta';
 import { circleBlocked, computeField } from '../world/nav';
 import { camTarget } from '../render/cameraRig';
-import { G } from './state';
+import { G, STASH_W, STASH_H } from './state';
 import type { HeroStats } from './types';
 
 export const SAVE_KEY = 'dv.save.v3';
@@ -23,7 +23,7 @@ export const MAX_CHARACTERS = 6;
 export interface HeroSave {
   stats: HeroStats;
   inv: Inventory;
-  gold: number; slain: number; key: boolean;
+  gold: number; slain: number;
   spells: Partial<Record<SpellId, number>>;
   readied: SpellId | null;
   hotkeys: (SpellId | null)[];
@@ -43,8 +43,14 @@ export interface CharSave {
   runSeed: number;
   savedAt: number;
   hero: HeroSave;
+  /** Level deltas by depth; 0 is the town. */
   levels: Record<number, LevelDelta>;
   uniquesFound: UniqueId[];
+  /** Deepest depth reached (opens town entrances). */
+  deepest: number;
+  /** The open Town Portal's dungeon end. */
+  portal: { depth: number; x: number; z: number } | null;
+  stash: { grid: Grid; gold: number };
 }
 
 export interface SaveFile { characters: CharSave[]; lastPlayed: string | null }
@@ -86,13 +92,14 @@ export function saveGame(): void {
   if (!canSave()) return;
   const h = G.hero, id = G.charId!;
   const hero: HeroSave = {
-    stats: h.stats, inv: h.inv, gold: h.gold, slain: h.slain, key: h.key,
+    stats: h.stats, inv: h.inv, gold: h.gold, slain: h.slain,
     spells: h.spells, readied: h.readied, hotkeys: h.hotkeys,
     life: h.life, mana: h.mana, lifeDrain: h.lifeDrain, x: h.x, z: h.z,
   };
   const c: CharSave = {
     id, cls: h.stats.cls, name: h.name, clvl: h.stats.clvl, depth: G.depth, runSeed: G.runSeed, savedAt: Date.now(),
     hero, levels: { ...G.levels, [G.depth]: captureLevel() }, uniquesFound: [...G.loot.found],
+    deepest: G.deepest, portal: G.portal, stash: G.stash,
   };
   const f = readSaves();
   const i = f.characters.findIndex(x => x.id === id);
@@ -110,6 +117,9 @@ export function beginNewCharacter(): void {
   G.charId = `c${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
   G.levels = {};
   G.loot.found = new Set();
+  G.deepest = 0;
+  G.portal = null;
+  G.stash = { grid: { w: STASH_W, h: STASH_H, items: [] }, gold: 0 };
 }
 
 /** Loads a saved character and puts them back where they were. */
@@ -122,7 +132,7 @@ export function continueCharacter(id: string): boolean {
     stats: s.stats, inv: s.inv, gold: s.gold, slain: s.slain,
     spells: s.spells, readied: s.readied, hotkeys: s.hotkeys, lifeDrain: s.lifeDrain,
   });
-  reserveUids(Math.max(0, ...carried(h.inv).map(it => it.uid), ...Object.values(c.levels).flatMap(d => [...d.ground, ...d.graves.flatMap(g => g.pickups)].flatMap(p => ('item' in p ? [p.item.uid] : [])))));
+  reserveUids(Math.max(0, ...carried(h.inv).map(it => it.uid), ...c.stash.grid.items.map(p => p.item.uid), ...Object.values(c.levels).flatMap(d => [...d.ground, ...d.graves.flatMap(g => g.pickups)].flatMap(p => ('item' in p ? [p.item.uid] : [])))));
   recompute(h);
   h.life = Math.min(s.life, h.d.maxLife); h.mana = Math.min(s.mana, h.d.maxMana);
   G.hero = h;
@@ -130,12 +140,13 @@ export function continueCharacter(id: string): boolean {
   G.runSeed = c.runSeed;
   G.depth = c.depth;
   G.loot.found = new Set(c.uniquesFound);
+  G.deepest = c.deepest;
+  G.portal = c.portal;
+  G.stash = c.stash;
   // the saved current level is rebuilt like any other visited level
   G.levels = { ...c.levels };
   clearShots();
   buildLevel(c.depth);
-  // after the build: generating a level takes the previous level's key away
-  h.key = s.key;
   if ((s.x || s.z) && !circleBlocked(s.x, s.z, h.r, true)) {
     h.x = s.x; h.z = s.z; h.root.position.set(h.x, 0, h.z);
     camTarget.set(h.x, 0, h.z); computeField();

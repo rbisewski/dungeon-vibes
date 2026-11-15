@@ -174,7 +174,7 @@ export function openChest(c: Chest): void {
   if (c.isKey) { G.hero.key = true; SFX.key(); toast('FOUND THE KEY', 'THE STAIR DOOR AWAITS'); if (c.glow) c.glow.visible = false; for (let k = 0; k < 30; k++) fxAdd.spawn(c.x, .8, c.z, rr(-1.2, 1.2), rr(2, 4), rr(-1.2, 1.2), rr(.8, 1.4), 1.8, 1.3, .4, rr(.05, .09), 2, .6, 2); }
 }
 export function unlockDoor(): void {
-  const d = G.L.lockedDoor; if (!G.L.locked) return; G.L.locked = false; d.locked = false;
+  const d = G.L.lockedDoor; if (!G.L.locked || !d) return; G.L.locked = false; d.locked = false;
   G.L.tiles[d.tz * G.L.W + d.tx] = 3; G.hero.key = false; SFX.unlock(); toast('THE DOOR UNLOCKS'); if (d.glow) d.glow.visible = false;
   for (let k = 0; k < 20; k++) fxAdd.spawn(d.x, 1.2, d.z, rr(-1.5, 1.5), rr(.5, 2.5), rr(-1.5, 1.5), rr(.4, .9), 1.6, 1.2, .5, rr(.04, .07), 6, 1, 1);
   computeField();

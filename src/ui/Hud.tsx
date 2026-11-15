@@ -19,6 +19,7 @@ import { menuStep } from '../game/classSelect';
 import { titleOpen } from '../game/title';
 import { TitleScreen } from './TitleScreen';
 import { GameMenu } from './GameMenu';
+import { StashPanel } from './StashPanel';
 import { DamageNumbers } from './DamageNumbers';
 
 function Pix({ img, scale = 3, style }: { img: PixImage; scale?: number; style?: Record<string, string> }) {
@@ -114,7 +115,7 @@ function Stats() {
       <div class="row"><Pix img={ICON.gold} /><span>{hud.gold}</span></div>
       <div class="row"><Pix img={ICON.slain} /><span>{hud.slain}</span></div>
       <div class="row">
-        <Pix img={ICON.depth} /><span>DEPTH {hud.depth}</span>
+        <Pix img={ICON.depth} /><span>{hud.depth.value ? `DEPTH ${hud.depth.value}` : 'TOWN'}</span>
         {hud.key.value && <Pix img={ICON.key} style={{ marginLeft: '10px' }} />}
       </div>
     </div>
@@ -179,6 +180,7 @@ export function Hud() {
       {isOpen('inv') && <InventoryPanel />}
       {isOpen('book') && <SpellbookPanel />}
       {isOpen('menu') && <GameMenu />}
+      {isOpen('stash') && <StashPanel />}
       {openPanels.value.length > 0 && <div id="paused" class="px">PAUSED</div>}
       <Fade />
       <SoundPrompt />

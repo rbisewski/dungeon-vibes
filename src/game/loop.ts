@@ -1,8 +1,6 @@
 import { updateDamageNumbers } from '../ui/DamageNumbers';
 import { saveGame } from './save';
-import { captureLevel } from '../world/levelDelta';
 import { computeField } from '../world/nav';
-import { buildLevel } from '../world/level';
 import { resolveCollisions } from '../world/collisions';
 import { updateWorld } from '../world/update';
 import { updateHero } from '../actors/hero';
@@ -23,7 +21,8 @@ import { fade, tickToast } from '../ui/store';
 import { syncHud } from '../ui/syncHud';
 import { updateGroundLabels } from '../ui/GroundLabels';
 import { G } from './state';
-import { respawnHero, updateGraves } from './death';
+import { updateGraves } from './death';
+import { travel, wakeInTown } from './travel';
 
 /** Simulation step: the world always advances in 1/60 s increments. */
 export const STEP = 1 / 60;
@@ -36,27 +35,21 @@ let menuTick: ((dt: number) => void) | null = null;
 /** Runs `fn` every frame while the game is paused (null to stop). */
 export function setMenuTick(fn: ((dt: number) => void) | null): void { menuTick = fn; }
 
-/** Advances fade-out → rebuild → fade-in for descend and death transitions. */
+/** Advances fade-out → rebuild → fade-in when leaving a level or dying. */
 function updateTransition(dt: number): void {
   const tr = G.transition;
   if (!tr) { fade.value = Math.max(0, fade.value - dt * 1.2); return; }
   tr.t += dt;
-  const out = tr.kind === 'descend' ? 1.3 : 0.9;
+  const out = tr.kind === 'travel' ? 1.3 : 0.9;
   if (tr.t < out) fade.value = Math.max(fade.value, tr.t / out);
   else if (!tr.built) {
     tr.built = true;
     fade.value = 1;
-    const hero = G.hero;
-    // Descending restores a fifth of max life (the legacy +2 of 10 hearts).
-    if (tr.kind === 'descend') {
-      if (G.charId) G.levels[G.depth] = captureLevel();
-      G.depth++; hero.life = Math.min(hero.d.maxLife, hero.life + hero.d.maxLife * .2); buildLevel(G.depth);
-    }
-    // SPEC §11: dying does not rebuild the level.
-    else respawnHero();
+    if (tr.kind === 'travel') travel(tr.exit);
+    else wakeInTown();
   } else {
     fade.value = Math.max(0, fade.value - dt * 1.4);
-    // saves on arriving at a new depth and after waking from death (SPEC §12.2), once the transition is over
+    // saves on arriving somewhere new and after waking from death (SPEC §12.2), once the transition is over
     if (fade.value <= 0) { G.transition = null; saveGame(); }
   }
 }

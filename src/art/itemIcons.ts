@@ -341,6 +341,7 @@ function glyph(p: Painter, id: SpellId, ox: number, oy: number): void {
     case 'stone_curse': p.ball(ox + 7, oy + 7, 5.5, '#4a4844', '#8a8884', '#c8c4bc'); p.rect(ox + 4, oy + 6, 2, 2, '#2a2826'); p.rect(ox + 8, oy + 6, 2, 2, '#2a2826'); p.line(ox + 6, oy + 2, ox + 8, oy + 5, '#4a4844'); break;
     case 'telekinesis': p.rect(ox + 4, oy + 6, 6, 6, '#e8c8a0'); for (const x of [4, 6, 8]) p.rect(ox + x, oy + 2, 1, 4, '#e8c8a0'); p.rect(ox + 10, oy + 4, 1, 4, '#e8c8a0'); for (const [x, y] of [[1, 1], [12, 2], [2, 11], [12, 12]]) P(x, y, '#9ae0a0'); break;
     case 'phasing': for (let k = 0; k < 40; k++) { const a = k * .45, r = k * .14; P(Math.round(6.5 + Math.cos(a) * r), Math.round(6.5 + Math.sin(a) * r), k % 3 ? '#b080ff' : '#ffffff'); } break;
+    case 'town_portal': p.ball(ox + 7, oy + 7, 6, '#18306a', '#3a6ad8', '#a8c8ff'); p.rect(ox + 5, oy + 3, 4, 9, '#e0f0ff'); p.rect(ox + 6, oy + 2, 2, 1, '#e0f0ff'); break;
     case 'identify': p.disc(ox + 6, oy + 6, 4.5, '#c8a040'); p.disc(ox + 6, oy + 6, 3, '#a8d8ff'); P(5, 4, '#ffffff'); p.line(ox + 9, oy + 9, ox + 12, oy + 12, '#8a5a30'); p.line(ox + 10, oy + 9, ox + 13, oy + 12, '#5a3818'); break;
   }
 }

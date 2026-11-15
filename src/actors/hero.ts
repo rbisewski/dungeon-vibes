@@ -1,3 +1,4 @@
+import { openPanel } from '../ui/actions';
 import { glowSprite } from '../render/geometry';
 import type * as THREE from 'three';
 import { damageMonster, loseLife, missMonster, openChest, unlockDoor } from './combat';
@@ -38,7 +39,7 @@ export function createHero(cls: ClassId, name: string): Hero {
     dead: false, deadT: 0, descend: 0,
     stuckT: 0, stuck: 0, sx: 0, sz: 0, unstickT: 0, ux: 0, uz: 0, killsAtGoal: 0, waitTrap: false,
     spells: Object.fromEntries(kit.spells), readied: kit.spells[0]?.[0] ?? null, hotkeys: [null, null, null, null], cast: null, manaShield: false,
-    shieldFx: null as unknown as THREE.Sprite, name, skillCd: 0, heldKind: 'bare', onStairs: false, stairsT: 0, slowT: 0, poisonT: 0, lifeDrain: 0,
+    shieldFx: null as unknown as THREE.Sprite, name, skillCd: 0, heldKind: 'bare', onExit: null, stairsT: 0, slowT: 0, poisonT: 0, lifeDrain: 0,
   };
   h.shieldFx = glowSprite(0x4a7aff, 2.4, h.root, 0, 1, 0);
   h.shieldFx.visible = false;
@@ -70,6 +71,9 @@ function heroHitCheck(): void {
   }
   if (any) { G.hitstop = crit ? .11 : .055; addShake(crit ? .4 : .22); }
 }
+/** The hero stood by the stash last step. */
+let atStash = false;
+
 export function updateHero(dt: number): void {
   const h = G.hero;
   h.cd -= dt; h.invuln -= dt; h.flinch -= dt; h.flash -= dt; h.slowT -= dt;
@@ -88,8 +92,11 @@ export function updateHero(dt: number): void {
     return;
   }
   if (h.descend > 0) {
-    h.descend += dt; const k = Math.min(1, h.descend / 1.4);
-    h.x = damp(h.x, G.L.stairs.x, 6, dt); h.z = G.L.stairs.z + .9 - k * 1.6; h.root.position.y = -k * 1.9; h.face = PI; walkAnim(dt, 1.6);
+    // Leaving: down the stairs (into the stairwell), up the steps, or into the portal's light.
+    h.descend += dt; const k = Math.min(1, h.descend / 1.4), tr = G.transition, ex = tr?.kind === 'travel' ? tr.exit : null;
+    if (!ex || ex.kind === 'down') { const sx = ex ? ex.x : G.L.stairs.x, sz = ex ? ex.z : G.L.stairs.z; h.x = damp(h.x, sx, 6, dt); h.z = sz + .9 - k * 1.6; h.root.position.y = -k * 1.9; h.face = PI; walkAnim(dt, 1.6); }
+    else if (ex.kind === 'up') { h.x = damp(h.x, ex.x, 6, dt); h.z = damp(h.z, ex.z, 6, dt); h.root.position.y = k * .8; walkAnim(dt, 1.6); }
+    else { h.x = damp(h.x, ex.x, 8, dt); h.z = damp(h.z, ex.z, 8, dt); h.root.scale.setScalar(Math.max(.05, 1 - k)); h.root.rotation.y = h.face += dt * 8; }
     h.root.position.x = h.x; h.root.position.z = h.z; h.root.rotation.y = h.face;
     return;
   }
@@ -152,15 +159,29 @@ export function updateHero(dt: number): void {
   h.body.rotation.x = h.flinch > 0 ? -.35 * (h.flinch / .28) : damp(h.body.rotation.x, attacking ? .12 : 0, 10, dt);
   // interactions
   for (const c of G.L.chests) if (!c.open && Math.hypot(c.x - h.x, c.z - h.z) < 1.5) openChest(c);
-  if (G.L.locked && h.key && Math.hypot(G.L.lockedDoor.x - h.x, G.L.lockedDoor.z - h.z) < 2.2) unlockDoor();
-  // Stairs (SPEC §11): with a grave still on this level, the first step onto the stairs only warns; stepping on again
-  // descends. AUTO, which nobody needs to warn, goes down after standing on the stairs for 2 s.
-  const onStairs = !G.L.locked && Math.abs(h.x - G.L.stairs.x) < .85 && Math.abs(h.z - G.L.stairs.z) < .85;
-  if (onStairs && !h.onStairs && G.L.graves.length && !G.L.descendWarned) {
-    G.L.descendWarned = true; h.stairsT = 0;
-    toast('YOUR BELONGINGS REMAIN HERE', 'STEP ON THE STAIRS AGAIN TO DESCEND');
-  } else if (onStairs && (!h.onStairs || (!manual && (h.stairsT += dt) > 2))) { h.descend = .001; SFX.descend(); G.transition = { t: 0, kind: 'descend' }; }
-  h.onStairs = onStairs;
+  // The stash opens when the player walks into it (never in AUTO); it opens again only after stepping away.
+  const st = G.L.stash, nearStash = !!st && Math.hypot(st.x - h.x, st.z - h.z) < 1.9;
+  if (nearStash && !atStash && manual) openPanel('stash');
+  atStash = nearStash;
+  const ld = G.L.lockedDoor;
+  if (G.L.locked && h.key && ld && Math.hypot(ld.x - h.x, ld.z - h.z) < 2.2) unlockDoor();
+  // Exits (SPEC §11, §13): stepping onto stairs, a town entrance or a portal leaves the level. With a grave pile still
+  // here, the first step only warns; stepping on again leaves. AUTO uses only the exit it is heading for, and after a
+  // warning leaves once it has stood there 2 s.
+  const L = G.L;
+  const ex = L.exits.find(e => e.open && !(e.kind === 'down' && L.locked) && Math.abs(h.x - e.x) < e.r && Math.abs(h.z - e.z) < e.r) ?? null;
+  if (ex && (manual || (h.goal?.kind === 'exit' && h.goal.ref === ex))) {
+    const stepped = ex !== h.onExit;
+    if (stepped && L.graves.length && !L.descendWarned) {
+      L.descendWarned = true; h.stairsT = 0;
+      toast('YOUR BELONGINGS REMAIN HERE', 'STEP ON AGAIN TO LEAVE');
+    } else if (stepped || (!manual && (h.stairsT += dt) > 2)) {
+      h.descend = .001;
+      if (ex.kind === 'portal') SFX.cast(); else SFX.descend();
+      G.transition = { t: 0, kind: 'travel', exit: ex };
+    }
+  }
+  h.onExit = ex;
   const rid = G.L.roomId[clamp(Math.round(h.z / T), 0, G.L.H - 1) * G.L.W + clamp(Math.round(h.x / T), 0, G.L.W - 1)]; if (rid >= 0) G.L.rooms[rid].visited = true;
 }
 function walkAnim(dt: number, spd: number): void {

@@ -6,12 +6,13 @@ import { signal } from '@preact/signals';
 import { drinkElixir, drinkPotion, recompute, spendHeroPoint } from '../actors/heroStats';
 import { SFX } from '../audio/sfx';
 import { queueBelt, resetInput } from '../core/input';
-import { G } from '../game/state';
+import { G, STASH_H, STASH_W } from '../game/state';
+import { saveGame } from '../game/save';
 import { base } from '../rules/bases';
 import type { Attr } from '../rules/classes';
 import {
   addItem, beltable, carried, equipFromPack, equipInto, findSpot, fitsSlot, isTwoHanded, isUnidentified, itemAt, itemName,
-  itemSize, meetsReq, placeAt, putInGrid, removeFromGrid, takeFromBelt, unequipToPack, PACK_W, PACK_H, type EquipSlot, type Item,
+  itemSize, meetsReq, placeAt, putInGrid, removeFromGrid, takeFromBelt, unequipToPack, PACK_W, PACK_H, type EquipSlot, type Grid, type Item,
 } from '../rules/inventory';
 import { pickupNearest, spawnItem } from '../world/groundItems';
 import { heroManaCost, startCast } from '../actors/spells';
@@ -25,7 +26,7 @@ export const held = signal<Item | null>(null);
 export const invVersion = signal(0);
 
 /** Keyboard cursor in the inventory: a backpack cell or an equipment slot. */
-export type Cursor = { area: 'pack'; x: number; y: number } | { area: 'equip'; slot: EquipSlot };
+export type Cursor = { area: 'pack'; x: number; y: number } | { area: 'stash'; x: number; y: number } | { area: 'equip'; slot: EquipSlot };
 export const cursor = signal<Cursor>({ area: 'pack', x: 0, y: 0 });
 
 /** Where the Scroll of Identify being read sits; while set, inventory clicks choose the item to identify. */
@@ -48,10 +49,14 @@ function changed(): void {
   syncHud();
 }
 
+const LEFT: readonly Panel[] = ['char', 'book', 'stash'];
+
 export function openPanel(p: Panel): void {
   if (!canOpen() || isOpen(p)) return;
-  const left = p === 'char' || p === 'book';
-  openPanels.value = p === 'menu' ? ['menu'] : [...openPanels.value.filter(q => q !== 'menu' && !(left && (q === 'char' || q === 'book'))), p];
+  const left = LEFT.includes(p);
+  const keep = openPanels.value.filter(q => q !== 'menu' && !(left && LEFT.includes(q)));
+  // The stash always shows the inventory beside it (SPEC §13.1).
+  openPanels.value = p === 'menu' ? ['menu'] : p === 'stash' ? [...keep.filter(q => q !== 'inv'), 'stash', 'inv'] : [...keep, p];
   G.paused = true;
   resetInput();
   syncSheet();
@@ -68,18 +73,29 @@ function stowHeld(): void {
 }
 
 export function closePanel(p: Panel): void {
-  if (p === 'inv') { stowHeld(); identifying.value = null; }
-  openPanels.value = openPanels.value.filter(q => q !== p);
+  if (p === 'inv' || p === 'stash') { stowHeld(); identifying.value = null; }
+  const stash = isOpen('stash') && (p === 'stash' || p === 'inv');
+  // closing either half of the stash view closes both
+  openPanels.value = openPanels.value.filter(q => q !== p && !(stash && (q === 'stash' || q === 'inv')));
   G.paused = openPanels.value.length > 0;
   resetInput();
+  if (stash) stashClosed();
 }
 
 export function closePanels(): void {
+  const stash = isOpen('stash');
   stowHeld();
   identifying.value = null;
   openPanels.value = [];
   G.paused = false;
   resetInput();
+  if (stash) stashClosed();
+}
+
+/** Closing the stash saves the character (SPEC §12.2). */
+function stashClosed(): void {
+  if (cursor.value.area === 'stash') cursor.value = { area: 'pack', x: 0, y: 0 };
+  saveGame();
 }
 
 export function togglePanel(p: Panel): void {
@@ -200,28 +216,51 @@ function identify(it: Item | null): void {
   changed();
 }
 
-/** Left-click on a backpack cell: pick up, place, or swap (D1). The held item is anchored so the clicked cell is near its middle. */
-export function clickPack(x: number, y: number): void {
-  const inv = G.hero.inv, h = held.value;
-  if (identifying.value) { identify(itemAt(inv.pack, x, y)?.item ?? null); return; }
+/**
+ * Left-click on a grid cell (backpack or stash): pick up, place, or swap (D1). The held item is anchored so the clicked
+ * cell is near its middle.
+ */
+function clickGrid(g: Grid, x: number, y: number): void {
+  const h = held.value;
+  if (identifying.value) { identify(itemAt(g, x, y)?.item ?? null); return; }
   if (!h) {
-    const p = itemAt(inv.pack, x, y);
+    const p = itemAt(g, x, y);
     if (!p) return;
-    removeFromGrid(inv.pack, p.item);
+    removeFromGrid(g, p.item);
     held.value = p.item;
     SFX.pickup();
     changed();
     return;
   }
   const s = itemSize(h);
-  const ax = Math.max(0, Math.min(PACK_W - s.w, x - Math.floor((s.w - 1) / 2)));
-  const ay = Math.max(0, Math.min(PACK_H - s.h, y - Math.floor((s.h - 1) / 2)));
-  const r = placeAt(inv.pack, h, ax, ay);
+  const ax = Math.max(0, Math.min(g.w - s.w, x - Math.floor((s.w - 1) / 2)));
+  const ay = Math.max(0, Math.min(g.h - s.h, y - Math.floor((s.h - 1) / 2)));
+  const r = placeAt(g, h, ax, ay);
   if (r === false) return;
   held.value = r;
   SFX.pickup();
   changed();
 }
+
+export const clickPack = (x: number, y: number): void => clickGrid(G.hero.inv.pack, x, y);
+export const clickStash = (x: number, y: number): void => clickGrid(G.stash.grid, x, y);
+
+/** Right-click / X on a stash item: move it to the backpack (SPEC §13.1). */
+export function stashToPack(it: Item): void {
+  if (!putInGrid(G.hero.inv.pack, it)) { toast('NO ROOM IN THE BACKPACK'); return; }
+  removeFromGrid(G.stash.grid, it);
+  SFX.pickup(); changed();
+}
+
+function packToStash(it: Item): void {
+  if (!putInGrid(G.stash.grid, it)) { toast('THE STASH IS FULL'); return; }
+  removeFromGrid(G.hero.inv.pack, it);
+  SFX.pickup(); changed();
+}
+
+/** Stash gold is one counter: everything carried goes in, or everything stored comes out. */
+export function depositGold(): void { G.stash.gold += G.hero.gold; G.hero.gold = 0; SFX.coin(); changed(); }
+export function withdrawGold(): void { G.hero.gold += G.stash.gold; G.stash.gold = 0; SFX.coin(); changed(); }
 
 /** Left-click on an equipment slot: take the item, or put the held item on (swapping with what was there). */
 export function clickEquip(slot: EquipSlot): void {
@@ -265,9 +304,10 @@ export function clickBelt(slot: number): void {
   changed();
 }
 
-/** Right-click / X on a backpack item: drink, read, or equip. */
+/** Right-click / X on a backpack item: drink, read, or equip; with the stash open, move it into the stash. */
 export function usePackItem(it: Item): void {
   const inv = G.hero.inv;
+  if (isOpen('stash')) { packToStash(it); return; }
   if (it.kind === 'potion') { removeFromGrid(inv.pack, it); drinkPotion(it.potion); changed(); return; }
   if (it.kind === 'elixir') { if (drinkElixir(it.attr)) { removeFromGrid(inv.pack, it); changed(); } return; }
   if (it.kind === 'scroll') { readScroll({ pack: it }); return; }
@@ -301,6 +341,13 @@ const EQUIP_NAV: readonly EquipSlot[] = ['weapon', 'ring1', 'head', 'body', 'amu
 
 function moveCursor(dx: number, dy: number): void {
   const c = cursor.value;
+  // with the stash open, the stash grid sits left of the backpack
+  if (c.area === 'stash') {
+    if (c.x + dx >= STASH_W) { cursor.value = { area: 'pack', x: 0, y: Math.min(PACK_H - 1, c.y) }; return; }
+    cursor.value = { area: 'stash', x: Math.max(0, c.x + dx), y: Math.max(0, Math.min(STASH_H - 1, c.y + dy)) };
+    return;
+  }
+  if (c.area === 'pack' && c.x + dx < 0 && isOpen('stash')) { cursor.value = { area: 'stash', x: STASH_W - 1, y: c.y }; return; }
   if (c.area === 'pack') {
     const ny = c.y + dy;
     if (ny < 0) { cursor.value = { area: 'equip', slot: c.x < 3 ? 'weapon' : c.x > 6 ? 'shield' : 'body' }; return; }
@@ -314,7 +361,7 @@ function moveCursor(dx: number, dy: number): void {
 
 function cursorItem(): Item | null {
   const c = cursor.value, inv = G.hero.inv;
-  return c.area === 'pack' ? itemAt(inv.pack, c.x, c.y)?.item ?? null : inv.equip[c.slot];
+  return c.area === 'equip' ? inv.equip[c.slot] : itemAt(c.area === 'pack' ? inv.pack : G.stash.grid, c.x, c.y)?.item ?? null;
 }
 
 addEventListener('keydown', e => {
@@ -334,11 +381,11 @@ addEventListener('keydown', e => {
   const arrows: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
   if (arrows[e.code]) { e.preventDefault(); moveCursor(...arrows[e.code]); return; }
   const c = cursor.value;
-  if (e.code === 'Enter') { e.preventDefault(); c.area === 'pack' ? clickPack(c.x, c.y) : clickEquip(c.slot); }
+  if (e.code === 'Enter') { e.preventDefault(); c.area === 'equip' ? clickEquip(c.slot) : c.area === 'pack' ? clickPack(c.x, c.y) : clickStash(c.x, c.y); }
   else if (e.code === 'KeyX') {
     e.preventDefault();
     const it = cursorItem();
-    if (it) c.area === 'pack' ? usePackItem(it) : unequip(c.slot);
+    if (it) c.area === 'equip' ? unequip(c.slot) : c.area === 'pack' ? usePackItem(it) : stashToPack(it);
   } else if (e.code === 'KeyG') { e.preventDefault(); dropHeld(); }
   else if (/^Digit[1-8]$/.test(e.code)) { e.preventDefault(); clickBelt(+e.code.slice(5) - 1); }
 });

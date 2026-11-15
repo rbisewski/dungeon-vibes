@@ -24,9 +24,10 @@ describe('learning', () => {
     expect(canLearn('firebolt', MAX_SLVL, 255)).toBeNull();
   });
 
-  it('lets scrolls be read with three quarters of the book requirement, and Identify with none', () => {
+  it('lets scrolls be read with three quarters of the book requirement, and Identify and Town Portal with none', () => {
     expect(scrollReq('fireball')).toBe(36);
     expect(scrollReq('identify')).toBe(0);
+    expect(scrollReq('town_portal')).toBe(0);
   });
 });
 

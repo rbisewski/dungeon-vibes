@@ -1,25 +1,17 @@
 /**
- * Death (SPEC §11): everything the hero carries falls where they died, under a grave marker with a beacon; the hero
- * wakes at the start of the same level, which is not rebuilt.
+ * Death (SPEC §11): everything the hero carries falls where they died, under a grave marker with a beacon. The hero
+ * then wakes in town (`wakeInTown`, game/travel).
  */
 import * as THREE from 'three';
-import { clearArrows } from '../actors/arrows';
-import { clearShots } from '../actors/shots';
 import { recompute } from '../actors/heroStats';
-import { clearSpellFx } from '../actors/spells';
 import { R, rr } from '../core/math';
 import { gBox, gCyl, glowSprite, gSph, mesh } from '../render/geometry';
 import { MAT } from '../render/materials';
 import { EQUIP_SLOTS, type EquipItem } from '../rules/inventory';
 import { toast } from '../ui/store';
-import { T } from '../world/consts';
 import { spawnGold, spawnItem } from '../world/groundItems';
-import { placeHeroAtStart } from '../world/level';
 import { G } from './state';
 import type { Grave, Pickup } from './types';
-
-/** Monsters this close to the start room (in world units, 6 tiles) are sent back home on respawn. */
-const START_CLEAR = 6 * T;
 
 function graveMarker(x: number, z: number): { marker: THREE.Group; beacon: THREE.Sprite } {
   const g = new THREE.Group(); g.position.set(x, 0, z);
@@ -73,26 +65,4 @@ export function updateGraves(): void {
     L.graves.splice(i, 1);
     toast('BELONGINGS RECOVERED');
   }
-}
-
-/**
- * Wakes the hero at the start of the same level with full life and mana. Monsters keep their health and places but
- * forget the hero; those near the start go back to where they spawned.
- */
-export function respawnHero(): void {
-  const h = G.hero, L = G.L;
-  clearSpellFx();
-  clearArrows();
-  clearShots();
-  h.life = h.d.maxLife;
-  h.mana = h.d.maxMana;
-  placeHeroAtStart();
-  const sx = L.startRoom.cx * T, sz = L.startRoom.cy * T;
-  for (const m of L.monsters) {
-    if (m.dead) continue;
-    m.aware = false; m.state = 'idle'; m.t = 0;
-    if (Math.hypot(m.x - sx, m.z - sz) < START_CLEAR) { m.x = m.home.x; m.z = m.home.z; m.vx = m.vz = m.kx = m.kz = 0; }
-  }
-  L.descendWarned = false;
-  toast('YOU WAKE AT THE ENTRANCE', L.graves.length ? 'YOUR BELONGINGS LIE WHERE YOU FELL' : '');
 }

@@ -1,6 +1,10 @@
 import type { LootCtx } from '../rules/loot';
+import type { Grid } from '../rules/inventory';
 import type { LevelDelta } from '../world/levelDelta';
 import type { Actor, Hero, Level, Transition } from './types';
+
+/** Stash grid size [OURS]: 10×10, as D2R's stash. */
+export const STASH_W = 10, STASH_H = 10;
 
 /** Mutable world state shared across systems. Single instance; never reassigned. */
 export const G = {
@@ -10,7 +14,8 @@ export const G = {
   hero: null as unknown as Hero,
   /** Game clock in seconds; advances by the fixed simulation step. */
   now: 0,
-  depth: 1,
+  /** Current depth; 0 is the town. */
+  depth: 0,
   shake: 0,
   hitstop: 0,
   transition: null as Transition | null,
@@ -28,6 +33,12 @@ export const G = {
   levels: {} as Record<number, LevelDelta>,
   /** Game seconds until the next autosave. */
   saveT: 30,
+  /** Deepest depth this character has reached (opens town entrances, SPEC §13). */
+  deepest: 0,
+  /** The open Town Portal's dungeon end, if any (its town end is the town's portal spot). */
+  portal: null as { depth: number; x: number; z: number } | null,
+  /** The character's stash (SPEC §13.1). */
+  stash: { grid: { w: STASH_W, h: STASH_H, items: [] } as Grid, gold: 0 },
 };
 
 export const isHero = (a: Actor): a is Hero => a === G.hero;

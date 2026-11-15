@@ -8,7 +8,7 @@ import { applyLevel } from './levelDelta';
 import { R, TAU, pick, ri, rr, withRng } from '../core/math';
 import { deriveSeed, mulberry32 } from '../core/rng';
 import { G } from '../game/state';
-import type { Level, Monster, MonsterType } from '../game/types';
+import type { Door, Exit, Layout, Level, Monster, MonsterType } from '../game/types';
 import { mergeBuckets, resetBuckets } from '../render/buckets';
 import { camTarget } from '../render/cameraRig';
 import { makeFlames } from '../render/flames';
@@ -19,8 +19,10 @@ import { T } from './consts';
 import { decorate } from './decorate';
 import { buildFloor, buildWalls, type Tint } from './floorWalls';
 import { generateLayout } from './layout';
-import { circleBlocked, computeField, navOK } from './nav';
+import { circleBlocked, computeField, isStairs, navOK } from './nav';
 import { makeDoor } from './objects';
+import { dressTown, portalObject, townLayout } from './town';
+import { propUpStairs } from './props';
 
 const levelRoot = new THREE.Group();
 scene.add(levelRoot);
@@ -40,10 +42,14 @@ function disposeLevel(L: Level): void {
 /** Seed of the level at `depth` in this run (SPEC §12.1). */
 export const levelSeed = (depth: number): number => deriveSeed(G.runSeed, depth);
 
-/** Puts the hero at the start room's centre, standing and ready (new level or respawn). */
-export function placeHeroAtStart(): void {
-  const L = G.L, hero = G.hero;
-  hero.x = L.startRoom.cx * T; hero.z = L.startRoom.cy * T; hero.vx = hero.vz = hero.kx = hero.kz = 0;
+/**
+ * Puts the hero at (x, z), by default the start room's centre (in town: the respawn point), standing and ready.
+ * `onExit` is the exit the hero arrives standing on (a portal): it only works again after stepping off.
+ */
+export function placeHero(x = G.L.startRoom.cx * T, z = G.L.startRoom.cy * T, onExit: Exit | null = null): void {
+  const hero = G.hero;
+  hero.x = x; hero.z = z; hero.vx = hero.vz = hero.kx = hero.kz = 0;
+  hero.onExit = onExit; hero.stairsT = 0; hero.root.scale.setScalar(1);
   hero.path = null; hero.goal = null; hero.dead = false; hero.descend = 0; hero.atkT = -1; hero.drink = 0; hero.flinch = 0;
   hero.slowT = 0; hero.poisonT = 0;
   // D1: Mana Shield ends when the level changes.
@@ -61,47 +67,94 @@ export function placeHeroAtStart(): void {
  */
 export function buildLevel(depth: number): void {
   if (G.L) disposeLevel(G.L);
-  withRng(mulberry32(levelSeed(depth)), () => generate(depth));
+  if (depth === 0) withRng(mulberry32(TOWN_SEED), generateTown);
+  else withRng(mulberry32(levelSeed(depth)), () => generate(depth));
   const delta = G.levels[depth];
   if (delta) { applyLevel(delta); computeField(); }
   const boss = bossFor(depth);
-  toast(`DEPTH ${depth}`, boss ? `${bossName(boss.id, boss.ascended)} guards the stairs`.toUpperCase() : depth === 1 ? 'THE DESCENT BEGINS' : 'DEEPER INTO THE DARK');
+  if (depth === 0) toast('THE TOWN', 'A MOMENT OF REST');
+  else toast(`DEPTH ${depth}`, boss ? `${bossName(boss.id, boss.ascended)} guards the stairs`.toUpperCase() : depth === 1 ? 'THE DESCENT BEGINS' : 'DEEPER INTO THE DARK');
+}
+
+/** The town is the same on every run: its props draw from a fixed seed. */
+const TOWN_SEED = 0x70a1;
+const TOWN_TINT: Tint = { r: 1.05, g: 1, b: .94 };
+
+function newLevel(lay: Layout, depth: number, lockedDoor: Door | null, group: THREE.Group): Level {
+  const sr = lay.stairsRoom;
+  const L: Level = {
+    ...lay, depth, group,
+    navBlock: new Uint8Array(lay.N), trap: new Int16Array(lay.N).fill(-1), propAt: new Array(lay.N).fill(null), dist: new Float64Array(lay.N),
+    traps: [], doors: [], chests: [], monsters: [], pickups: [], spellFx: [], arrows: [], graves: [], descendWarned: false, families: depth ? pickFamilies(R, depth) : [], shots: [], hazards: [], bossRunes: [], debris: [], decals: [], lights: [], flames: [], pillars: [], runes: [], moons: [],
+    disposeGeo: [], disposeInst: [], disposeMat: [], locked: !!lockedDoor, fieldT: 0, killsHere: 0, killedGen: new Set(),
+    startIdx: lay.startRoom.cy * lay.W + lay.startRoom.cx,
+    stairs: { tx: sr.cx, tz: sr.cy, x: sr.cx * T, z: sr.cy * T },
+    exits: [], stash: null,
+    lockedDoor,
+    flameMesh: null,
+  };
+  G.L = L;
+  levelRoot.add(L.group);
+  return L;
+}
+
+function generateTown(): void {
+  resetBuckets();
+  const L = newLevel(townLayout(), 0, null, new THREE.Group());
+  dressTown();
+  buildFloor(TOWN_TINT); buildWalls(TOWN_TINT); mergeBuckets();
+  L.flameMesh = makeFlames(L.flames); L.group.add(L.flameMesh);
+  ambient.intensity = 3.2;
+  G.hero.key = false;
+  placeHero();
+}
+
+/**
+ * The up-stairs cell (SPEC §13): an edge cell of the start room with a wall behind it, away from the room's corridor
+ * openings and the start landing. Returns the cell and the direction of the wall, or null if the room has none.
+ */
+function upStairsCell(L: Level): { tx: number; tz: number; nx: number; nz: number } | null {
+  const r = L.startRoom, t = (x: number, z: number): number => (x < 0 || z < 0 || x >= L.W || z >= L.H ? 0 : L.tiles[z * L.W + x]);
+  const out: { tx: number; tz: number; nx: number; nz: number }[] = [];
+  for (let z = r.y; z < r.y + r.h; z++) for (let x = r.x; x < r.x + r.w; x++) {
+    if (Math.abs(x - r.cx) <= 1 && Math.abs(z - r.cy) <= 1) continue;
+    let nearOpening = false;
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) { const n = t(x + dx, z + dz); if (n === 2 || n === 3 || n === 4) nearOpening = true; }
+    if (nearOpening) continue;
+    for (const [nx, nz] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) if (t(x + nx, z + nz) === 0) { out.push({ tx: x, tz: z, nx, nz }); break; }
+  }
+  return out.length ? pick(out) : null;
 }
 
 function generate(depth: number): void {
   resetBuckets();
   const lay = generateLayout();
   const group = new THREE.Group();
-  const lc = lay.lockedCell, sr = lay.stairsRoom;
+  const lc = lay.lockedCell;
   const lockedDoor = makeDoor({ roomId: lay.roomId, W: lay.W, group }, lc.tx, lc.tz, lc.axis, true);
-  const L: Level = {
-    ...lay, depth, group,
-    navBlock: new Uint8Array(lay.N), trap: new Int16Array(lay.N).fill(-1), propAt: new Array(lay.N).fill(null), dist: new Float64Array(lay.N),
-    traps: [], doors: [], chests: [], monsters: [], pickups: [], spellFx: [], arrows: [], graves: [], descendWarned: false, families: pickFamilies(R, depth), shots: [], hazards: [], bossRunes: [], debris: [], decals: [], lights: [], flames: [], pillars: [], runes: [], moons: [],
-    disposeGeo: [], disposeInst: [], disposeMat: [], locked: true, fieldT: 0, killsHere: 0, killedGen: new Set(),
-    startIdx: lay.startRoom.cy * lay.W + lay.startRoom.cx,
-    stairs: { tx: sr.cx, tz: sr.cy, x: sr.cx * T, z: sr.cy * T },
-    lockedDoor,
-    flameMesh: null,
-  };
-  G.L = L;
-  levelRoot.add(L.group);
+  const L = newLevel(lay, depth, lockedDoor, group);
   const tint = TINTS[(depth - 1) % TINTS.length];
+  const up = upStairsCell(L);
+  if (up) L.tiles[up.tz * L.W + up.tx] = 7;
   decorate();
   const boss = bossFor(depth);
   if (boss) dressArena(boss.id);
+  // exits: down to depth + 1 (behind the locked door), up to the level above (depth 1: town), an open portal's end
+  L.exits.push({ kind: 'down', to: depth + 1, tx: L.stairs.tx, tz: L.stairs.tz, x: L.stairs.x, z: L.stairs.z, r: .85, open: true });
+  if (up) { const x = up.tx * T, z = up.tz * T; propUpStairs(x, z, up.nx, up.nz); L.exits.push({ kind: 'up', to: depth - 1, tx: up.tx, tz: up.tz, x, z, r: .7, open: true }); }
+  if (G.portal?.depth === depth) addPortalExit(G.portal.x, G.portal.z, 0);
   buildFloor(tint); buildWalls(tint); mergeBuckets();
   L.flameMesh = makeFlames(L.flames); L.group.add(L.flameMesh);
   ambient.intensity = Math.max(1.6, 2.2 - depth * .03);
   G.hero.key = false;
-  placeHeroAtStart();
+  placeHero();
   // monsters
   const occupied = new Set([L.startIdx]);
   /** One monster on a free cell; Fallen come in packs of 3–5 (D1) unless `pack` is false. */
   const placeIn = (cands: [number, number][], type: MonsterType, pack = true): Monster | null => {
     for (let k = 0; k < 20; k++) {
       const [x, z] = pick(cands); const i = z * L.W + x;
-      if (!navOK(i) || occupied.has(i) || L.tiles[i] === 6 || L.trap[i] >= 0) continue;
+      if (!navOK(i) || occupied.has(i) || isStairs(L.tiles[i]) || L.trap[i] >= 0) continue;
       occupied.add(i);
       const m = spawnMonster(type, x * T + rr(-.3, .3), z * T + rr(-.3, .3));
       if (type === 'fallen' && pack) {
@@ -144,7 +197,7 @@ function generate(depth: number): void {
   if (depth >= ELITE.fromDepth && eliteRooms.length && R() < ELITE.chance) {
     const r = pick(eliteRooms), type = family(), mod = pick(ELITE_MODS), name = eliteName(R), spell = R() < .5 ? 'firebolt' as const : 'lightning' as const;
     const cells: [number, number][] = [];
-    for (let z = r.y; z < r.y + r.h; z++) for (let x = r.x; x < r.x + r.w; x++) { const i = z * L.W + x; if (navOK(i) && !occupied.has(i) && L.tiles[i] !== 6 && L.trap[i] < 0) cells.push([x, z]); }
+    for (let z = r.y; z < r.y + r.h; z++) for (let x = r.x; x < r.x + r.w; x++) { const i = z * L.W + x; if (navOK(i) && !occupied.has(i) && !isStairs(L.tiles[i]) && L.trap[i] < 0) cells.push([x, z]); }
     if (cells.length) {
       const [cx, cz] = pick(cells), lead = spawnMonster(type, cx * T, cz * T, { elite: { name, mod, leader: true, spell } });
       const n = ri(ELITE.escorts[0], ELITE.escorts[1]);
@@ -155,4 +208,12 @@ function generate(depth: number): void {
     }
   }
   L.monsters.forEach((m, i) => { m.genId = i; });
+}
+
+/** Adds a Town Portal end at (x, z) on the current level, leading to depth `to` (SPEC §13). */
+export function addPortalExit(x: number, z: number, to: number): Exit {
+  const tx = Math.round(x / T), tz = Math.round(z / T);
+  const e: Exit = { kind: 'portal', to, tx, tz, x, z, r: .7, open: true, o: portalObject(x, z) };
+  G.L.exits.push(e);
+  return e;
 }

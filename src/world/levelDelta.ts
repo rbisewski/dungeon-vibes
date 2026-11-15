@@ -50,10 +50,12 @@ export function applyLevel(d: LevelDelta): void {
   }
   for (const i of d.disarmed) { const t = L.traps[i]; if (t) t.disabled = true; }
   for (const i of d.visited) { const r = L.rooms[i]; if (r) r.visited = true; }
-  if (d.unlocked && L.locked) {
-    const door = L.lockedDoor;
+  const door = L.lockedDoor;
+  if (d.unlocked && L.locked && door) {
     L.locked = false; door.locked = false; L.tiles[door.tz * L.W + door.tx] = 3; if (door.glow) door.glow.visible = false;
   }
+  // The key belongs to its level: with the key chest open and the door still locked, the hero holds it.
+  if (L.locked && L.chests.some(c => c.isKey && c.open)) G.hero.key = true;
   for (const s of d.ground) restorePickup(s);
   for (const g of d.graves) addGrave(g.x, g.z, g.pickups.map(restorePickup));
 }

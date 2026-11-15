@@ -3,7 +3,7 @@ import { PI, pick, wrapA } from '../core/math';
 import { G } from '../game/state';
 import { DX8, DZ8, T } from '../world/consts';
 import { buildPath, clearLine, fieldAt, navOK } from '../world/nav';
-import type { Goal, Hero, Monster, Pickup, Trap } from '../game/types';
+import type { Exit, Goal, Hero, Monster, Pickup, Trap } from '../game/types';
 import { findBelt, storeTarget, type Item } from '../rules/inventory';
 import type { PotionId } from '../rules/potions';
 import { POTIONS } from '../rules/potions';
@@ -90,8 +90,25 @@ function setGoal(goal: Goal): void {
  * Priority: own grave (SPEC §14, fending off only monsters right next to the hero) > nearby monster > pickup >
  * locked door (if key and most rooms seen) > nearest chest/unvisited room > door > stairs > wander.
  */
+const exitGoal = (e: Exit): Goal => ({ kind: 'exit', ref: e, tx: e.tx, tz: e.tz });
+
+/**
+ * In town (SPEC §13): an open portal first; otherwise the deepest open entrance at or above the target depth, which
+ * is the deepest level holding one of AUTO's graves, else the deepest depth reached.
+ */
+function townExit(): Exit | null {
+  const L = G.L, portal = L.exits.find(e => e.kind === 'portal' && e.open);
+  if (portal) return portal;
+  const graveDepths = Object.entries(G.levels).filter(([, d]) => d.graves.length).map(([k]) => +k);
+  const target = graveDepths.length ? Math.max(...graveDepths) : G.deepest;
+  let best: Exit | null = null;
+  for (const e of L.exits) if (e.kind === 'down' && e.open && e.to <= Math.max(1, target) && (!best || e.to > best.to)) best = e;
+  return best;
+}
+
 function chooseGoal(): void {
   const h = G.hero, L = G.L;
+  if (G.depth === 0) { const e = townExit(); if (e) setGoal(exitGoal(e)); return; }
   // `graveLeft`: a grave pickup AUTO still means to recover (possibly waiting to retry); it keeps AUTO off the stairs.
   let grave: Pickup | null = null, gd = 1e9, graveLeft = false;
   for (const g of L.graves) for (const p of g.pickups) {
@@ -107,8 +124,8 @@ function chooseGoal(): void {
   let pk: Pickup | null = null; bd = 7;
   for (const p of L.pickups) { if (p.t < .6 || !canCollect(h, p) || unreachable.has(p)) continue; const fd = fieldAt(p.x, p.z); if (fd < bd) { bd = fd; pk = p; } }
   if (pk) return setGoal({ kind: 'pick', ref: pk, tx: Math.round(pk.x / T), tz: Math.round(pk.z / T) });
-  const doorGoal: Goal = { kind: 'door', ref: L.lockedDoor, tx: L.lockedDoor.tx, tz: L.lockedDoor.tz };
-  if (L.locked && h.key && L.rooms.filter(r => r.visited).length >= L.rooms.length * .6) return setGoal(doorGoal);
+  const door = L.lockedDoor, doorGoal: Goal | null = door && { kind: 'door', ref: door, tx: door.tx, tz: door.tz };
+  if (doorGoal && L.locked && h.key && L.rooms.filter(r => r.visited).length >= L.rooms.length * .6) return setGoal(doorGoal);
   // explore: nearest unopened chest or unvisited room, whichever is closer by path
   let ex: Goal | null = null; bd = 1e9;
   for (const c of L.chests) { if (c.open) continue; const fd = fieldAt(c.x, c.z); if (fd < bd) { bd = fd; ex = { kind: 'chest', ref: c, tx: Math.round(c.x / T), tz: Math.round(c.z / T) }; } }
@@ -118,8 +135,9 @@ function chooseGoal(): void {
     const fd = L.dist[tz * L.W + tx]; if (fd < bd) { bd = fd; ex = { kind: 'room', ref: r, tx, tz }; }
   }
   if (ex) return setGoal(ex);
-  if (L.locked && h.key) return setGoal(doorGoal);
-  if (!L.locked && !graveLeft) return setGoal({ kind: 'stairs', ref: null, tx: L.stairs.tx, tz: L.stairs.tz });
+  if (doorGoal && L.locked && h.key) return setGoal(doorGoal);
+  const down = L.exits.find(e => e.kind === 'down');
+  if (!L.locked && !graveLeft && down) return setGoal(exitGoal(down));
   // fallback: wander to a random room
   const r = pick(L.rooms.filter(r => r !== L.stairsRoom)); r.visited = false;
   return setGoal({ kind: 'room', ref: r, tx: r.cx, tz: r.cy });

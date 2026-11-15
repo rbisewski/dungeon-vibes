@@ -1,4 +1,5 @@
 /** Casting and live spell effects. SPEC.md §5.4, §5.5. */
+import { openTownPortal } from '../game/travel';
 import { SFX } from '../audio/sfx';
 import { PI, R, TAU, rr, wrapA } from '../core/math';
 import { G, addShake, isHero } from '../game/state';
@@ -13,7 +14,7 @@ import {
 import { toast } from '../ui/store';
 import { T } from '../world/consts';
 import { collect } from '../world/groundItems';
-import { circleBlocked, navOK } from '../world/nav';
+import { circleBlocked, isStairs, navOK } from '../world/nav';
 import { damageHero, damageMonster, missMonster, openChest } from './combat';
 
 /** Fraction of the class cast time at which the spell is released [OURS]. */
@@ -134,6 +135,7 @@ function release(h: Hero, id: SpellId, slvl: number, aim: number): void {
     case 'telekinesis': telekinesis(h); break;
     case 'phasing': phase(h); break;
     case 'identify': break; // handled by the inventory's identify mode, never cast here
+    case 'town_portal': openTownPortal(); break;
   }
 }
 
@@ -206,7 +208,7 @@ function telekinesis(h: Hero): void {
 function phase(h: Hero): void {
   const L = G.L, cands: number[] = [];
   for (let i = 0; i < L.N; i++) {
-    if (!navOK(i) || L.tiles[i] === 6 || L.trap[i] >= 0 || !(L.dist[i] < 1e8)) continue;
+    if (!navOK(i) || isStairs(L.tiles[i]) || L.trap[i] >= 0 || !(L.dist[i] < 1e8)) continue;
     const x = (i % L.W) * T, z = Math.floor(i / L.W) * T, d = Math.hypot(x - h.x, z - h.z);
     if (d >= 4 && d <= 8) cands.push(i);
   }

@@ -58,10 +58,10 @@ export interface CharSheet {
 export const sheet = signal<CharSheet | null>(null);
 
 /**
- * `char` and `book` share the left half (opening one closes the other); `inv` is on the right. `menu` (Esc) stands
- * alone: opening it closes the others.
+ * `char`, `book` and `stash` share the left half (opening one closes the others); `inv` is on the right. The stash
+ * opens with the inventory. `menu` (Esc) stands alone: opening it closes the others.
  */
-export type Panel = 'char' | 'inv' | 'book' | 'menu';
+export type Panel = 'char' | 'inv' | 'book' | 'menu' | 'stash';
 /** Open panels (character on the left, inventory on the right). Any open panel pauses the game. */
 export const openPanels = signal<readonly Panel[]>([]);
 export const isOpen = (p: Panel): boolean => openPanels.value.includes(p);

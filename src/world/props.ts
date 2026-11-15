@@ -47,6 +47,17 @@ export function propStairs(cx: number, cz: number): void {
   S('dark', gBox(2, .05, 2), cx, -2.8, cz);
   S('stone', gBox(.22, .22, 2.2), cx - 1.0, .11, cz); S('stone', gBox(.22, .22, 2.2), cx + 1.0, .11, cz); S('stone', gBox(2.2, .22, .22), cx, .11, cz - 1.0);
 }
+/** Up-stairs (SPEC §13): four steps rising toward the wall in direction (nx, nz), into a dark archway in that wall. */
+export function propUpStairs(cx: number, cz: number, nx: number, nz: number): void {
+  const ry = Math.atan2(nx, nz);
+  for (let k = 0; k < 4; k++) {
+    const h = .2 * (k + 1), d = -.6 + k * .4;
+    S('stone', gBox(1.6, h, .4), cx + nx * d, h / 2, cz + nz * d, ry);
+  }
+  S('dark', gBox(1.3, 2.3, .1), cx + nx * .98, 1.15, cz + nz * .98, ry);
+  for (const s of [-1, 1]) S('stone', gBox(.2, 2.5, .2), cx + nx * .95 + nz * .75 * s, 1.25, cz + nz * .95 - nx * .75 * s, ry);
+  S('stone', gBox(1.7, .25, .25), cx + nx * .95, 2.45, cz + nz * .95, ry);
+}
 export function propPuddle(x: number, z: number): void { S('puddle', gCircle(1), x, .015, z, R() * TAU, -PI / 2, 0, rr(.35, .8), rr(.3, .6), 1); }
 export function sittingSkeleton(x: number, z: number, ry: number): void {
   const s = buildHumanoid('skeleton'); s.root.position.set(x, -.38, z); s.root.rotation.y = ry;
