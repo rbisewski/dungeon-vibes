@@ -71,7 +71,7 @@ export function makeSpikes(tx: number, tz: number): void {
   const g = new THREE.Group(); g.position.set(x, -.6, z);
   for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) mesh(gCone(.07, .5, 5), MAT.steel, i * .5, .25, j * .5, g);
   G.L.group.add(g);
-  const tr: Trap = { kind: 'spike', tx, tz, x, z, t: R() * 3.6, g, hit: new Set(), up: false };
+  const tr: Trap = { disabled: false, kind: 'spike', tx, tz, x, z, t: R() * 3.6, g, hit: new Set(), up: false };
   G.L.trap[tz * G.L.W + tx] = G.L.traps.length; G.L.traps.push(tr);
 }
 export function makeBlade(tx: number, tz: number, along: Axis): void {
@@ -81,6 +81,6 @@ export function makeBlade(tx: number, tz: number, along: Axis): void {
   mesh(gBox(.07, 2.75, .07), MAT.iron, 0, -1.375, 0, sw);
   const bl = mesh(GEO.blade, MAT.steel, 0, -2.75, 0, sw); bl.rotation.z = -PI / 2;
   G.L.group.add(outer);
-  const tr: Trap = { kind: 'blade', tx, tz, x, z, along, sw, ph: R() * TAU, w: TAU / 3.0, ang: 0, prev: 0, hitT: new Map() };
+  const tr: Trap = { disabled: false, kind: 'blade', tx, tz, x, z, along, sw, ph: R() * TAU, w: TAU / 3.0, ang: 0, prev: 0, hitT: new Map() };
   G.L.trap[tz * G.L.W + tx] = G.L.traps.length; G.L.traps.push(tr);
 }

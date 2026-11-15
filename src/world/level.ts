@@ -42,8 +42,8 @@ export function buildLevel(depth: number): void {
   const L: Level = {
     ...lay, depth, group,
     navBlock: new Uint8Array(lay.N), trap: new Int16Array(lay.N).fill(-1), propAt: new Array(lay.N).fill(null), dist: new Float64Array(lay.N),
-    traps: [], doors: [], chests: [], monsters: [], pickups: [], spellFx: [], debris: [], decals: [], lights: [], flames: [], pillars: [], runes: [], moons: [],
-    disposeGeo: [], disposeInst: [], disposeMat: [], locked: true, fieldT: 0, quietT: 0, killsHere: 0,
+    traps: [], doors: [], chests: [], monsters: [], pickups: [], spellFx: [], arrows: [], debris: [], decals: [], lights: [], flames: [], pillars: [], runes: [], moons: [],
+    disposeGeo: [], disposeInst: [], disposeMat: [], locked: true, fieldT: 0, quietT: 0, killsHere: 0, risen: 0,
     startIdx: lay.startRoom.cy * lay.W + lay.startRoom.cx,
     stairs: { tx: sr.cx, tz: sr.cy, x: sr.cx * T, z: sr.cy * T },
     lockedDoor,

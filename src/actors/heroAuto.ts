@@ -6,6 +6,8 @@ import { buildPath, clearLine, fieldAt, navOK } from '../world/nav';
 import type { Goal, Hero, Monster, Pickup, Trap } from '../game/types';
 import { findBelt, storeTarget } from '../rules/inventory';
 import { POTIONS } from '../rules/potions';
+import { SPELLS } from '../rules/spells';
+import { heroManaCost } from './spells';
 import { pickupReach } from '../world/groundItems';
 
 /** Pickups AUTO tried and failed to reach; ignored for the rest of the level (they are dropped with the level). */
@@ -15,13 +17,40 @@ export interface AutoOut { mx: number; mz: number; atk: boolean; face: number | 
 
 /**
  * AUTO potion choice (SPEC §14): below 35 % life drink a partial life potion (Healing, Rejuvenation), falling back to a
- * full one; below 20 % prefer a full life potion. Returns a belt slot or -1.
+ * full one; below 20 % prefer a full life potion. A Mage also drinks mana below 25 % mana. Returns a belt slot or -1.
  */
 export function autoDrinkSlot(h: Hero): number {
   const frac = h.life / h.d.maxLife;
-  if (frac >= .35) return -1;
-  const full = findBelt(h.inv, p => POTIONS[p].life === 'full'), part = findBelt(h.inv, p => POTIONS[p].life === 'part');
-  return frac < .2 ? (full >= 0 ? full : part) : (part >= 0 ? part : full);
+  if (frac < .35) {
+    const full = findBelt(h.inv, p => POTIONS[p].life === 'full'), part = findBelt(h.inv, p => POTIONS[p].life === 'part');
+    const slot = frac < .2 ? (full >= 0 ? full : part) : (part >= 0 ? part : full);
+    if (slot >= 0) return slot;
+  }
+  if (h.stats.cls === 'mage' && h.mana < h.d.maxMana * .25) {
+    const part = findBelt(h.inv, p => POTIONS[p].mana === 'part' && POTIONS[p].life === 'none');
+    return part >= 0 ? part : findBelt(h.inv, p => POTIONS[p].mana !== 'none');
+  }
+  return -1;
+}
+
+/**
+ * Whether AUTO fights from range now (SPEC §14): always with a bow; a Mage while it can afford its readied attack
+ * spell (out of mana it closes in and swings its staff).
+ */
+function fightsAtRange(h: Hero): boolean {
+  if (h.d.weaponKind === 'bow') return true;
+  const id = h.readied;
+  return h.stats.cls === 'mage' && !!id && SPELLS[id].attack && h.mana >= heroManaCost(h, id);
+}
+
+/** Step away from a monster at (mx, mz); sidesteps when the way back is blocked. Null when cornered. */
+function backOff(h: Hero, mx: number, mz: number): [number, number] | null {
+  const d = Math.hypot(h.x - mx, h.z - mz) || 1, ax = (h.x - mx) / d, az = (h.z - mz) / d;
+  for (const [x, z] of [[ax, az], [ax - az, az + ax], [ax + az, az - ax], [-az, ax], [az, -ax]]) {
+    const l = Math.hypot(x, z);
+    if (clearLine(h.x, h.z, h.x + x / l * 1.6, h.z + z / l * 1.6, h.r)) return [x / l, z / l];
+  }
+  return null;
 }
 
 /** True when walking over a pickup collects it: coins always; items need room and must not be player-discarded. */
@@ -62,6 +91,7 @@ function chooseGoal(): void {
 }
 /** True while a trap tile is (about to be) dangerous to step on. */
 function trapUnsafe(tr: Trap): boolean {
+  if (tr.disabled) return false;
   if (tr.kind === 'spike') { const tc = tr.t % 3.6; return !(tc < 1.15); }
   const ph = ((tr.w * G.now + tr.ph) % PI + PI) % PI, since = ph / tr.w; return !(since > .05 && since < .45);
 }
@@ -76,6 +106,17 @@ export function heroAuto(dt: number): AutoOut {
     const m = g.ref; if (m.dead) { h.aiT = 0; return out; }
     gx = m.x; gz = m.z; const dx = gx - h.x, dz = gz - h.z, d = Math.hypot(dx, dz);
     out.face = Math.atan2(dx, dz);
+    if (fightsAtRange(h) && clearLine(h.x, h.z, gx, gz, .1)) {
+      // Kite (SPEC §14): back off under 3 m, hold and shoot at 3–7 m, otherwise close in below.
+      const away = d < 3 ? backOff(h, gx, gz) : null;
+      if (away) { out.mx = away[0]; out.mz = away[1]; return out; }
+      if (d <= 7) {
+        out.atk = h.d.weaponKind === 'bow' && Math.abs(wrapA(out.face - h.face)) < .3;
+        if (h.goalT > 12 && G.L.killsHere === h.killsAtGoal) { m.ignoreT = 6; h.aiT = 0; }
+        if (h.goalT < dt * 1.5) h.killsAtGoal = G.L.killsHere;
+        return out;
+      }
+    }
     if (d < h.r + m.r + .7) { out.atk = Math.abs(wrapA(out.face - h.face)) < .7; if (h.goalT > 9 && G.L.killsHere === h.killsAtGoal) { m.ignoreT = 6; h.aiT = 0; } return out; }
     arrive = 0; direct = d < 7 && clearLine(h.x, h.z, gx, gz, h.r * .9);
     g.tx = Math.round(gx / T); g.tz = Math.round(gz / T);

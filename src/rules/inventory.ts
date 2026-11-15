@@ -182,17 +182,30 @@ export const newInventory = (): Inventory => ({
 
 export type Stored = 'belt' | 'pack' | null;
 
+/** A scroll on the belt that a potion may push into the backpack, or -1. */
+function bumpableScroll(inv: Inventory, it: Item): number {
+  if (it.kind !== 'potion' || !findSpot(inv.pack, 1, 1)) return -1;
+  return inv.belt.findIndex(b => b?.kind === 'scroll');
+}
+
 /** Where `addItem` would put the item, without changing anything. */
 export function storeTarget(inv: Inventory, it: Item): Stored {
-  if (beltable(it) && inv.belt.includes(null)) return 'belt';
+  if (beltable(it) && (inv.belt.includes(null) || bumpableScroll(inv, it) >= 0)) return 'belt';
   const s = itemSize(it);
   return findSpot(inv.pack, s.w, s.h) ? 'pack' : null;
 }
 
-/** Belt first (when allowed), then the backpack. Returns where it went, or null if there was no room. */
+/**
+ * Belt first (when allowed), then the backpack. Potions take priority on the belt [OURS]: with the belt full, a potion
+ * moves a scroll from the belt into the backpack. Returns where it went, or null if there was no room.
+ */
 export function addItem(inv: Inventory, it: Item): Stored {
   const to = storeTarget(inv, it);
-  if (to === 'belt') inv.belt[inv.belt.indexOf(null)] = it;
+  if (to === 'belt') {
+    let slot = inv.belt.indexOf(null);
+    if (slot < 0) { slot = bumpableScroll(inv, it); putInGrid(inv.pack, inv.belt[slot]!); }
+    inv.belt[slot] = it;
+  }
   else if (to === 'pack') putInGrid(inv.pack, it);
   return to;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../../src/core/rng';
-import { addItem, BELT_SLOTS, countPotions, equipFromPack, equipInto, findSpot, itemAt, itemName, meetsReq, newEquip, newInventory, newPotion, PACK_H, PACK_W, placeAt, putInGrid, takeFromBelt } from '../../src/rules/inventory';
+import { addItem, BELT_SLOTS, newElixir, newScroll, countPotions, equipFromPack, equipInto, findSpot, itemAt, itemName, meetsReq, newEquip, newInventory, newPotion, PACK_H, PACK_W, placeAt, putInGrid, takeFromBelt } from '../../src/rules/inventory';
 import { potionEffect, rollPotion } from '../../src/rules/potions';
 
 describe('addItem', () => {
@@ -168,5 +168,31 @@ describe('equipment', () => {
     expect(newEquip('buckler', 0).ac).toBe(1);
     expect(newEquip('buckler', .999).ac).toBe(5);
     expect(newEquip('short_sword').ac).toBe(0);
+  });
+});
+
+describe('belt priority', () => {
+  it('lets a potion push a scroll from a full belt into the backpack', () => {
+    const inv = newInventory();
+    for (let i = 0; i < BELT_SLOTS; i++) addItem(inv, newScroll('identify'));
+    const p = newPotion('heal');
+    expect(addItem(inv, p)).toBe('belt');
+    expect(inv.belt).toContain(p);
+    expect(inv.pack.items.map(q => q.item.kind)).toEqual(['scroll']);
+  });
+
+  it('keeps scrolls on the belt when the backpack is full', () => {
+    const inv = newInventory();
+    for (let i = 0; i < BELT_SLOTS; i++) addItem(inv, newScroll('identify'));
+    while (putInGrid(inv.pack, newEquip('dagger')));
+    while (putInGrid(inv.pack, newElixir('str')));
+    expect(addItem(inv, newPotion('heal'))).toBeNull();
+    expect(inv.belt.every(b => b?.kind === 'scroll')).toBe(true);
+  });
+
+  it('does not let a scroll push anything', () => {
+    const inv = newInventory();
+    for (let i = 0; i < BELT_SLOTS; i++) addItem(inv, newPotion('heal'));
+    expect(addItem(inv, newScroll('identify'))).toBe('pack');
   });
 });

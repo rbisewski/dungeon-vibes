@@ -1,7 +1,4 @@
-/**
- * Equipment base items: D1 stats (Jarulf's Guide §3.1), footprints [OURS]. SPEC.md §6.1.
- * Bows are added with bow attacks (Phase 6).
- */
+/** Equipment base items: D1 stats (Jarulf's Guide §3.1), footprints [OURS]. SPEC.md §6.1. */
 import type { Attrs, WeaponKind } from './classes';
 
 export type Req = Partial<Attrs>;
@@ -51,6 +48,15 @@ export const BASES = {
   composite_staff: W('Composite Staff', 'staff', 1, 4, [5, 10], 6, {}, true),
   quarter_staff: W('Quarter Staff', 'staff', 1, 4, [6, 12], 9, { str: 20 }, true),
   war_staff: W('War Staff', 'staff', 1, 4, [8, 16], 12, { str: 30 }, true),
+  // bows (two-handed)
+  short_bow: W('Short Bow', 'bow', 2, 3, [1, 4], 1, {}, true),
+  hunters_bow: W("Hunter's Bow", 'bow', 2, 3, [2, 5], 3, { str: 20, dex: 35 }, true),
+  long_bow: W('Long Bow', 'bow', 2, 3, [1, 6], 5, { str: 25, dex: 30 }, true),
+  composite_bow: W('Composite Bow', 'bow', 2, 3, [3, 6], 7, { str: 25, dex: 40 }, true),
+  short_battle_bow: W('Short Battle Bow', 'bow', 2, 3, [3, 7], 9, { str: 30, dex: 50 }, true),
+  long_battle_bow: W('Long Battle Bow', 'bow', 2, 3, [1, 10], 11, { str: 30, dex: 60 }, true),
+  short_war_bow: W('Short War Bow', 'bow', 2, 3, [4, 8], 15, { str: 35, dex: 70 }, true),
+  long_war_bow: W('Long War Bow', 'bow', 2, 3, [1, 14], 19, { str: 45, dex: 80 }, true),
   // helms
   cap: A('Cap', 'head', 2, 2, [1, 3], 1),
   skull_cap: A('Skull Cap', 'head', 2, 2, [2, 4], 4),

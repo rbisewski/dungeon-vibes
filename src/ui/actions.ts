@@ -39,7 +39,7 @@ export const hoverSpell = signal<SpellId | null>(null);
 export const sparkle = signal<number | null>(null);
 
 /** Panels cannot open mid-transition or while the hero is dead or descending. */
-const canOpen = (): boolean => !G.transition && !G.hero.dead && G.hero.descend <= 0;
+const canOpen = (): boolean => !G.inMenu && !G.transition && !G.hero.dead && G.hero.descend <= 0;
 
 function changed(): void {
   recompute(G.hero);
@@ -318,6 +318,7 @@ function cursorItem(): Item | null {
 }
 
 addEventListener('keydown', e => {
+  if (G.inMenu) return;
   if (e.code === 'KeyC') { e.preventDefault(); togglePanel('char'); return; }
   if (e.code === 'KeyI') { e.preventDefault(); togglePanel('inv'); return; }
   if (e.code === 'KeyB') { e.preventDefault(); togglePanel('book'); return; }

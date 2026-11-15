@@ -43,8 +43,11 @@ export function rollBookSpell(rng: Rng, ilvl: number): SpellId {
   return ok[Math.floor(rng() * ok.length)];
 }
 
-/** Bases that can drop at `ilvl` (qlvl ≤ ilvl). */
-export const eligibleBases = (ilvl: number): BaseId[] => BASE_IDS.filter(id => BASES[id].qlvl <= ilvl);
+/** Bases that can drop at `ilvl` (qlvl ≤ ilvl). Bows are listed twice, as in D1's drop pool. */
+export function eligibleBases(ilvl: number): BaseId[] {
+  const ok = BASE_IDS.filter(id => BASES[id].qlvl <= ilvl);
+  return [...ok, ...ok.filter(id => { const b = BASES[id]; return b.kind === 'weapon' && b.wk === 'bow'; })];
+}
 
 /** Run-wide drop state. */
 export interface LootCtx {

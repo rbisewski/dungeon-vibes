@@ -9,9 +9,13 @@ import { CharacterPanel } from './CharacterPanel';
 import { fade, hud, isOpen, openPanels, soundOn, toastOn, toastSub, toastText } from './store';
 import { InventoryPanel } from './InventoryPanel';
 import { SpellbookPanel } from './SpellbookPanel';
-import { spellIcon } from '../art/itemIcons';
+import { skillIcon, spellIcon } from '../art/itemIcons';
 import { SPELLS } from '../rules/spells';
+import { SKILLS } from '../rules/skills';
+import { useSkill } from '../actors/skills';
 import { GroundLabels } from './GroundLabels';
+import { ClassSelect } from './ClassSelect';
+import { menuStep } from '../game/classSelect';
 
 function Pix({ img, scale = 3, style }: { img: PixImage; scale?: number; style?: Record<string, string> }) {
   return <img src={img.src} width={img.w * scale} height={img.h * scale} style={style} alt="" />;
@@ -37,6 +41,7 @@ function Orbs() {
       <Orb id="lifeOrb" label="LIFE" cur={hud.life.value} max={hud.maxLife.value} colors={LIFE_ORB} />
       <Orb id="manaOrb" label="MANA" cur={hud.mana.value} max={hud.maxMana.value} colors={MANA_ORB} />
       <ReadiedSpell />
+      <SkillButton />
       {hud.unspent.value > 0 && !openPanels.value.length && (
         <button id="lvlUp" class="px" onClick={() => openPanel('char')} title="Level up! Spend points (C)">+</button>
       )}
@@ -78,6 +83,18 @@ function ReadiedSpell() {
   );
 }
 
+/** Class skill (R) with a radial cooldown sweep. */
+function SkillButton() {
+  const id = hud.skill.value, ic = skillIcon(id), cd = hud.skillCd.value;
+  return (
+    <div id="skillBtn" class={'px' + (cd > 0 ? ' cooling' : '')} onMouseDown={() => useSkill()} title={`${SKILLS[id].name} (R): ${SKILLS[id].desc}`}>
+      <img src={ic.src} width={ic.w * 3} height={ic.h * 3} alt="" draggable={false} />
+      {cd > 0 && <div class="sweep" style={{ background: `conic-gradient(rgba(0,0,0,.72) ${(cd * 360).toFixed(1)}deg, transparent 0)` }} />}
+      <span class="key">R</span>
+    </div>
+  );
+}
+
 function XpBar() {
   return (
     <div id="xp" class="px" title="Experience">
@@ -104,7 +121,7 @@ function Mode() {
   return (
     <div id="mode" class="px">
       <div>{hud.manual.value ? 'YOU' : 'AUTO'}</div>
-      <div class="sub">WASD/ARROWS MOVE<br />SPACE ATTACK<br />1-8 POTIONS<br />C CHARACTER<br />I INVENTORY<br />B SPELLS · Q CAST<br />E PICK UP · ALT ITEMS</div>
+      <div class="sub">WASD/ARROWS MOVE<br />SPACE ATTACK<br />1-8 POTIONS<br />C CHARACTER<br />I INVENTORY<br />B SPELLS · Q CAST<br />R SKILL<br />E PICK UP · ALT ITEMS</div>
     </div>
   );
 }
@@ -141,6 +158,7 @@ function SoundPrompt() {
 }
 
 export function Hud() {
+  if (menuStep.value) return (<><Fade /><ClassSelect /><SoundPrompt /></>);
   return (
     <>
       <GroundLabels />

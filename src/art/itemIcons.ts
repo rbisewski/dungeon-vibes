@@ -10,6 +10,7 @@ import type { Item } from '../rules/inventory';
 import { POTION_ICON } from '../ui/pixel/potionIcons';
 import type { PixImage } from '../ui/pixel/pixArt';
 import { SPELL_IDS, SPELLS, type School, type SpellId } from '../rules/spells';
+import type { SkillId } from '../rules/skills';
 
 export const CELL_PX = 14;
 const OUTLINE = '#120c0a';
@@ -114,6 +115,20 @@ function staff(p: Painter, top: StaffTop): void {
   if (top === 'capped') { p.rect(cx - 2, p.h - 6, 4, 4, C.steel); }
   if (top === 'bands') for (let y = 6; y < p.h - 4; y += 9) p.rect(cx - 2, y, 4, 2, C.lea);
   if (top === 'iron') { p.rect(cx - 3, 3, 6, 5, C.steelD); p.line(cx, 0, cx, 3, C.steelL); p.px(cx - 4, 3, C.steelL); p.px(cx + 3, 3, C.steelL); }
+}
+
+/** Bow seen from the side: curved limbs, grip wrap and string. `recurve` bends the tips back; `long` is taller. */
+function bow(p: Painter, recurve: boolean, wood: [string, string], trim: string | null): void {
+  const top = 2, bot = p.h - 3, mid = (top + bot) / 2, half = (bot - top) / 2, cx = 9;
+  for (let y = top; y <= bot; y++) {
+    const t = (y - mid) / half, bend = Math.round(7 * (1 - t * t));
+    const tip = recurve && Math.abs(t) > .82 ? Math.round((Math.abs(t) - .82) * 18) : 0;
+    const x = cx + bend - tip;
+    p.px(x, y, wood[0]); p.px(x + 1, y, wood[1]);
+    if (trim && Math.abs(t) > .9) p.px(x, y, trim);
+  }
+  p.line(cx, top, cx, bot, '#d8d0b8');
+  p.rect(cx + 6, Math.round(mid) - 3, 3, 6, C.lea);
 }
 
 /* ---------- armor ---------- */
@@ -236,6 +251,10 @@ const DRAW: Record<BaseId, Draw> = {
   broad_axe: p => axe(p, 5, false), battle_axe: p => axe(p, 3, true), great_axe: p => axe(p, 5, true),
   club: p => club(p, 'club'), mace: p => club(p, 'mace'), morning_star: p => club(p, 'star'),
   war_hammer: p => club(p, 'hammer'), flail: p => club(p, 'flail'), maul: p => club(p, 'maul'),
+  short_bow: p => bow(p, false, [C.woodL, C.wood], null), hunters_bow: p => bow(p, false, [C.wood, C.woodD], C.lea),
+  long_bow: p => bow(p, false, [C.woodL, C.woodD], null), composite_bow: p => bow(p, true, [C.leaL, C.lea], C.steel),
+  short_battle_bow: p => bow(p, true, [C.woodL, C.wood], C.steel), long_battle_bow: p => bow(p, true, [C.wood, C.woodD], C.steel),
+  short_war_bow: p => bow(p, true, [C.steelL, C.steelD], C.gold), long_war_bow: p => bow(p, true, [C.woodD, '#2a1a0c'], C.gold),
   short_staff: p => staff(p, 'knob'), long_staff: p => staff(p, 'ferrule'), composite_staff: p => staff(p, 'bands'),
   quarter_staff: p => staff(p, 'capped'), war_staff: p => staff(p, 'iron'),
   cap: p => helm(p, 'cap'), skull_cap: p => helm(p, 'skull'), helm: p => helm(p, 'helm'),
@@ -354,6 +373,31 @@ const SCROLL_ICON = Object.fromEntries(SPELL_IDS.map(id => {
   p.disc(9.5, 9.5, 1.6, SCHOOL_COL[SPELLS[id].school][0]);
   return [id, toIcon(p.outline())];
 })) as Record<SpellId, Icon>;
+
+/** Class skill glyphs (14×14). */
+const SKILL_ICON: Record<SkillId, Icon> = {
+  war_cry: (() => {
+    const p = new Painter(CELL_PX, CELL_PX);
+    p.disc(4, 7, 2.6, '#c08a68'); p.rect(4, 6, 2, 3, '#3a1a10');
+    for (const r of [4, 6.5, 9]) for (let a = -.8; a <= .8; a += .12) p.px(Math.round(4 + Math.cos(a) * r), Math.round(7 + Math.sin(a) * r), r > 8 ? '#e05a18' : '#ffb030');
+    return toIcon(p.outline());
+  })(),
+  disarm: (() => {
+    const p = new Painter(CELL_PX, CELL_PX);
+    p.rect(1, 11, 12, 2, C.steelD);
+    for (const x of [2, 6, 10]) for (let y = 0; y < 5; y++) p.rect(x + (y > 2 ? 0 : 0), 6 + y, Math.max(1, 3 - Math.floor((4 - y) / 2)), 1, y < 2 ? C.steelL : C.steel);
+    p.line(1, 1, 12, 9, '#3aa048'); p.line(2, 1, 13, 9, '#1c6a20');
+    return toIcon(p.outline());
+  })(),
+  mana_surge: (() => {
+    const p = new Painter(CELL_PX, CELL_PX);
+    p.disc(3.5, 8, 2.6, '#c83030'); p.px(3, 4, '#c83030'); p.px(3, 5, '#c83030');
+    p.disc(10.5, 8, 2.6, '#3a6ad8'); p.px(10, 4, '#3a6ad8'); p.px(10, 5, '#3a6ad8');
+    p.line(5, 2, 9, 2, '#ffffff'); p.px(8, 1, '#ffffff'); p.px(8, 3, '#ffffff');
+    return toIcon(p.outline());
+  })(),
+};
+export const skillIcon = (id: SkillId): Icon => SKILL_ICON[id];
 
 export function itemIcon(it: Item): Icon {
   switch (it.kind) {

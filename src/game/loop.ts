@@ -5,6 +5,7 @@ import { updateWorld } from '../world/update';
 import { updateHero } from '../actors/hero';
 import { updateMonsters } from '../actors/monsterAI';
 import { updateSpellFx } from '../actors/spells';
+import { updateArrows } from '../actors/arrows';
 import { updateLights } from '../render/lights';
 import { fxAdd, fxNorm } from '../render/particles';
 import { renderFrame } from '../render/post';
@@ -25,6 +26,10 @@ export const STEP = 1 / 60;
 const HITSTOP_SCALE = 0.08;
 
 let last = performance.now(), acc = 0, crackAcc = 0, dripT = 3, hudT = 0;
+let menuTick: ((dt: number) => void) | null = null;
+
+/** Runs `fn` every frame while the game is paused (null to stop). */
+export function setMenuTick(fn: ((dt: number) => void) | null): void { menuTick = fn; }
 
 /** Advances fade-out → rebuild → fade-in for descend and death transitions. */
 function updateTransition(dt: number): void {
@@ -56,9 +61,21 @@ function step(frozen: boolean): number {
     const L = G.L;
     L.fieldT -= g;
     if (L.fieldT <= 0) { L.fieldT = 0.25; computeField(); }
-    updateHero(g); updateMonsters(g); resolveCollisions(); updateWorld(g); updateSpellFx(g);
+    updateHero(g); updateMonsters(g); resolveCollisions(); updateWorld(g); updateSpellFx(g); updateArrows(g);
   }
   return g;
+}
+
+/**
+ * Dev and test only: advances `seconds` of game time as fast as possible, without rendering. AUTO soaks use it so
+ * results do not depend on how often the browser grants animation frames. Stops early if the game pauses.
+ */
+export function simulate(seconds: number): void {
+  for (let i = 0; i < seconds / STEP && !G.paused; i++) {
+    updateTransition(STEP);
+    const tr = G.transition;
+    step(!!(tr && tr.built && fade.value >= 1));
+  }
 }
 
 function ambientSound(dt: number): void {
@@ -77,7 +94,9 @@ function frame(nowMs: number): void {
   if (hudT <= 0) { hudT = 0.1; syncHud(); }
   if (G.paused) {
     // Panels freeze the world: no simulation, particles, lights, camera motion or toast countdown.
+    // A menu (class select) animates its own scene through `menuTick`.
     acc = 0;
+    menuTick?.(dt);
     renderFrame();
     return;
   }

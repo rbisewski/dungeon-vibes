@@ -88,3 +88,19 @@ html,body{margin:0;height:100%;overflow:hidden;background:#05060a}
 #bookPanel .fkey{color:#7aa8ff}
 #bookPanel .dim,.panel .dim{opacity:.65}
 #bookPanel .blue{color:#7aa8ff}
+#skillBtn{position:fixed;right:160px;bottom:30px;width:46px;height:46px;display:flex;align-items:center;justify-content:center;background:#1e1612;box-shadow:0 0 0 2px #5a4a3a,inset 0 0 0 1px #3a2a1e;cursor:pointer;pointer-events:auto}
+#skillBtn img{image-rendering:pixelated;display:block}
+#skillBtn .sweep{position:absolute;inset:0}
+#skillBtn .key{position:absolute;right:2px;bottom:1px;font-size:6px;opacity:.75}
+.groundLabel.trap{color:#ffb070}
+#classSelect{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:6vh 0 4vh;pointer-events:none}
+#classSelect .title{font-size:22px;color:#f2d79a;letter-spacing:2px;text-shadow:0 3px 0 #000}
+#classSelect .classTabs{display:flex;gap:12px;pointer-events:auto;margin-top:auto;margin-bottom:12px}
+#classSelect .classTabs button{font:inherit;font-size:10px;color:#ead6ae;background:#1e1612;border:2px solid #5a4a3a;padding:8px 12px;cursor:pointer}
+#classSelect .classTabs button.on{color:#ffe08a;border-color:#e0b040;box-shadow:0 0 10px #9a7020}
+#classSelect .classCard{position:static;width:min(560px,90vw);pointer-events:auto}
+#classSelect .blurb{margin-bottom:8px;color:#fff2d0}
+#classSelect .attrs4{display:flex;justify-content:space-between;gap:8px;margin:4px 0}
+#classSelect .attrs4 b{font-weight:normal;color:#fff2d0}
+#classSelect .nameRow{display:flex;gap:10px;align-items:center;margin-top:10px}
+#classSelect input{font:inherit;font-size:11px;flex:1;background:#0e0a08;color:#ffe08a;border:2px solid #9a7020;padding:6px 8px;outline:none;text-transform:uppercase}

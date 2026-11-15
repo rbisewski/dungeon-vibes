@@ -17,6 +17,7 @@ export function updateWorld(dt: number): void {
   // traps
   for (const tr of G.L.traps) {
     const near = vol(tr.x, tr.z);
+    if (tr.disabled) continue;
     if (tr.kind === 'spike') {
       tr.t += dt; const tc = tr.t % 3.6;
       let y; if (tc < 2.2) y = -.6; else if (tc < 2.7) y = -.5 + Math.sin(tr.t * 70) * .02; else if (tc < 2.82) y = lerp(-.5, 0, (tc - 2.7) / .12); else if (tc < 3.35) y = 0; else y = lerp(0, -.6, (tc - 3.35) / .25);

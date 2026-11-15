@@ -2,6 +2,7 @@ import { signal } from '@preact/signals';
 import type { Attrs, ClassId } from '../rules/classes';
 import type { Item } from '../rules/inventory';
 import type { SpellId } from '../rules/spells';
+import type { SkillId } from '../rules/skills';
 
 /** HUD values mirrored from game state by `syncHud` (UI never reads game objects directly). */
 export const hud = {
@@ -17,6 +18,9 @@ export const hud = {
   readied: signal<SpellId | null>(null),
   readyOk: signal(true),
   manaShield: signal(false),
+  skill: signal<SkillId>('war_cry'),
+  /** Remaining cooldown as a fraction of the full cooldown (0 = ready). */
+  skillCd: signal(0),
   gold: signal(0),
   slain: signal(0),
   depth: signal(1),
@@ -30,6 +34,7 @@ export const hud = {
 
 /** Everything the character screen shows. */
 export interface CharSheet {
+  name: string;
   cls: ClassId;
   clvl: number;
   xp: number;

@@ -1,6 +1,6 @@
 # Dungeon Vibes — Diablo-Style Progression Spec
 
-Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phases 0–5.
+Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phases 0–6.
 
 This spec layers a Diablo 1 (D1) style character, spell, and loot system onto the existing game. The game is first ported from the single `index.html` to a TypeScript project (§2.1). It keeps the game's look, controls, and AUTO mode.
 
@@ -345,7 +345,15 @@ const CLASS = {
 
 **Starting kits**
 - D1 kits are used as-is, except the Mage.
-- **Mage substitution [OURS]:** D1's Short Staff of Charged Bolt depends on staff charges, which are out of scope. The Mage instead starts with a plain Short Staff, **knows Charged Bolt at slvl 1**, and has Charged Bolt readied. Their Int of 35 meets the requirement of 25.
+- **Mage start:** D1's Sorcerer also starts knowing **Firebolt at spell level 2** (devilutionX `CreatePlayer`; recalled from the source, not re-checked this session), so the Mage starts with Firebolt 2, readied. **[OURS]** D1's Short Staff of Charged Bolt depends on staff charges, which are out of scope; the Mage gets a plain Short Staff and knows **Charged Bolt at slvl 1** instead. Their Int of 35 meets both requirements.
+
+**As implemented in Phase 6** [OURS unless noted]
+- **Bows:** `Space` draws and releases on the class's bow time; the arrow leaves at 60 % of it. Arrows fly at 12 m/s × (D1 arrow speed / 32), up to 16 m, aimed at the nearest aware monster within ±40° of facing. A miss lets the arrow fly on (D1); each arrow hits at most one monster. Item life and mana steal apply to arrows.
+- **Weapon meshes** follow the equipped weapon kind (sword, axe, club, staff with a glowing tip, bow), even when its requirements are unmet.
+- **Class select** runs over depth 1 with the world paused; after the name is entered, depth 1 is rebuilt fresh for the chosen hero. The name keeps letters, digits, space, `'` and `-`; an empty name uses the class name.
+- **Belt priority:** a picked-up potion moves a scroll from a full belt into the backpack (when it has room), so potions are never stuck in the backpack where AUTO cannot drink them.
+- **Monster risers:** the legacy rule that raises 1–3 monsters near the hero after 3 s without a fight is capped at **10 per level**. Unlimited, it made every level endless: weaker heroes farmed instead of progressing, and earlier XP pacing measurements were inflated by it. Whether to remove the rule entirely is open (Q11).
+- **AUTO acceptance runs** use a dev-only `simulate(seconds)` that advances the fixed-step game without rendering, so results do not depend on browser frame throttling.
 
 **Class selection screen [OURS]** (shown on `NEW RUN`)
 - Three heroes stand on a torch-lit landing, built from the real 3D models.
@@ -484,7 +492,7 @@ Int has three jobs:
 2. It gates spell learning and casting from scrolls.
 3. It meets item Int requirements.
 
-Mana regenerates [OURS] at `0.5 % maxMana/s` for every class. D1 has no natural mana regeneration outside items; without it, a Warrior or Thief with a small mana pool could barely cast. This rate keeps mana potions valuable. It can be tuned.
+Mana regenerates [OURS] at **`1.5 % maxMana/s`** for every class (`MANA_REGEN` in `rules/stats.ts`). D1 has no natural mana regeneration outside items. v1 proposed 0.5 %; in Phase 6 AUTO runs a Mage at 0.5 % never got past depth 2 (13–18 deaths in 25 game minutes, three runs), while at 1.5 % it cleared depths 1–3 in two of three runs. Without a town to buy mana potions, 0.5 % starves casters.
 
 ---
 
@@ -1250,7 +1258,9 @@ Each phase ships playable and is verified in the browser before the next starts.
 
 ### Open questions
 
-None at the moment.
+| # | Question | Options | Recommendation |
+|---|---|---|---|
+| Q11 | The legacy "rise from the dark" rule (Phase 6 note in §3.1) raises monsters near a hero who has been out of combat for 3 s. Keep it? | (a) Keep, capped at 10 per level (current).<br>(b) Remove: levels hold only their generated monsters, as in D1. | (b) is closer to D1 and makes pacing predictable; (a) keeps the original game's pressure. |
 
 ---
 

@@ -26,7 +26,7 @@ export function CharacterPanel() {
   return (
     <div id="charPanel" class="px panel" style={panelStyle}>
       <div class="panelHead">
-        <span>{CLASS[s.cls].name.toUpperCase()}</span>
+        <span>{s.name} - {CLASS[s.cls].name.toUpperCase()}</span>
         <span>LEVEL {s.clvl}</span>
         <button class="close" onClick={closePanels} title="Close (C / Esc)">X</button>
       </div>

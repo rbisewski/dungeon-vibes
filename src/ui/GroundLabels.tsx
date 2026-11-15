@@ -3,8 +3,10 @@ import * as THREE from 'three';
 import { G } from '../game/state';
 import { camera } from '../render/renderer';
 import { itemName, quality, type Quality } from '../rules/inventory';
+import { disarmChance } from '../rules/skills';
 
-interface Label { key: number; x: number; y: number; text: string; dim: boolean; q: Quality }
+/** `cls` is the label's colour class: an item quality, or `trap` for a Thief's disarm chance. */
+interface Label { key: number | string; x: number; y: number; text: string; dim: boolean; cls: `q-${Quality}` | 'trap' }
 const labels = signal<Label[]>([]);
 
 let altHeld = false;
@@ -31,9 +33,15 @@ export function updateGroundLabels(): void {
       y: (-_v.y * .5 + .5) * innerHeight,
       text: itemName(p.item).toUpperCase(),
       dim: p.discarded,
-      q: quality(p.item),
+      cls: `q-${quality(p.item)}`,
     });
   }
+  // SPEC §3.1a: a Thief sees each nearby trap's disarm chance.
+  if (h.stats.cls === 'thief') G.L.traps.forEach((tr, i) => {
+    if (tr.disabled || Math.hypot(tr.x - h.x, tr.z - h.z) > 3) return;
+    _v.set(tr.x, .6, tr.z).project(camera);
+    out.push({ key: `trap${i}`, x: (_v.x * .5 + .5) * innerWidth, y: (-_v.y * .5 + .5) * innerHeight, text: `DISARM ${disarmChance(h.d.attr.dex, G.L.depth)}% (R)`, dim: false, cls: 'trap' });
+  });
   if (out.length || labels.value.length) labels.value = out;
 }
 
@@ -41,7 +49,7 @@ export function GroundLabels() {
   return (
     <>
       {labels.value.map(l => (
-        <div key={l.key} class={`groundLabel px q-${l.q}` + (l.dim ? ' dim' : '')} style={{ left: l.x, top: l.y }}>{l.text}</div>
+        <div key={l.key} class={`groundLabel px ${l.cls}` + (l.dim ? ' dim' : '')} style={{ left: l.x, top: l.y }}>{l.text}</div>
       ))}
     </>
   );

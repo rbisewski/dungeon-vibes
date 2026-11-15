@@ -3,7 +3,9 @@ import { R, rr } from '../core/math';
 import { G } from '../game/state';
 import type { Hero, Monster } from '../game/types';
 import { fxAdd } from '../render/particles';
-import { CLASS, type Attr } from '../rules/classes';
+import { CLASS, KITS, type Attr, type ClassId } from '../rules/classes';
+import { base } from '../rules/bases';
+import { setHeldWeapon } from './models/heroModel';
 import { gear } from '../rules/gear';
 import { addItem, countPotions, newEquip, newInventory, newPotion, putInGrid, takeFromBelt, type Inventory } from '../rules/inventory';
 import { POTIONS, potionEffect, type PotionId } from '../rules/potions';
@@ -21,6 +23,9 @@ export function recompute(h: Hero): void {
   h.d = derive(h.stats, g.bonus, g.weapon);
   h.dShown = derive(h.stats, shown.bonus, shown.weapon);
   h.gearOk = g.active;
+  // The hand shows the equipped weapon even when its requirements are unmet.
+  const w = h.inv.equip.weapon, wb = w && base(w.base), held = wb && wb.kind === 'weapon' ? wb.wk : 'bare';
+  if (held !== h.heldKind) { h.heldKind = held; setHeldWeapon(h, held); }
   if (prev) {
     h.life += Math.max(0, h.d.maxLife - prev.maxLife);
     h.mana += Math.max(0, h.d.maxMana - prev.maxMana);
@@ -52,13 +57,13 @@ export function spendHeroPoint(a: Attr): boolean {
   return true;
 }
 
-/** D1 Warrior kit: Short Sword and Buckler equipped, a Club in the backpack, two Potions of Healing on the belt. */
-export function startingInventory(): Inventory {
-  const inv = newInventory();
-  inv.equip.weapon = newEquip('short_sword');
-  inv.equip.shield = newEquip('buckler', R());
-  putInGrid(inv.pack, newEquip('club'));
-  addItem(inv, newPotion('heal')); addItem(inv, newPotion('heal'));
+/** The class's D1 starting kit (SPEC §3.1). */
+export function startingInventory(cls: ClassId): Inventory {
+  const inv = newInventory(), kit = KITS[cls];
+  inv.equip.weapon = newEquip(kit.weapon);
+  if (kit.shield) inv.equip.shield = newEquip(kit.shield, R());
+  for (const id of kit.pack) putInGrid(inv.pack, newEquip(id));
+  for (const p of kit.belt) addItem(inv, newPotion(p));
   return inv;
 }
 

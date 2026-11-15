@@ -1,3 +1,5 @@
+import type { BaseId } from './bases';
+import type { SpellId } from './spells';
 /**
  * Character classes. Values are Diablo 1 Warrior / Rogue / Sorcerer data (Jarulf's Guide §2.1–2.3), with D1's
  * Magic renamed Intelligence. See SPEC.md §1.1, §1.1a, §3.1.
@@ -103,3 +105,36 @@ export const CLASS: Record<ClassId, ClassDef> = {
     arrowSpeed: () => 32,
   },
 };
+
+/* ---------- starting kits and descriptions (D1, Jarulf §2.5; SPEC §3.1) ---------- */
+
+/** What a new character starts with. */
+export interface Kit {
+  weapon: BaseId;
+  shield: BaseId | null;
+  pack: readonly BaseId[];
+  /** Potions on the belt. */
+  belt: readonly ('heal' | 'mana')[];
+  gold: number;
+  /** Spells known at the start and their levels; the first is readied. */
+  spells: readonly (readonly [SpellId, number])[];
+}
+
+/**
+ * D1 kits. The D1 Sorcerer also starts knowing Firebolt at spell level 2 (devilutionX `CreatePlayer`). [OURS] Its Short
+ * Staff of Charged Bolt depends on staff charges (out of scope), so the Mage gets a plain Short Staff and knows Charged
+ * Bolt instead.
+ */
+export const KITS: Record<ClassId, Kit> = {
+  warrior: { weapon: 'short_sword', shield: 'buckler', pack: ['club'], belt: ['heal', 'heal'], gold: 100, spells: [] },
+  thief: { weapon: 'short_bow', shield: null, pack: [], belt: ['heal', 'heal'], gold: 100, spells: [] },
+  mage: { weapon: 'short_staff', shield: null, pack: [], belt: ['mana', 'mana'], gold: 100, spells: [['firebolt', 2], ['charged_bolt', 1]] },
+};
+
+export const CLASS_BLURB: Record<ClassId, string> = {
+  warrior: 'SWORD AND SHIELD. TOUGH, BLOCKS WELL, LANDS CRITICAL HITS.',
+  thief: 'FASTEST BOW. KEEPS HIS DISTANCE. CHEAP SPELLS, DISARMS TRAPS.',
+  mage: 'MOST MANA, FASTEST CASTS. FRAGILE UP CLOSE.',
+};
+
+export const CLASS_IDS: readonly ClassId[] = ['warrior', 'thief', 'mage'];

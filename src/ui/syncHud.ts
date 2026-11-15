@@ -2,6 +2,7 @@ import { manualActive } from '../core/input';
 import { G } from '../game/state';
 import { heroManaCost } from '../actors/spells';
 import { CLASS } from '../rules/classes';
+import { CLASS_SKILL, SKILLS } from '../rules/skills';
 import { MAX_LEVEL, xpForLevel } from '../rules/xp';
 import { hud, isOpen, sheet } from './store';
 
@@ -19,6 +20,9 @@ export function syncHud(): void {
   hud.readied.value = h.readied;
   hud.readyOk.value = !h.readied || h.mana >= heroManaCost(h, h.readied);
   hud.manaShield.value = h.manaShield;
+  const sk = CLASS_SKILL[s.cls];
+  hud.skill.value = sk;
+  hud.skillCd.value = h.skillCd / SKILLS[sk].cooldown;
   hud.gold.value = h.gold;
   hud.slain.value = h.slain;
   hud.depth.value = L.depth;
@@ -36,6 +40,7 @@ export function syncSheet(): void {
   // D1: unidentified items' properties are left out of the character screen (life and mana show the real pools).
   const h = G.hero, s = h.stats, d = h.dShown, def = CLASS[s.cls];
   sheet.value = {
+    name: h.name,
     cls: s.cls,
     clvl: s.clvl,
     xp: s.xp,
@@ -47,7 +52,8 @@ export function syncSheet(): void {
     life: Math.max(0, Math.round(h.life)), maxLife: h.d.maxLife,
     mana: Math.round(h.mana), maxMana: h.d.maxMana,
     ac: d.ac,
-    toHit: d.toHitShown,
+    // With a bow D1 shows arrow to-hit, which uses all of Dex instead of half.
+    toHit: d.weaponKind === 'bow' ? d.toHitShown - Math.floor(d.attr.dex / 2) + d.attr.dex : d.toHitShown,
     spellHit: 50 + d.attr.int + def.hit.magic,
     dmgMin: d.dmgMin, dmgMax: d.dmgMax,
     // Block against a level-0 monster: Dex + 2·clvl + class bonus (each monster level then subtracts 2).

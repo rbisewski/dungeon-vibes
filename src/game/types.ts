@@ -4,6 +4,7 @@ import type { CharState, Derived } from '../rules/stats';
 import type { Progress } from '../rules/xp';
 import type { Inventory, Item } from '../rules/inventory';
 import type { SpellId } from '../rules/spells';
+import type { WeaponKind } from '../rules/classes';
 
 export type HeroStats = CharState & Progress;
 
@@ -37,8 +38,9 @@ export interface Door {
   pivot: THREE.Group; axis: Axis; sign: number; open: number; locked: boolean;
   tx: number; tz: number; x: number; z: number; glow: THREE.Sprite | null; wasOpen: boolean;
 }
-export interface SpikeTrap { kind: 'spike'; tx: number; tz: number; x: number; z: number; t: number; g: THREE.Group; hit: Set<Actor>; up: boolean }
-export interface BladeTrap { kind: 'blade'; tx: number; tz: number; x: number; z: number; along: Axis; sw: THREE.Group; ph: number; w: number; ang: number; prev: number; hitT: Map<Actor, number> }
+/** `disabled`: disarmed by a Thief, for good. */
+export interface SpikeTrap { disabled: boolean; kind: 'spike'; tx: number; tz: number; x: number; z: number; t: number; g: THREE.Group; hit: Set<Actor>; up: boolean }
+export interface BladeTrap { disabled: boolean; kind: 'blade'; tx: number; tz: number; x: number; z: number; along: Axis; sw: THREE.Group; ph: number; w: number; ang: number; prev: number; hitT: Map<Actor, number> }
 export type Trap = SpikeTrap | BladeTrap;
 
 interface PickupBody {
@@ -64,10 +66,13 @@ export interface Level extends Layout {
   traps: Trap[]; doors: Door[]; chests: Chest[]; monsters: Monster[]; pickups: Pickup[];
   /** Live spell effects: missiles, flame jets and fire walls. */
   spellFx: SpellFx[];
+  arrows: Arrow[];
   debris: Debris[]; decals: Decal[]; lights: LightSrc[]; flames: FlameSpec[];
   pillars: { x: number; z: number }[]; runes: THREE.Mesh[]; moons: { x: number; z: number }[];
   disposeGeo: THREE.BufferGeometry[]; disposeInst: THREE.InstancedMesh[]; disposeMat: THREE.Material[];
   locked: boolean; fieldT: number; quietT: number; killsHere: number;
+  /** Monsters added by the rise-from-the-dark rule on this level. */
+  risen: number;
   startIdx: number;
   stairs: { tx: number; tz: number; x: number; z: number };
   lockedDoor: Door;
@@ -122,6 +127,8 @@ export interface MonsterCommon {
   stoneT: number;
   /** Original material colours, kept while petrified. */
   stoneCols: THREE.Color[] | null;
+  /** War Cry slow on bosses: 30 % slower while > 0. */
+  slowT: number;
 }
 export type Monster = MonsterCommon & (
   | ({ type: 'skeleton' | 'boss' } & SkeletonParts)
@@ -167,6 +174,11 @@ export interface Hero extends HeroParts {
   manaShield: boolean;
   /** Blue bubble shown while Mana Shield is up. */
   shieldFx: THREE.Sprite;
+  name: string;
+  /** Class skill cooldown (s). */
+  skillCd: number;
+  /** Weapon kind whose mesh the hero holds (the equipped weapon, usable or not). */
+  heldKind: WeaponKind;
 }
 
 export type Actor = Hero | Monster;
@@ -183,3 +195,6 @@ export interface Jet extends FxBase { kind: 'jet'; life: number; tick: number }
 /** One Fire Wall flame: burns anything standing in it every 0.5 s, the hero included. */
 export interface WallFlame extends FxBase { kind: 'flame'; x: number; z: number; life: number; burnT: Map<Actor, number>; sprite: THREE.Sprite }
 export type SpellFx = Missile | Jet | WallFlame;
+
+/** A flying arrow (hero bows; monster archers later). `flight` counts seconds for the D1 distance penalty. */
+export interface Arrow { x: number; z: number; dx: number; dz: number; speed: number; flight: number; mesh: THREE.Object3D; passed: Set<Monster> }

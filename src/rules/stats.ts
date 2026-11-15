@@ -58,6 +58,8 @@ export interface Derived {
   critPct: number;
   /** Seconds per weapon swing, after attack-speed bonuses. */
   attackTime: number;
+  /** Weapon kind attacked with (fists when the equipped weapon's requirements are unmet). */
+  weaponKind: WeaponKind;
   /** Combat properties passed through from items. */
   dmgTaken: number;
   lifeSteal: number;
@@ -88,6 +90,7 @@ export function derive(ch: CharState, bonus: Readonly<Bonus> = NO_BONUS, weapon:
     dmgMax: Math.floor(weapon.max * mul + bonus.flatDmg + charDmg),
     critPct: def.crit ? Math.min(100, ch.clvl * bonus.critMul) : 0,
     attackTime: def.swing[weapon.kind] * (1 - bonus.attackSpeed / 100),
+    weaponKind: weapon.kind,
     dmgTaken: bonus.dmgTaken,
     lifeSteal: bonus.lifeSteal,
     manaSteal: bonus.manaSteal,
@@ -95,6 +98,12 @@ export function derive(ch: CharState, bonus: Readonly<Bonus> = NO_BONUS, weapon:
     spellLevels: bonus.spellLevels,
   };
 }
+
+/**
+ * Fraction of max mana regenerated per second, every class [OURS, SPEC §4]. D1 has none outside items; tuned so a
+ * Mage without a town to buy potions can keep casting.
+ */
+export const MANA_REGEN = .015;
 
 /** Spends one unspent point on `a`; refuses when no points remain or the attribute is at its class cap. */
 export function spendPoint(ch: CharState & { unspent: number }, a: Attr): boolean {

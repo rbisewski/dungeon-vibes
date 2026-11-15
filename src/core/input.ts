@@ -1,7 +1,7 @@
 import { G } from '../game/state';
 
 const keys = new Set<string>();
-let lastInput = -1e9, atkQueued = false, padAtkPrev = false, castQueued = false, padCastPrev = false;
+let lastInput = -1e9, atkQueued = false, padAtkPrev = false, castQueued = false, padCastPrev = false, skillQueued = false, padSkillPrev = false;
 /** Belt slots requested by hotkeys 1–8 or clicks, consumed by the next simulation step. */
 const beltQueue: number[] = [];
 const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
@@ -14,6 +14,10 @@ addEventListener('keydown', e => {
     keys.add(e.code);
     lastInput = G.now;
     if (e.code === 'Space') atkQueued = true;
+  } else if (e.code === 'KeyR' && !e.repeat) {
+    e.preventDefault();
+    skillQueued = true;
+    lastInput = G.now;
   } else if (e.code === 'KeyQ' && !e.repeat) {
     e.preventDefault();
     castQueued = true;
@@ -31,7 +35,10 @@ export function queueBelt(slot: number): void { if (!G.paused) beltQueue.push(sl
 export function takeBeltPresses(): number[] { return beltQueue.splice(0); }
 
 /** Drops held keys, a queued attack and queued belt uses (used when a panel opens so the hero doesn't keep walking). */
-export function resetInput(): void { keys.clear(); atkQueued = false; castQueued = false; beltQueue.length = 0; }
+export function resetInput(): void { keys.clear(); atkQueued = false; castQueued = false; skillQueued = false; beltQueue.length = 0; }
+
+/** The class skill was requested (R / gamepad LB) since the last call. */
+export function takeSkill(): boolean { const s = skillQueued; skillQueued = false; return s; }
 
 /** A cast of the readied spell was requested (Q / gamepad RB) since the last call. */
 export function takeCast(): boolean { const c = castQueued; castQueued = false; return c; }
@@ -64,6 +71,9 @@ export function readInput(): InputState {
     const rb = !!p.buttons[5]?.pressed;
     if (rb && !padCastPrev) { castQueued = true; lastInput = G.now; }
     padCastPrev = rb;
+    const lb = !!p.buttons[4]?.pressed;
+    if (lb && !padSkillPrev) { skillQueued = true; lastInput = G.now; }
+    padSkillPrev = lb;
   }
   const l = Math.hypot(ix, iy);
   if (l > 1) { ix /= l; iy /= l; }

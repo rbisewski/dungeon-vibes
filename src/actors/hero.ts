@@ -3,36 +3,39 @@ import type * as THREE from 'three';
 import { damageMonster, missMonster, openChest, unlockDoor } from './combat';
 import { drinkFromBelt, recompute, startingInventory } from './heroStats';
 import { meleeHitChance, rollDamage, roll } from '../rules/combat';
-import { CLASS } from '../rules/classes';
-import { derive } from '../rules/stats';
+import { CLASS, KITS, type ClassId } from '../rules/classes';
+import { derive, MANA_REGEN } from '../rules/stats';
 import { autoDrinkSlot, heroAuto } from './heroAuto';
 import { castReadied, readScroll } from '../ui/actions';
 import { autoCastWanted, startCast, updateCast } from './spells';
 import { countPotions } from '../rules/inventory';
 import { POTIONS } from '../rules/potions';
 import { SFX } from '../audio/sfx';
-import { manualActive, readInput, takeBeltPresses, takeCast } from '../core/input';
+import { manualActive, readInput, takeBeltPresses, takeCast, takeSkill } from '../core/input';
+import { autoSkillWanted, useSkill } from './skills';
 import { PI, R, clamp, damp, lerp, wrapA } from '../core/math';
 import { G, addShake } from '../game/state';
 import { trailMat } from '../render/materials';
 import { T } from '../world/consts';
 import type { Hero, Monster } from '../game/types';
-import { buildHero } from './models/hero-warrior';
+import { buildHero } from './models/heroModel';
+import { bowAim, fireArrow } from './arrows';
 
-/** Builds the hero model (added to the scene) with fresh run state. */
-export function createHero(): Hero {
-  const stats = { cls: 'warrior' as const, clvl: 1, xp: 0, unspent: 0, base: { ...CLASS.warrior.base } };
-  const d = derive(stats);
+/** Builds a new character of class `cls` (model added to the scene) with its D1 starting kit. */
+export function createHero(cls: ClassId, name: string): Hero {
+  const stats = { cls, clvl: 1, xp: 0, unspent: 0, base: { ...CLASS[cls].base } };
+  const d = derive(stats), kit = KITS[cls];
   const h: Hero = {
-    ...buildHero(),
+    ...buildHero(cls),
     x: 0, z: 0, vx: 0, vz: 0, kx: 0, kz: 0, face: PI * 1.25, r: .36, mass: 2.5, rise: 0,
     stats, d, dShown: d, gearOk: new Set(), life: d.maxLife, mana: d.maxMana,
-    gold: 0, inv: startingInventory(), key: false, slain: 0,
+    gold: kit.gold, inv: startingInventory(cls), key: false, slain: 0,
     cd: 0, atkT: -1, hitDone: false, invuln: 0, flinch: 0, flash: 0, drink: 0, phase: 0,
     path: null, pi: 0, goal: null, goalKey: '', goalT: 0, repath: 0, aiT: 0,
     dead: false, deadT: 0, descend: 0,
     stuckT: 0, stuck: 0, sx: 0, sz: 0, unstickT: 0, ux: 0, uz: 0, killsAtGoal: 0, waitTrap: false,
-    spells: {}, readied: null, hotkeys: [null, null, null, null], cast: null, manaShield: false, shieldFx: null as unknown as THREE.Sprite,
+    spells: Object.fromEntries(kit.spells), readied: kit.spells[0]?.[0] ?? null, hotkeys: [null, null, null, null], cast: null, manaShield: false,
+    shieldFx: null as unknown as THREE.Sprite, name, skillCd: 0, heldKind: 'bare',
   };
   h.shieldFx = glowSprite(0x4a7aff, 2.4, h.root, 0, 1, 0);
   h.shieldFx.visible = false;
@@ -41,7 +44,11 @@ export function createHero(): Hero {
   return h;
 }
 
-function startAttack(): void { const h = G.hero; h.atkT = 0; h.hitDone = false; h.cd = h.d.attackTime; SFX.swing(); }
+function startAttack(): void {
+  const h = G.hero; h.atkT = 0; h.hitDone = false; h.cd = h.d.attackTime;
+  if (h.d.weaponKind === 'bow') h.face = bowAim(h);
+  else SFX.swing();
+}
 /** Mid-swing: every monster in the arc gets its own to-hit, damage and crit roll. */
 function heroHitCheck(): void {
   const h = G.hero, s = h.stats; let any = false, crit = false;
@@ -87,11 +94,12 @@ export function updateHero(dt: number): void {
     if (h.inv.belt[slot]?.kind === 'scroll') readScroll({ belt: slot });
     else drinkFromBelt(slot);
   }
-  // Mana regenerates slowly for every class [OURS, SPEC §4].
-  h.mana = Math.min(h.d.maxMana, h.mana + h.d.maxMana * .005 * dt);
+  h.mana = Math.min(h.d.maxMana, h.mana + h.d.maxMana * MANA_REGEN * dt);
   if (takeCast()) castReadied();
   else if (!manual && h.readied && autoCastWanted(h, countPotions(h.inv, p => POTIONS[p].life !== 'none'))) startCast(h.readied, false);
   updateCast(dt);
+  h.skillCd = Math.max(0, h.skillCd - dt);
+  if (takeSkill() || (!manual && autoSkillWanted(h))) useSkill();
   h.shieldFx.visible = h.manaShield;
   if (h.manaShield) h.shieldFx.material.opacity = .35 + .1 * Math.sin(G.now * 4);
   if (!manual && h.drink <= 0 && h.atkT < 0) { const slot = autoDrinkSlot(h); if (slot >= 0) drinkFromBelt(slot); }
@@ -104,7 +112,16 @@ export function updateHero(dt: number): void {
   const spd = Math.hypot(h.vx, h.vz);
   if (!attacking) { let want: number | null = null; if (faceT !== null && (spd < 1 || (h.goal && h.goal.kind === 'mon' && Math.hypot(h.goal.ref.x - h.x, h.goal.ref.z - h.z) < 3.5))) want = faceT; else if (spd > .3) want = Math.atan2(h.vx, h.vz); if (want !== null) h.face += wrapA(want - h.face) * Math.min(1, 14 * dt); }
   // attack anim
-  if (attacking) {
+  if (attacking && h.d.weaponKind === 'bow') {
+    // Bow: draw the string back, release at 60 % of the class's bow time (no swing trail).
+    h.atkT += dt; const k = Math.min(1, h.atkT / h.d.attackTime);
+    const draw = Math.min(1, k / .6);
+    h.armR.rotation.x = lerp(-.4, -1.55, draw); h.shR.rotation.y = lerp(0, .35, draw); h.torso.rotation.y = lerp(0, -.35, draw);
+    h.sword.rotation.x = PI / 2;
+    if (!h.hitDone && k >= .6) { h.hitDone = true; h.face = bowAim(h); fireArrow(h, h.face); }
+    if (k >= 1) h.atkT = -1;
+    h.trail.visible = false;
+  } else if (attacking) {
     // The 0.42 s swing animation speeds up when attack-speed items make the attack faster than that.
     h.atkT += dt * Math.max(1, .42 / h.d.attackTime); const t = h.atkT;
     let sw: number, ax: number, wx: number, tw: number;

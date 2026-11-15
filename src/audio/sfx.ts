@@ -60,5 +60,9 @@ export const SFX = {
   fizzle() { Snd.noise({ type: 'bandpass', f: 900, f2: 300, q: 3, dur: .25, gain: .12 }); },
   /** A spell learned from a book. */
   learn() { [392, 523, 659, 784].forEach((f, i) => Snd.tone({ wave: 'triangle', f, dur: .6, gain: .06, delay: i * .1, rev: .8 })); },
+  /** Bowstring release. */
+  bow() { Snd.tone({ wave: 'triangle', f: 220, f2: 140, dur: .12, gain: .08 }); Snd.noise({ type: 'bandpass', f: 1400, f2: 600, q: 1.5, dur: .14, gain: .12 }); },
+  /** War Cry: a low roar. */
+  warCry() { Snd.tone({ wave: 'sawtooth', f: 110, f2: 70, dur: .7, gain: .12, a: .05, rev: .6 }); Snd.noise({ type: 'lowpass', f: 600, f2: 200, dur: .6, gain: .25, a: .05, rev: .5 }); },
   levelUp() { [523, 659, 784, 1047, 1319].forEach((f, i) => Snd.tone({ wave: 'triangle', f, dur: .5, gain: .07, delay: i * .09, rev: .7 })); Snd.noise({ type: 'highpass', f: 5000, dur: .9, gain: .05, a: .2, rev: .8 }); },
 };
