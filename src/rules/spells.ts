@@ -61,8 +61,8 @@ export function learnReq(id: SpellId, n: number): number {
   return r >= 213 ? 255 : r;
 }
 
-/** Int needed to read a scroll [OURS]: three quarters of the book requirement. */
-export const scrollReq = (id: SpellId): number => Math.ceil(.75 * SPELLS[id].learnInt);
+/** Int needed to read a scroll [OURS]: three quarters of the book requirement; Scrolls of Identify need none [USER]. */
+export const scrollReq = (id: SpellId): number => (id === 'identify' ? 0 : Math.ceil(.75 * SPELLS[id].learnInt));
 
 /** Whether a book of `id` can be read now; returns the level it would teach, or null. */
 export function canLearn(id: SpellId, known: number, int: number): number | null {

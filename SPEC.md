@@ -577,7 +577,7 @@ Notes:
 
 - A scroll is a 1×1 item that casts its spell once, at the known slvl or slvl 1.
 - It costs **no mana**, as in D1.
-- Its Int requirement is `ceil(0.75 · learnInt)` **[OURS]**. D1 only says "a bit less".
+- Its Int requirement is `ceil(0.75 · learnInt)` **[OURS]**. D1 only says "a bit less". **Scrolls of Identify have no Int requirement [USER].**
 - Scrolls can go on the **belt**, as in D1. Belt hotkeys `1`–`8` read them.
 - Identify scrolls are common [USER]. Weights are in §6.3.
 

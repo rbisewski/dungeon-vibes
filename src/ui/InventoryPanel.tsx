@@ -46,7 +46,8 @@ function describe(it: Item): { text: string; cls?: string }[] {
   } else if (it.kind === 'scroll') {
     const need = scrollReq(it.spell), h = G.hero;
     lines.push({ text: spellEffectText(it.spell, { cls: h.stats.cls, clvl: h.stats.clvl, slvl: spellLevel(h, it.spell), int: h.d.attr.int }) });
-    lines.push({ text: `REQUIRES ${need} INT`, cls: attrs().int >= need ? undefined : 'red' }, { text: 'RIGHT-CLICK OR X TO READ', cls: 'hint' });
+    if (need) lines.push({ text: `REQUIRES ${need} INT`, cls: attrs().int >= need ? undefined : 'red' });
+    lines.push({ text: 'RIGHT-CLICK OR X TO READ', cls: 'hint' });
   } else if (it.kind === 'book') {
     // D1: a book shows the requirement for the level the hero would learn next.
     const known = G.hero.spells[it.spell] ?? 0, n = known + 1;
