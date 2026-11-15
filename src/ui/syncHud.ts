@@ -29,9 +29,9 @@ export function syncHud(): void {
   if (h.inv.belt.some((it, i) => it !== hud.belt.value[i])) hud.belt.value = [...h.inv.belt];
   hud.key.value = h.key;
   hud.manual.value = manualActive();
-  const boss = L.monsters.find(m => m.type === 'boss' && !m.dead && m.aware);
+  const boss = L.monsters.find(m => m.boss && !m.dead && m.aware);
   hud.bossVisible.value = !!boss;
-  if (boss) hud.bossFrac.value = Math.max(0, boss.hp) / boss.maxHp;
+  if (boss?.boss) { hud.bossFrac.value = Math.max(0, boss.hp) / boss.maxHp; hud.bossName.value = boss.boss.name; }
   if (isOpen('char')) syncSheet();
 }
 

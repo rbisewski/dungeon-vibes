@@ -2,14 +2,14 @@ import { glowSprite } from '../render/geometry';
 import type * as THREE from 'three';
 import { damageMonster, loseLife, missMonster, openChest, unlockDoor } from './combat';
 import { fxAdd } from '../render/particles';
-import { drinkFromBelt, recompute, startingInventory } from './heroStats';
+import { drinkFromBelt, drinkPotion, recompute, startingInventory } from './heroStats';
 import { meleeHitChance, rollDamage, roll } from '../rules/combat';
 import { CLASS, KITS, type ClassId } from '../rules/classes';
 import { derive, MANA_REGEN } from '../rules/stats';
-import { autoDrinkSlot, heroAuto } from './heroAuto';
+import { autoDrink, heroAuto } from './heroAuto';
 import { castReadied, readScroll } from '../ui/actions';
 import { autoCastWanted, startCast, updateCast } from './spells';
-import { countPotions } from '../rules/inventory';
+import { countPotions, removeFromGrid } from '../rules/inventory';
 import { POTIONS } from '../rules/potions';
 import { SFX } from '../audio/sfx';
 import { manualActive, readInput, takeBeltPresses, takeCast, takeSkill } from '../core/input';
@@ -111,7 +111,11 @@ export function updateHero(dt: number): void {
   if (takeSkill() || (!manual && autoSkillWanted(h))) useSkill();
   h.shieldFx.visible = h.manaShield;
   if (h.manaShield) h.shieldFx.material.opacity = .35 + .1 * Math.sin(G.now * 4);
-  if (!manual && h.drink <= 0 && h.atkT < 0) { const slot = autoDrinkSlot(h); if (slot >= 0) drinkFromBelt(slot); }
+  if (!manual && h.drink <= 0 && h.atkT < 0) {
+    const src = autoDrink(h);
+    if (src && 'belt' in src) drinkFromBelt(src.belt);
+    else if (src) { removeFromGrid(h.inv.pack, src.pack); if (src.pack.kind === 'potion') drinkPotion(src.pack.potion); }
+  }
   h.drink -= dt;
   if (atk && h.cd <= 0 && h.atkT < 0 && h.flinch <= 0 && !h.cast) { if (faceT !== null) h.face = faceT; startAttack(); }
   const attacking = h.atkT >= 0;

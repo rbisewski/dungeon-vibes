@@ -58,8 +58,8 @@ export const tierFor = (family: FamilyId, depth: number): number => Math.max(0, 
 /** Each tier adds 15 % HP and damage. */
 export const TIER_STEP = .15;
 
-/** Boss multipliers over its family's stats at mlvl = depth + 2. */
-export const BOSS = { family: 'skeleton' as FamilyId, lvlBonus: 2, hpMul: 5, dmgMul: 1.5, xpMul: 8 };
+/** Boss multipliers over its family's stats at mlvl = depth + 2 (SPEC §9). */
+export const BOSS = { lvlBonus: 2, hpMul: 5, dmgMul: 1.5, xpMul: 8 };
 
 export interface MonsterRoll {
   family: FamilyId;
@@ -81,10 +81,11 @@ export const xpCurve = (mlvl: number): number => 40 * Math.pow(mlvl, 1.6) + 20;
 
 /**
  * Stats for one spawned monster. `hpVar` (≈0.9–1.1) is the per-spawn HP variance, passed in so the rules stay
- * deterministic for tests and simulations.
+ * deterministic for tests and simulations. `tier` overrides the depth's subtype tier (boss summons such as Cave
+ * Spiders and Burning Dead).
  */
-export function rollMonster(family: FamilyId, depth: number, boss: boolean, hpVar = 1): MonsterRoll {
-  const f = FAMILIES[family], tier = boss ? 0 : tierFor(family, depth);
+export function rollMonster(family: FamilyId, depth: number, boss: boolean, hpVar = 1, tierOverride?: number): MonsterRoll {
+  const f = FAMILIES[family], tier = boss ? 0 : tierOverride ?? tierFor(family, depth);
   const mlvl = Math.max(1, depth + f.lvlOff + (boss ? BOSS.lvlBonus : 0));
   const tierMul = 1 + TIER_STEP * tier;
   const hpScale = (1 + 0.35 * (mlvl - 1)) * tierMul, dmgScale = (1 + 0.2 * (mlvl - 1)) * tierMul;

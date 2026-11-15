@@ -30,6 +30,7 @@ export const hud = {
   manual: signal(false),
   bossVisible: signal(false),
   bossFrac: signal(1),
+  bossName: signal(''),
 };
 
 /** Everything the character screen shows. */

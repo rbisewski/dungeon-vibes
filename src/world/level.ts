@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { spawnMonster } from '../actors/monsters';
 import { pickFamilies } from '../rules/monsters';
+import { bossFor, bossName } from '../rules/bosses';
+import { dressArena } from './arenas';
 import { R, TAU, pick, ri, rr, withRng } from '../core/math';
 import { deriveSeed, mulberry32 } from '../core/rng';
 import { G } from '../game/state';
@@ -57,7 +59,8 @@ export function placeHeroAtStart(): void {
 export function buildLevel(depth: number): void {
   if (G.L) disposeLevel(G.L);
   withRng(mulberry32(levelSeed(depth)), () => generate(depth));
-  toast(`DEPTH ${depth}`, depth % 3 === 0 ? 'A WARDEN GUARDS THE STAIRS' : depth === 1 ? 'THE DESCENT BEGINS' : 'DEEPER INTO THE DARK');
+  const boss = bossFor(depth);
+  toast(`DEPTH ${depth}`, boss ? `${bossName(boss.id, boss.ascended)} guards the stairs`.toUpperCase() : depth === 1 ? 'THE DESCENT BEGINS' : 'DEEPER INTO THE DARK');
 }
 
 function generate(depth: number): void {
@@ -69,7 +72,7 @@ function generate(depth: number): void {
   const L: Level = {
     ...lay, depth, group,
     navBlock: new Uint8Array(lay.N), trap: new Int16Array(lay.N).fill(-1), propAt: new Array(lay.N).fill(null), dist: new Float64Array(lay.N),
-    traps: [], doors: [], chests: [], monsters: [], pickups: [], spellFx: [], arrows: [], graves: [], descendWarned: false, families: pickFamilies(R, depth), shots: [], debris: [], decals: [], lights: [], flames: [], pillars: [], runes: [], moons: [],
+    traps: [], doors: [], chests: [], monsters: [], pickups: [], spellFx: [], arrows: [], graves: [], descendWarned: false, families: pickFamilies(R, depth), shots: [], hazards: [], bossRunes: [], debris: [], decals: [], lights: [], flames: [], pillars: [], runes: [], moons: [],
     disposeGeo: [], disposeInst: [], disposeMat: [], locked: true, fieldT: 0, quietT: 0, killsHere: 0, risen: 0,
     startIdx: lay.startRoom.cy * lay.W + lay.startRoom.cx,
     stairs: { tx: sr.cx, tz: sr.cy, x: sr.cx * T, z: sr.cy * T },
@@ -80,6 +83,8 @@ function generate(depth: number): void {
   levelRoot.add(L.group);
   const tint = TINTS[(depth - 1) % TINTS.length];
   decorate();
+  const boss = bossFor(depth);
+  if (boss) dressArena(boss.id);
   buildFloor(tint); buildWalls(tint); mergeBuckets();
   L.flameMesh = makeFlames(L.flames); L.group.add(L.flameMesh);
   ambient.intensity = Math.max(1.6, 2.2 - depth * .03);
@@ -113,9 +118,13 @@ function generate(depth: number): void {
     let n = r === L.startRoom ? 1 : Math.min(4, 1 + Math.floor(r.w * r.h / 12) + (depth > 3 ? 1 : 0));
     if (r === L.stairsRoom) {
       n = 2;
-      if (depth % 3 === 0) {
-        const b = placeIn(cells.filter(([x, z]) => Math.abs(x - L.stairs.tx) + Math.abs(z - L.stairs.tz) >= 2), 'boss');
+      if (boss) {
+        const arena = cells.filter(([x, z]) => Math.abs(x - L.stairs.tx) + Math.abs(z - L.stairs.tz) >= 2);
+        // the Ember Lich starts on one of its rune circles
+        const rune = L.bossRunes[0];
+        const b = boss.id === 'lich' && rune ? spawnMonster('lich', rune.x, rune.z) : placeIn(arena, boss.id);
         if (b) b.home = { x: L.stairs.x, z: L.stairs.z };
+        if (boss.id === 'broodmother') for (let k = 0; k < 4; k++) placeIn(arena, 'eggsac', false);
       }
     }
     // The start room holds a single monster of the level's first family, never a pack.

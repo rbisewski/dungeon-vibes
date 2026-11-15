@@ -4,7 +4,8 @@ import { G } from '../game/state';
 import { DX8, DZ8, T } from '../world/consts';
 import { buildPath, clearLine, fieldAt, navOK } from '../world/nav';
 import type { Goal, Hero, Monster, Pickup, Trap } from '../game/types';
-import { findBelt, storeTarget } from '../rules/inventory';
+import { findBelt, storeTarget, type Item } from '../rules/inventory';
+import type { PotionId } from '../rules/potions';
 import { POTIONS } from '../rules/potions';
 import { SPELLS } from '../rules/spells';
 import { heroManaCost } from './spells';
@@ -12,25 +13,47 @@ import { pickupReach } from '../world/groundItems';
 
 /** Pickups AUTO tried and failed to reach; ignored for the rest of the level (they are dropped with the level). */
 const unreachable = new WeakSet<Pickup>();
+/**
+ * Grave pickups AUTO failed to reach, and until when (game time) it leaves them be. Graves are usually far from the
+ * start room the hero wakes in, so they get a longer walk than other pickups and are never given up for good:
+ * abandoning one leaves the hero without its gear for the rest of the run.
+ */
+const graveRetry = new WeakMap<Pickup, number>();
+/** Failed attempts per grave pickup; after `GRAVE_TRIES` AUTO gives it up and may leave the level without it. */
+const graveFails = new WeakMap<Pickup, number>();
+const PICK_TIMEOUT = 8, GRAVE_TIMEOUT = 60, GRAVE_RETRY = 20, GRAVE_TRIES = 3;
+const givenUp = (p: Pickup): boolean => (graveFails.get(p) ?? 0) >= GRAVE_TRIES;
+const isGravePickup = (p: Pickup): boolean => G.L.graves.some(g => g.pickups.includes(p));
 
 export interface AutoOut { mx: number; mz: number; atk: boolean; face: number | null }
 
+/** [OURS] Life fraction below which AUTO drinks; 35 % let one deep-level hit kill it with a full belt. */
+export const AUTO_DRINK_LIFE = .5;
+
+/** Where a potion to drink sits: a belt slot, or the backpack (D1 lets you drink from the inventory too). */
+export type DrinkSource = { belt: number } | { pack: Item };
+
+function findPotion(h: Hero, pick: (p: PotionId) => boolean): DrinkSource | null {
+  const slot = findBelt(h.inv, pick);
+  if (slot >= 0) return { belt: slot };
+  const e = h.inv.pack.items.find(e => e.item.kind === 'potion' && pick(e.item.potion));
+  return e ? { pack: e.item } : null;
+}
+
 /**
- * AUTO potion choice (SPEC §14): below 35 % life drink a partial life potion (Healing, Rejuvenation), falling back to a
- * full one; below 20 % prefer a full life potion. A Mage also drinks mana below 25 % mana. Returns a belt slot or -1.
+ * AUTO potion choice (SPEC §14): below 50 % life drink a partial life potion (Healing, Rejuvenation), falling back to a
+ * full one; below 20 % prefer a full life potion. A Mage also drinks mana below 25 % mana. The belt comes first, then
+ * the backpack: a belt full of potions AUTO has no use for (mana, for a Warrior or Thief) must not hide healing.
  */
-export function autoDrinkSlot(h: Hero): number {
+export function autoDrink(h: Hero): DrinkSource | null {
   const frac = h.life / h.d.maxLife;
-  if (frac < .35) {
-    const full = findBelt(h.inv, p => POTIONS[p].life === 'full'), part = findBelt(h.inv, p => POTIONS[p].life === 'part');
-    const slot = frac < .2 ? (full >= 0 ? full : part) : (part >= 0 ? part : full);
-    if (slot >= 0) return slot;
+  if (frac < AUTO_DRINK_LIFE) {
+    const full = findPotion(h, p => POTIONS[p].life === 'full'), part = findPotion(h, p => POTIONS[p].life === 'part');
+    const src = frac < .2 ? (full ?? part) : (part ?? full);
+    if (src) return src;
   }
-  if (h.stats.cls === 'mage' && h.mana < h.d.maxMana * .25) {
-    const part = findBelt(h.inv, p => POTIONS[p].mana === 'part' && POTIONS[p].life === 'none');
-    return part >= 0 ? part : findBelt(h.inv, p => POTIONS[p].mana !== 'none');
-  }
-  return -1;
+  if (h.stats.cls === 'mage' && h.mana < h.d.maxMana * .25) return findPotion(h, p => POTIONS[p].mana === 'part' && POTIONS[p].life === 'none') ?? findPotion(h, p => POTIONS[p].mana !== 'none');
+  return null;
 }
 
 /**
@@ -69,9 +92,12 @@ function setGoal(goal: Goal): void {
  */
 function chooseGoal(): void {
   const h = G.hero, L = G.L;
-  let grave: Pickup | null = null, gd = 1e9;
+  // `graveLeft`: a grave pickup AUTO still means to recover (possibly waiting to retry); it keeps AUTO off the stairs.
+  let grave: Pickup | null = null, gd = 1e9, graveLeft = false;
   for (const g of L.graves) for (const p of g.pickups) {
-    if (p.t < .6 || !canCollect(h, p) || unreachable.has(p)) continue;
+    if (p.t < .6 || !canCollect(h, p) || givenUp(p)) continue;
+    graveLeft = true;
+    if ((graveRetry.get(p) ?? 0) > G.now) continue;
     const fd = fieldAt(p.x, p.z); if (fd < gd) { gd = fd; grave = p; }
   }
   let best: Monster | null = null, bd = 1e9;
@@ -93,7 +119,7 @@ function chooseGoal(): void {
   }
   if (ex) return setGoal(ex);
   if (L.locked && h.key) return setGoal(doorGoal);
-  if (!L.locked) return setGoal({ kind: 'stairs', ref: null, tx: L.stairs.tx, tz: L.stairs.tz });
+  if (!L.locked && !graveLeft) return setGoal({ kind: 'stairs', ref: null, tx: L.stairs.tx, tz: L.stairs.tz });
   // fallback: wander to a random room
   const r = pick(L.rooms.filter(r => r !== L.stairsRoom)); r.visited = false;
   return setGoal({ kind: 'room', ref: r, tx: r.cx, tz: r.cy });
@@ -135,7 +161,10 @@ export function heroAuto(dt: number): AutoOut {
     gx = g.ref.x; gz = g.ref.z; arrive = pickupReach(g.ref) > 1 ? 1.1 : .1;
     if (!G.L.pickups.includes(g.ref)) { h.aiT = 0; return out; }
     // Unreachable pickups would otherwise beat exploration forever.
-    if (h.goalT > 8) { unreachable.add(g.ref); h.aiT = 0; return out; }
+    if (isGravePickup(g.ref) ? h.goalT > GRAVE_TIMEOUT : h.goalT > PICK_TIMEOUT) {
+      if (isGravePickup(g.ref)) { graveRetry.set(g.ref, G.now + GRAVE_RETRY); graveFails.set(g.ref, (graveFails.get(g.ref) ?? 0) + 1); } else unreachable.add(g.ref);
+      h.aiT = 0; return out;
+    }
     direct = Math.hypot(gx - h.x, gz - h.z) < 5 && clearLine(h.x, h.z, gx, gz, h.r);
   }
   else if (g.kind === 'chest') { if (g.ref.open) { h.aiT = 0; return out; } arrive = 1.35; if (Math.hypot(g.ref.x - h.x, g.ref.z - h.z) < 1.3) return out; if (h.goalT > 25) openChest(g.ref); }

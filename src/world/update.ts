@@ -1,3 +1,4 @@
+import type * as THREE from 'three';
 import { toast } from '../ui/store';
 import { canCollect } from '../actors/heroAuto';
 import { collect, pickupReach } from './groundItems';
@@ -80,7 +81,11 @@ export function updateWorld(dt: number): void {
     if (b.t > b.life) { b.o.position.y -= dt * .25; if (b.t > b.life + 1.2) { G.L.group.remove(b.o); G.L.debris.splice(i, 1); } }
   }
   for (let i = G.L.decals.length - 1; i >= 0; i--) { const d = G.L.decals[i]; d.t += dt; if (d.t > 10) { d.o.scale.multiplyScalar(1 - dt * 1.5); if (d.t > 12) { G.L.group.remove(d.o); G.L.decals.splice(i, 1); } } }
-  for (const r of G.L.runes) { r.rotation.z += dt * .15; runeMat.opacity = .75 + .25 * Math.sin(G.now * 1.7); if (R() < dt * 6) fxAdd.spawn(r.position.x + rr(-.8, .8), .1, r.position.z + rr(-.8, .8), 0, rr(.3, .8), 0, rr(1.2, 2), .3, .55, 1.6, rr(.04, .07), 0, 0, 2); }
+  for (const r of G.L.runes) {
+    r.rotation.z += dt * .15; runeMat.opacity = .75 + .25 * Math.sin(G.now * 1.7);
+    const c = (r.material as THREE.MeshBasicMaterial).color;
+    if (R() < dt * 6) fxAdd.spawn(r.position.x + rr(-.8, .8), .1, r.position.z + rr(-.8, .8), 0, rr(.3, .8), 0, rr(1.2, 2), c.r * 1.6, c.g * 1.6, c.b * 1.6, rr(.04, .07), 0, 0, 2);
+  }
   for (const mo of G.L.moons) if (R() < dt * 4) fxAdd.spawn(mo.x + rr(-.7, .7), rr(.3, 3), mo.z + rr(-.7, .7), rr(-.05, .05), rr(-.1, .05), rr(-.05, .05), rr(2, 3.5), .35, .45, .7, .04, 0, 0, 3);
   for (const it of impacts) if (it.t > 0) { it.t -= dt; const k = Math.max(0, it.t / .16); it.s.scale.setScalar(it.size * (1.4 - k * .6)); it.s.material.opacity = k; if (it.t <= 0) it.s.visible = false; }
 }

@@ -7,6 +7,7 @@ import { fxAdd, fxNorm, impact } from '../render/particles';
 import { CLASS } from '../rules/classes';
 import { blockChance, monsterHitChance, roll, staggers } from '../rules/combat';
 import { monsterDrops, rollBookSpell, rollItem } from '../rules/loot';
+import { bossDrops } from '../rules/bosses';
 import { newBook } from '../rules/inventory';
 import { spawnDrops, spawnGold, spawnItem } from '../world/groundItems';
 import { toast } from '../ui/store';
@@ -88,23 +89,28 @@ export function monsterStrike(m: Monster, nx: number, nz: number): void {
 /** Hero attack roll that failed: the monster notices and is nudged, but takes no damage. */
 export function missMonster(m: Monster, nx: number, nz: number): void {
   m.aware = true;
-  const kb = m.type === 'boss' ? .3 : 1.5 / m.mass; m.kx += nx * kb; m.kz += nz * kb;
+  const kb = m.boss ? .3 : 1.5 / m.mass; m.kx += nx * kb; m.kz += nz * kb;
   SFX.whiff();
 }
+
+/** [OURS] Share of damage the Ember Lich takes outside its 2 s vulnerability after a teleport (SPEC §9). */
+export const LICH_WARDED = .25;
 
 /**
  * Applies damage to a monster. Only hits of at least mlvl + 3 interrupt it (bosses at most once per 3 s).
  * `byHero` grants experience on the kill.
  */
 export function damageMonster(m: Monster, dmg: number, nx: number, nz: number, byHero: boolean, crit = false): void {
+  const warded = m.boss?.id === 'lich' && m.boss.vulnT <= 0;
+  if (warded) dmg = Math.max(1, Math.round(dmg * LICH_WARDED));
   m.hp -= dmg; m.flash = .14; m.aware = true;
-  const kb = (m.type === 'boss' ? 1.2 : 7 / m.mass) * (crit ? 1.6 : 1); m.kx += nx * kb; m.kz += nz * kb;
-  if (staggers(dmg, m.roll.mlvl) && (m.type !== 'boss' || m.staggerT <= 0)) {
+  const kb = (m.boss ? 1.2 : 7 / m.mass) * (crit ? 1.6 : 1); m.kx += nx * kb; m.kz += nz * kb;
+  if (staggers(dmg, m.roll.mlvl) && (!m.boss || m.staggerT <= 0)) {
     m.state = 'stun'; m.t = .3;
-    if (m.type === 'boss') m.staggerT = 3;
+    if (m.boss) m.staggerT = 3;
   }
-  const hx = m.x - nx * m.r, hz = m.z - nz * m.r, hy = m.type === 'rat' ? .4 : m.type === 'slime' ? .45 : m.type === 'boss' ? 1.6 : .9;
-  impact(hx, hy, hz, crit ? 0xffffff : m.type === 'slime' ? 0xb0ff60 : 0xffe0a0, (m.type === 'boss' ? 2 : 1.4) * (crit ? 1.8 : 1));
+  const hx = m.x - nx * m.r, hz = m.z - nz * m.r, hy = m.type === 'rat' ? .4 : m.type === 'slime' || m.type === 'eggsac' ? .45 : m.boss ? 1.6 : .9;
+  impact(hx, hy, hz, crit ? 0xffffff : warded ? 0xff7020 : m.type === 'slime' ? 0xb0ff60 : 0xffe0a0, (m.boss ? 2 : 1.4) * (crit ? 1.8 : 1));
   for (let k = 0; k < (crit ? 30 : 14); k++) fxAdd.spawn(hx, hy, hz, nx * rr(1, 4) + rr(-2, 2), rr(.5, 3.5), nz * rr(1, 4) + rr(-2, 2), rr(.2, .45), 1.6, 1.1, .5, rr(.04, .07), 9, 1, 1);
   if (m.type === 'slime') for (let k = 0; k < 10; k++) fxAdd.spawn(hx, hy, hz, nx * 2 + rr(-2, 2), rr(1, 3), nz * 2 + rr(-2, 2), rr(.4, .8), .25, .7, .12, rr(.07, .12), 9, .5, 1);
   if (m.type === 'rat') for (let k = 0; k < 8; k++) fxNorm.spawn(hx, hy, hz, nx * 2 + rr(-1.5, 1.5), rr(.5, 2.5), nz * 2 + rr(-1.5, 1.5), rr(.4, .7), .3, .03, .02, rr(.06, .1), 9, .5, 1);
@@ -116,32 +122,36 @@ const BONE_GEOS = () => [gCyl(.035, .03, .34, 5), gCyl(.03, .025, .28, 5), gBox(
 function killMonster(m: Monster, nx: number, nz: number, byHero: boolean): void {
   m.dead = true; m.deadT = 0; G.hero.slain++; G.L.killsHere++;
   if (byHero) awardKill(m);
-  SFX.death(m.type, vol(m.x, m.z)); addShake(m.type === 'boss' ? .8 : .25);
-  if (m.type === 'skeleton' || m.type === 'boss' || m.type === 'archer') {
-    const sc = m.type === 'boss' ? 1.8 : 1, gs = BONE_GEOS();
-    for (let k = 0; k < (m.type === 'boss' ? 22 : 11); k++) {
+  SFX.death(m.type, vol(m.x, m.z)); addShake(m.boss ? .8 : .25);
+  if (m.type === 'skeleton' || m.type === 'archer' || m.type === 'warden' || m.type === 'lich') {
+    const sc = m.boss ? 1.8 : 1, gs = BONE_GEOS();
+    for (let k = 0; k < (m.boss ? 22 : 11); k++) {
       const g = k < 2 ? gs[4] : pick(gs.slice(0, 4)); const b = mesh(g, MAT.bone, m.x + rr(-.2, .2), rr(.3, 1.2) * sc, m.z + rr(-.2, .2), G.L.group);
       b.scale.setScalar(sc * rr(.8, 1.1)); b.rotation.set(R() * 3, R() * 3, R() * 3);
       G.L.debris.push({ o: b, vx: nx * rr(1, 3.5) + rr(-1.8, 1.8), vy: rr(2, 5), vz: nz * rr(1, 3.5) + rr(-1.8, 1.8), sx: rr(-9, 9), sz: rr(-9, 9), t: 0, life: rr(7, 10), rest: false });
     }
     for (let k = 0; k < 16; k++) fxNorm.spawn(m.x + rr(-.4, .4), rr(.1, .8), m.z + rr(-.4, .4), rr(-1, 1), rr(.2, 1.2), rr(-1, 1), rr(.6, 1.2), .2, .19, .17, rr(.14, .26), .3, 1.5, 3);
-    if (m.type === 'boss') for (let k = 0; k < 40; k++) fxAdd.spawn(m.x, 1.5, m.z, rr(-4, 4), rr(1, 6), rr(-4, 4), rr(.6, 1.4), .8, .4, 1.6, rr(.06, .12), 6, .8, 1);
+    if (m.boss) for (let k = 0; k < 40; k++) fxAdd.spawn(m.x, 1.5, m.z, rr(-4, 4), rr(1, 6), rr(-4, 4), rr(.6, 1.4), .8, .4, 1.6, rr(.06, .12), 6, .8, 1);
+    m.remove = true;
+  } else if (m.type === 'eggsac') {
+    for (let k = 0; k < 30; k++) fxAdd.spawn(m.x, .4, m.z, rr(-2.5, 2.5), rr(1, 4), rr(-2.5, 2.5), rr(.5, 1), .8, .75, .4, rr(.06, .12), 12, .4, 1);
     m.remove = true;
   } else if (m.type === 'slime') {
     for (let k = 0; k < 40; k++) fxAdd.spawn(m.x, .4, m.z, rr(-3.5, 3.5), rr(1, 5), rr(-3.5, 3.5), rr(.5, 1.1), .25, .75, .12, rr(.07, .15), 12, .4, 1);
     const d = mesh(gCircle(1), MAT.goo, m.x, .02, m.z, G.L.group, false); d.rotation.x = -PI / 2; d.scale.set(rr(.6, .9), rr(.5, .8), 1); G.L.decals.push({ o: d, t: 0 });
     m.remove = true;
   }
-  // Bats never drop items (D1); gold is still possible.
-  spawnDrops(monsterDrops(R, m.roll.mlvl, G.L.depth, m.type === 'boss', G.loot, m.type === 'bat'), m.x, m.z);
+  // Bosses drop their guaranteed set; bats never drop items (D1), gold is still possible; egg sacs drop nothing.
+  if (m.boss) spawnDrops(bossDrops(R, m.boss.id, m.roll.mlvl, G.L.depth, G.loot), m.x, m.z);
+  else if (m.type !== 'eggsac') spawnDrops(monsterDrops(R, m.roll.mlvl, G.L.depth, G.loot, m.type === 'bat'), m.x, m.z);
   // Fallen nearby flee for a moment (D1).
   for (const o of G.L.monsters) if (o.type === 'fallen' && !o.dead && o !== m && Math.hypot(o.x - m.x, o.z - m.z) < 6) o.fleeT = rr(1.5, 3);
   // From tier 2, slimes split into two small slimes.
   if (m.type === 'slime' && m.roll.tier >= 2 && !m.small) for (const s of [-1, 1]) {
-    const c = spawnMonster('slime', m.x + s * .5, m.z, 0, true);
+    const c = spawnMonster('slime', m.x + s * .5, m.z, { small: true });
     c.aware = true; c.state = 'chase';
   }
-  if (m.type === 'boss') toast('THE WARDEN FALLS');
+  if (m.boss) toast(`${m.boss.name.toUpperCase()} FALLS`);
 }
 export function openChest(c: Chest): void {
   if (c.open) return; c.open = true; SFX.chest();

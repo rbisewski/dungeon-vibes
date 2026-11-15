@@ -3,10 +3,12 @@ import { unpetrify } from './spells';
 import { monsterStrike } from './combat';
 import { levelFamily, spawnMonster } from './monsters';
 import { fireShot } from './shots';
+import { bossStrike, bossTick, updateEggSac } from './bosses';
 import { SFX, vol } from '../audio/sfx';
 import { PI, R, TAU, clamp, damp, lerp, pick, ri, rr, wrapA } from '../core/math';
-import { G, addShake } from '../game/state';
-import { fxNorm, impact } from '../render/particles';
+import { G } from '../game/state';
+import { fxNorm } from '../render/particles';
+import { BOSSES } from '../rules/bosses';
 import { toast } from '../ui/store';
 import { DX8, DZ8, T } from '../world/consts';
 import { clearLine, fieldAt, navOK } from '../world/nav';
@@ -46,33 +48,36 @@ export function updateMonsters(dt: number): void {
       continue;
     }
     m.ignoreT -= dt;
-    if (m.rise > 0) { m.rise -= dt; m.root.position.y = -Math.max(0, m.rise) * 1.6 * (m.type === 'boss' ? 2 : 1); m.root.position.x = m.x; m.root.position.z = m.z; if (R() < .5) fxNorm.spawn(m.x + rr(-.4, .4), .05, m.z + rr(-.4, .4), rr(-.3, .3), rr(.3, .9), rr(-.3, .3), rr(.5, .9), .15, .13, .12, rr(.1, .2), .3, 1.5, 3); continue; }
+    if (m.rise > 0) { m.rise -= dt; m.root.position.y = -Math.max(0, m.rise) * 1.6 * (m.boss ? 2 : 1); m.root.position.x = m.x; m.root.position.z = m.z; if (R() < .5) fxNorm.spawn(m.x + rr(-.4, .4), .05, m.z + rr(-.4, .4), rr(-.3, .3), rr(.3, .9), rr(-.3, .3), rr(.5, .9), .15, .13, .12, rr(.1, .2), .3, 1.5, 3); continue; }
     if (m.stoneT > 0) {
       // Stone Curse: frozen in place, still takes damage.
       m.stoneT -= dt; m.vx = m.vz = m.kx = m.kz = 0;
       if (m.stoneT <= 0) unpetrify(m);
       continue;
     }
+    if (m.type === 'eggsac') { updateEggSac(m, dt); continue; }
     m.cd -= dt; m.flash -= dt; m.staggerT -= dt; m.slowT -= dt; m.fleeT -= dt; m.webCd -= dt; m.eyeBoost = Math.max(0, m.eyeBoost - dt);
     const fl = Math.max(0, m.flash) / .14; for (const mt of m.flashMats) mt.emissive.setRGB(fl * 1.6, fl * 1.5, fl * 1.3);
     if (m.type === 'slime' && fl <= 0) m.flashMats[0].emissive.setHex(0x0e2a08);
     const dx = h.x - m.x, dz = h.z - m.z, d = Math.hypot(dx, dz) || .001, heroOK = !h.dead && h.descend <= 0;
-    if (!m.aware && heroOK && ((d < 4 && fieldAt(m.x, m.z) < 4) || (d < 10 && clearLine(m.x, m.z, h.x, h.z, .05, false)))) { m.aware = true; m.eyeBoost = .6; SFX.squeal(m.type, vol(m.x, m.z)); if (m.type === 'boss') toast('THE BONE WARDEN', 'GUARDIAN OF THE STAIRS'); }
+    if (!m.aware && heroOK && ((d < 4 && fieldAt(m.x, m.z) < 4) || (d < 10 && clearLine(m.x, m.z, h.x, h.z, .05, false)))) { m.aware = true; m.eyeBoost = .6; SFX.squeal(m.type, vol(m.x, m.z)); if (m.boss) toast(m.boss.name.toUpperCase(), BOSSES[m.boss.id].title.toUpperCase()); }
     if (m.aware && (d > 24 || !heroOK)) { m.aware = false; m.state = 'idle'; }
     if (m.aware && d < 14 && fieldAt(m.x, m.z) < 10) nearAware = true;
     let mvx = 0, mvz = 0, want: number | null = null, speedMul = 1;
-    const reach = m.st.reach + h.r;
-    switch (m.state) {
+    const reach = m.st.reach + h.r, spidery = m.type === 'spider' || m.type === 'broodmother';
+    const bm = m.boss ? bossTick(m, dt, d, dx, dz, heroOK) : null;
+    if (bm) ({ mvx, mvz, want, speedMul } = bm);
+    else switch (m.state) {
       case 'stun': m.t -= dt; if (m.t <= 0) m.state = m.aware ? 'chase' : 'idle'; break;
       case 'windup': m.t -= dt; want = Math.atan2(dx, dz);
         // Spider leap: the windup is a pounce toward the hero.
-        if (m.type === 'spider' && d > reach * .8) { mvx = dx / d; mvz = dz / d; speedMul = 2.8; }
+        if (spidery && d > reach * .8) { mvx = dx / d; mvz = dz / d; speedMul = 2.8; }
         if (m.t <= 0) {
-        m.state = 'recover'; m.t = .4; m.lunge = m.type === 'spider' || m.type === 'archer' ? 0 : .15;
+        m.state = 'recover'; m.t = .4; m.lunge = spidery || m.type === 'archer' ? 0 : .15;
         const facing = Math.abs(wrapA(Math.atan2(dx, dz) - m.face)) < 1.3;
         if (m.type === 'archer') { if (facing && heroOK && clearLine(m.x, m.z, h.x, h.z, .1, false)) fireShot(m, 'arrow'); }
-        else if (d <= reach + (m.type === 'spider' ? .4 : .25) && facing) monsterStrike(m, dx / d, dz / d);
-        if (m.type === 'boss') { addShake(.3); impact(m.x + Math.sin(m.face) * 1.6, .2, m.z + Math.cos(m.face) * 1.6, 0xffb070, 2.4); }
+        else if (d <= reach + (spidery ? .4 : .25) && facing) monsterStrike(m, dx / d, dz / d);
+        if (m.boss) bossStrike(m);
       } break;
       case 'recover': m.t -= dt; if (m.t <= 0) m.state = m.aware ? 'chase' : 'idle'; break;
       case 'idle':
@@ -93,9 +98,9 @@ export function updateMonsters(dt: number): void {
           if (d <= 8.5 && m.cd <= 0 && windups < 3) { m.state = 'windup'; m.t = m.st.windup; m.cd = m.st.cd * rr(.85, 1.2); windups++; break; }
           if (d <= 8) break;
         }
-        if (m.type === 'spider' && los) {
-          if (d > 4.5 && d < 8 && m.webCd <= 0) { fireShot(m, 'web'); m.webCd = rr(4, 7); }
-          if (d <= 4.2 && d > reach * .92 && m.cd <= 0 && windups < 3) { m.state = 'windup'; m.t = m.st.windup; m.cd = m.st.cd * rr(.85, 1.2); windups++; SFX.squeal(m.type, vol(m.x, m.z) * .6); break; }
+        if (spidery && los) {
+          if (m.type === 'spider' && d > 4.5 && d < 8 && m.webCd <= 0) { fireShot(m, 'web'); m.webCd = rr(4, 7); }
+          if (d <= (m.boss ? 5.5 : 4.2) && d > reach * .92 && m.cd <= 0 && windups < 3) { m.state = 'windup'; m.t = m.st.windup; m.cd = m.st.cd * rr(.85, 1.2); windups++; SFX.squeal(m.type, vol(m.x, m.z) * .6); break; }
         }
         if (d <= reach * .92 && m.cd <= 0 && windups < 3 && heroOK) { m.state = 'windup'; m.t = m.st.windup; m.cd = m.st.cd * rr(.85, 1.2); windups++; if (m.type === 'rat' || m.type === 'skeleton') SFX.squeal(m.type, vol(m.x, m.z) * .5); break; }
         if (d > m.r + h.r + .25) {
@@ -119,7 +124,7 @@ export function updateMonsters(dt: number): void {
     m.x += (m.vx + m.kx) * dt; m.z += (m.vz + m.kz) * dt; m.kx *= Math.exp(-8 * dt); m.kz *= Math.exp(-8 * dt);
     const spd = Math.hypot(m.vx, m.vz);
     if (want === null && spd > .2) want = Math.atan2(m.vx, m.vz);
-    if (want !== null) m.face += wrapA(want - m.face) * Math.min(1, (m.type === 'boss' ? 5 : 10) * dt);
+    if (want !== null) m.face += wrapA(want - m.face) * Math.min(1, (m.boss ? 5 : 10) * dt);
     animateMonster(m, dt, spd);
   }
   // remove finished
@@ -136,7 +141,7 @@ export function updateMonsters(dt: number): void {
     if (cands.length) {
       const c = pick(cands), n = ri(1, Math.min(3, 1 + Math.floor(G.L.depth / 2))), cx = (c % G.L.W) * T, cz = Math.floor(c / G.L.W) * T;
       G.L.risen += n;
-      for (let k = 0; k < n; k++) { const m = spawnMonster(levelFamily(), cx + rr(-.5, .5), cz + rr(-.5, .5), .9 + k * .25); m.aware = true; m.state = 'chase'; }
+      for (let k = 0; k < n; k++) { const m = spawnMonster(levelFamily(), cx + rr(-.5, .5), cz + rr(-.5, .5), { rise: .9 + k * .25 }); m.aware = true; m.state = 'chase'; }
     }
   }
 }
@@ -147,12 +152,12 @@ function animateMonster(m: Monster, dt: number, spd: number): void {
   const s = Math.sin(m.phase);
   const eb = 1 + m.eyeBoost * 2 + (m.state === 'windup' ? 1 : 0);
   for (const e of m.eyes) e.material.opacity = Math.min(1, .7 * eb);
-  if (m.type === 'skeleton' || m.type === 'boss' || m.type === 'zombie' || m.type === 'fallen' || m.type === 'archer') {
+  if (m.type === 'skeleton' || m.type === 'zombie' || m.type === 'fallen' || m.type === 'archer' || m.type === 'warden' || m.type === 'gorger' || m.type === 'lich') {
     m.legs[0].hip.rotation.x = s * .6 * amt; m.legs[1].hip.rotation.x = -s * .6 * amt;
     m.legs[0].knee.rotation.x = Math.max(0, -s) * .7 * amt; m.legs[1].knee.rotation.x = Math.max(0, s) * .7 * amt;
     m.body.position.y = Math.abs(s) * .04 * amt;
     // Zombies shamble with both arms reaching forward.
-    const reachOut = m.type === 'zombie' ? -1.35 : 0;
+    const reachOut = m.type === 'zombie' ? -1.35 : m.type === 'lich' && m.boss?.id === 'lich' && m.boss.boltCd > 1.6 ? -1.2 : 0;
     m.armL.rotation.x = reachOut - s * .4 * amt - (m.aware ? .3 : 0);
     let ax = -.35 + reachOut, ex = -.3;
     if (m.type === 'archer' && (m.state === 'windup' || m.state === 'recover')) { ax = -1.55; ex = 0; }
@@ -183,7 +188,7 @@ function animateMonster(m: Monster, dt: number, spd: number): void {
     const swoop = m.state === 'windup' ? 1 - m.t / m.st.windup : m.state === 'recover' ? m.t / .4 : 0;
     m.body.position.y = damp(m.body.position.y, 1.1 + Math.sin(G.now * 3 + m.phase) * .15 - swoop * .6, 10, dt);
     m.body.rotation.x = m.state === 'stun' ? .8 : swoop * .5;
-  } else if (m.type === 'spider') {
+  } else if (m.type === 'spider' || m.type === 'broodmother') {
     // alternating tetrapod gait: legs 0,2,5,7 move against 1,3,4,6
     m.legs.forEach((l, i) => {
       const grp = (i % 2) ^ (i >= 4 ? 1 : 0);

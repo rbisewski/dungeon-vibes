@@ -34,7 +34,9 @@ export const MAT = {
   coal: new THREE.MeshStandardMaterial({ color: 0x1a0600, emissive: 0xff4a10, emissiveIntensity: 1.4, roughness: 1 }),
   dark: new THREE.MeshStandardMaterial({ color: 0x040404, roughness: 1 }),
   puddle: new THREE.MeshStandardMaterial({ color: 0x1c232c, roughness: .07, metalness: .5, transparent: true, opacity: .62, depthWrite: false }),
-  goo: new THREE.MeshStandardMaterial({ color: 0x2c5a1c, roughness: .2, transparent: true, opacity: .8, depthWrite: false })
+  goo: new THREE.MeshStandardMaterial({ color: 0x2c5a1c, roughness: .2, transparent: true, opacity: .8, depthWrite: false }),
+  blood: new THREE.MeshStandardMaterial({ color: 0x3a0606, roughness: .15, metalness: .3, transparent: true, opacity: .85, depthWrite: false }),
+  flesh: new THREE.MeshStandardMaterial({ color: 0x7a4a40, roughness: .8 })
 };
 /** Ground-potion glass per type: red healing, blue mana, purple rejuvenation. */
 const potionGlass = (color: number, emissive: number) => new THREE.MeshStandardMaterial({ color, emissive, roughness: .25 });

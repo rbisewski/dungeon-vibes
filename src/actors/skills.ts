@@ -28,7 +28,7 @@ function warCry(h: Hero): boolean {
   for (const m of G.L.monsters) {
     if (m.dead || m.rise > 0 || Math.hypot(m.x - h.x, m.z - h.z) > WAR_CRY.radius + m.r) continue;
     m.aware = true;
-    if (m.type === 'boss') { m.slowT = WAR_CRY.bossSlowTime; continue; }
+    if (m.boss) { m.slowT = WAR_CRY.bossSlowTime; continue; }
     m.state = 'stun'; m.t = WAR_CRY.stun;
   }
   return true;
@@ -79,7 +79,7 @@ export function autoSkillWanted(h: Hero): boolean {
       for (const m of G.L.monsters) {
         if (m.dead || m.rise > 0) continue;
         const d = Math.hypot(m.x - h.x, m.z - h.z);
-        if (m.type === 'boss' && d < 2.6) return true;
+        if (m.boss && d < 2.6) return true;
         if (d < WAR_CRY.radius) near++;
       }
       return near >= 3;

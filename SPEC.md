@@ -1,6 +1,6 @@
 # Dungeon Vibes — Diablo-Style Progression Spec
 
-Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phases 0–8.
+Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phases 0–9.
 
 This spec layers a Diablo 1 (D1) style character, spell, and loot system onto the existing game. The game is first ported from the single `index.html` to a TypeScript project (§2.1). It keeps the game's look, controls, and AUTO mode.
 
@@ -997,6 +997,16 @@ Mini-bosses appear on depths 5, 10, 15, 20, … This replaces the current `depth
 - Bosses stagger only when hit for `dmg ≥ mlvl + 3`, and at most once per 3 s.
 - Bosses are immune to Stone Curse [OURS].
 
+**As implemented in Phase 9** [OURS unless noted]
+- **Stat basis:** each boss scales a family's stats: Bone Warden and Ember Lich from Skeleton, the Gorger from Zombie, the Brood Mother from Giant Spider. The ×5 HP and ×1.5 damage multipliers are unchanged (see the pacing note below). Ascended bosses (depth 25+) are named "Ascended …"; their extra strength is just the higher mlvl at that depth.
+- **Presentation:** arriving on a boss depth toasts "<NAME> GUARDS THE STAIRS"; on first sight the name and title toast plays, and the `#boss` bar shows that boss's name.
+- **Bone Warden:** raises 2 skeletons (current tier) out of the floor near itself on crossing 66 % and again 33 % HP, with a toast.
+- **Gorger** (speed 3.2, `r` 0.7): charges when it sees the hero 3–10 m away along a clear line, ready on first sight and then every 5–8 s. It plants its feet for 0.8 s (red sparks, eyes flare), then runs at 11 m/s for up to 1.3 s. Reaching the hero, it makes a normal strike roll (blockable) and knocks the hero back. Running into a wall stuns it for 1 s. Arena: 9 blood pools and 3 corpses hanging on chains along the stairs room's edge.
+- **Brood Mother** (the spider rig at 2.3× scale, dark violet with a red hourglass): leaps from up to 5.5 m, and every 6–8 s spits a cone of 5 webs (each a normal web: magic to-hit, 40 % slow). Below 50 % HP each leap leaves a poison pool (radius 1.6 m, 6 s) that poisons the hero standing in it. 4 egg sacs (3× a Cave Spider's HP, no attack, no drops) stand in her room; from 4 s after she first sees the hero, each hatches 3 tier-0 Giant Spiders ("Cave Spiders") every 8 s, at most 12 hatchlings alive. Arena: cobwebs in the room's corners and webs on the floor.
+- **Ember Lich** (speed 1.3, 1.5× scale, robe, crown, staff with an ember): starts on one of 3 rune circles placed far apart in the stairs room. Every 6–8 s, or sooner when the hero gets within 2.2 m, it teleports to the circle farthest from the hero and is vulnerable for 2 s. Outside that window it takes 25 % damage (a faint ember glow). It fires a homing firebolt every 2–2.6 s at up to 12 m: 5 m/s, turns 1.6 rad/s (can be outrun sideways), monster magic to-hit, blockable, normal boss damage. Every 12 s it raises 2 tier-2 skeletons (Burning Dead) while fewer than 4 skeletons stand near it. It holds its ground and casts, fighting in melee only when the hero is within 2.4 m.
+- **Drops:** as specified. The Lich's extra ring or amulet is always magic, never unique (a unique would bring its own base and break the guarantee). Its extra book is a uniform pick among books with qlvl 6 to ilvl.
+- **Pacing (Phase 9 simulation, AUTO to depth 11):** players reach the Warden at clvl 7 and the Gorger at clvl 13. The Warrior died 0 times on depth 5 and 7 times on depth 10. The Thief and Mage die more throughout depths 6–10, mostly to normal monsters. AUTO never spends attribute points and never equips found gear (§14), so these runs fight bosses in starting gear and say little about boss strength for a real player. The multipliers stay as specified until there is play data.
+
 ---
 
 ## 10. UI and pixel art
@@ -1155,6 +1165,7 @@ The target behaviour, once the town exists:
 - The old "free Potion of Healing after death" stopgap is removed.
 - Spells and arrows in flight vanish on respawn.
 - **AUTO** goes for its own grave before anything else, fighting only monsters within 2.5 m of its path. Items it cannot carry (full backpack) or reach stay behind. On the stairs, AUTO descends after 2 s even when warned; the player must step off and on again.
+- **As changed in Phase 9** [OURS]: AUTO gets 60 s to reach a grave pickup (other pickups: 8 s), then retries it 20 s later. It gives a pickup up only after 3 failed attempts, and does not head for the stairs while any grave pickup is still worth recovering. Before, an 8 s limit made AUTO abandon its gear for the rest of the run after one death far from the start room.
 
 **Leaving the level** (taking the stairs down) with piles still on the floor:
 - The level's delta is saved with the piles on it (Q7, §12.2). They stay where they are.
@@ -1237,7 +1248,7 @@ AUTO keeps playing well and never makes the player's decisions.
 |---|---|
 | Pick up gold, potions, scrolls, items | Yes. Items go to the backpack if there is room. Ground items become `pick` goals in `chooseGoal`. |
 | Recover its own grave pile | Yes, top priority after respawning |
-| Drink from the belt | Yes. Healing below 35 % life; Full Healing first below 20 %. A Mage drinks mana below 25 % mana. |
+| Drink from the belt | Yes. Healing below 50 % life [OURS, Phase 9; was 35 %]; Full Healing first below 20 %. A Mage drinks mana below 25 % mana. The belt comes first, then the backpack [OURS, Phase 9]: a belt full of mana potions used to hide every Healing potion from a Warrior or Thief. |
 | Fight in the class style | **Warrior:** melee, as today. **Thief with a bow:** keeps 4–7 m from the target, steps back when a monster closes within 3 m, and fires when the target is in the aim cone. **Mage:** casts the readied attack spell whenever mana allows, kites like the Thief, and only uses melee when out of mana. |
 | Cast the readied spell | Yes, if it is an attack spell and a target is in range. The Warrior and Thief need mana above 50 % first; the Mage needs only enough mana for the cast. It casts Healing if that is readied and life is below 35 % with no healing potions left. It never casts Fire Wall, Phasing, Stone Curse, or Identify. |
 | Use the class skill | **Warrior:** War Cry when 3 or more monsters are within 4 m, or when a boss is in melee range. **Thief:** Disarm Trap on a trap in its path, if the chance is at least 50 %. **Mage:** Mana Surge when mana is below 20 % and life is above 70 %. |

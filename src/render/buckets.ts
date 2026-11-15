@@ -6,7 +6,7 @@ import { _e, _m4, _q, _s3, _v3 } from './scratch';
 
 const BUCKET_MAT = {
   stone: MAT.stone, wood: MAT.wood, iron: MAT.iron, rust: MAT.rust, bone: MAT.bone, web: MAT.web,
-  banner: MAT.banner, coal: MAT.coal, dark: MAT.dark, gold: MAT.gold, puddle: MAT.puddle,
+  banner: MAT.banner, coal: MAT.coal, dark: MAT.dark, gold: MAT.gold, puddle: MAT.puddle, blood: MAT.blood, flesh: MAT.flesh,
 };
 export type BucketName = keyof typeof BUCKET_MAT;
 
@@ -30,8 +30,8 @@ export function mergeBuckets(): void {
     if (!arr?.length) continue;
     const g = mergeGeometries(arr, false); arr.forEach(a => a.dispose());
     const m = new THREE.Mesh(g, BUCKET_MAT[name]);
-    m.castShadow = !(name === 'web' || name === 'puddle' || name === 'banner'); m.receiveShadow = true;
-    if (name === 'puddle') m.renderOrder = 1;
+    m.castShadow = !(name === 'web' || name === 'puddle' || name === 'banner' || name === 'blood'); m.receiveShadow = true;
+    if (name === 'puddle' || name === 'blood') m.renderOrder = 1;
     G.L.group.add(m); G.L.disposeGeo.push(g);
   }
   buckets = {};

@@ -1,6 +1,7 @@
 /**
  * Humanoid monsters on one rig (hips/knees, torso, head with jaw, two arms, weapon in the right hand), so they share
- * the walk and attack animation: skeleton, Bone Warden, zombie, Fallen and skeleton archer (SPEC §8.3).
+ * the walk and attack animation: skeleton, zombie, Fallen, skeleton archer (SPEC §8.3) and the Bone Warden, Gorger and
+ * Ember Lich (SPEC §9).
  */
 import * as THREE from 'three';
 import { PI } from '../../core/math';
@@ -10,14 +11,18 @@ import type { HumanoidType, SkeletonParts } from '../../game/types';
 
 const std = (color: number, roughness: number, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
 
-const EYES: Record<HumanoidType, number> = { skeleton: 0xff5a22, boss: 0xc070ff, archer: 0xff7a2a, zombie: 0xd0c040, fallen: 0xffc020 };
+const EYES: Record<HumanoidType, number> = { skeleton: 0xff5a22, warden: 0xc070ff, archer: 0xff7a2a, zombie: 0xd0c040, fallen: 0xffc020, gorger: 0xff2a10, lich: 0xff8a20 };
 
 export function buildHumanoid(type: HumanoidType): SkeletonParts {
-  const boss = type === 'boss', flesh = type === 'zombie' || type === 'fallen';
+  const flesh = type === 'zombie' || type === 'fallen' || type === 'gorger';
   const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
-  // `bone` is the main body material: bone for the undead, skin for zombies and Fallen.
-  const bone = std(boss ? 0x9c9282 : type === 'zombie' ? 0x6f7f5a : type === 'fallen' ? 0x9a3024 : 0xcdc2a4, .85);
-  const metal = std(boss ? 0x3a3438 : type === 'zombie' ? 0x3a3428 : 0x6a4a36, type === 'zombie' ? 1 : .6, type === 'zombie' ? 0 : .45);
+  // `bone` is the main body material: bone for the undead, skin for zombies, Fallen and the Gorger.
+  const BONE: Record<HumanoidType, number> = { skeleton: 0xcdc2a4, archer: 0xcdc2a4, warden: 0x9c9282, zombie: 0x6f7f5a, fallen: 0x9a3024, gorger: 0xb08070, lich: 0xb8ae98 };
+  // `metal` is the secondary material: armour, rags, the Gorger's leather apron, the Lich's robe.
+  const METAL: Record<HumanoidType, number> = { skeleton: 0x6a4a36, archer: 0x6a4a36, fallen: 0x6a4a36, warden: 0x3a3438, zombie: 0x3a3428, gorger: 0x3a2018, lich: 0x2a1418 };
+  const cloth = type === 'zombie' || type === 'gorger' || type === 'lich';
+  const bone = std(BONE[type], .85);
+  const metal = std(METAL[type], cloth ? 1 : .6, cloth ? 0 : .45);
   const dark = std(0x0a0806, 1);
   const eyeCol = EYES[type];
   const eyeM = new THREE.MeshBasicMaterial({ color: eyeCol });
@@ -54,9 +59,10 @@ export function buildHumanoid(type: HumanoidType): SkeletonParts {
     mesh(gCyl(.025 * limb, .022 * limb, .25, 6), bone, 0, -.125, 0, el); mesh(gSph(.04 * limb, 6, 5), bone, 0, -.26, 0, el);
     arms.push({ sh, el });
   }
+  const extra: THREE.Material[] = [];
   const weapon = new THREE.Group(); weapon.position.y = -.27; arms[0].el.add(weapon); weapon.rotation.x = PI;
   switch (type) {
-    case 'boss':
+    case 'warden':
       mesh(gCyl(.03, .03, 1.1, 6), MAT.wood, 0, .35, 0, weapon);
       { const ax = mesh(GEO.blade, metal, 0, .82, .0, weapon); ax.scale.set(.6, 1, .6); ax.rotation.set(0, PI / 2, PI / 2); }
       for (const s of [-1, 1]) { const h = mesh(gCone(.06, .32, 6), bone, .11 * s, .14, -.02, head); h.rotation.z = -.9 * s; }
@@ -88,6 +94,30 @@ export function buildHumanoid(type: HumanoidType): SkeletonParts {
     case 'zombie':
       // no weapon: clawing hands
       break;
+    case 'gorger': {
+      // a bloated butcher: belly, apron, hooks on the belt and a broad cleaver
+      mesh(gSph(.26, 10, 8), bone, 0, .2, .06, torso).scale.set(1.05, 1, 1);
+      mesh(gBox(.36, .4, .04), metal, 0, .12, .27, torso);
+      for (const s of [-1, 1]) mesh(gSph(.1, 8, 6), bone, .22 * s, .46, 0, torso);
+      mesh(gCyl(.025, .025, .3, 6), MAT.wood, 0, .1, 0, weapon);
+      const steel = std(0x8a8a8a, .4, .7); extra.push(steel);
+      mesh(gBox(.03, .34, .22), steel, 0, .4, .08, weapon);
+      root.scale.setScalar(1.7);
+      break;
+    }
+    case 'lich': {
+      // robed and crowned; a staff topped with an ember
+      mesh(gCyl(.16, .32, .72, 10), metal, 0, .36, 0, body);
+      mesh(gCyl(.18, .2, .36, 10), metal, 0, .22, 0, torso);
+      const gold = std(0xc89a30, .35, .8), ember = new THREE.MeshBasicMaterial({ color: 0xffa040 }); extra.push(gold, ember);
+      for (let k = 0; k < 6; k++) { const a = k / 6 * PI * 2; mesh(gCone(.025, .1, 4), gold, Math.sin(a) * .12, .14, Math.cos(a) * .12, head); }
+      mesh(gCyl(.13, .13, .03, 10), gold, 0, .1, 0, head);
+      mesh(gCyl(.02, .02, 1.5, 6), MAT.wood, 0, .45, 0, weapon);
+      const glow = glowSprite(0xff7020, .5, weapon, 0, 1.22, 0); extra.push(glow.material);
+      mesh(gSph(.06, 8, 6), ember, 0, 1.22, 0, weapon, false);
+      root.scale.setScalar(1.5);
+      break;
+    }
   }
-  return { root, body, legs, torso, head, jaw, armR: arms[0].sh, elR: arms[0].el, armL: arms[1].sh, weapon, eyes, mats: [bone, metal, dark, eyeM, ...eyes.map(e => e.material)], flashMats: [bone, metal] };
+  return { root, body, legs, torso, head, jaw, armR: arms[0].sh, elR: arms[0].el, armL: arms[1].sh, weapon, eyes, mats: [bone, metal, dark, eyeM, ...eyes.map(e => e.material), ...extra], flashMats: [bone, metal] };
 }

@@ -138,7 +138,7 @@ function Toast() {
 function BossBar() {
   return (
     <div id="boss" class="px" style={{ opacity: hud.bossVisible.value ? 1 : 0 }}>
-      <div>BONE WARDEN</div>
+      <div>{hud.bossName.value.toUpperCase()}</div>
       <div class="bar"><div id="bossfill" style={{ width: `${100 * hud.bossFrac.value}%` }} /></div>
     </div>
   );

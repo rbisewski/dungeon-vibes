@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildBat, buildSpider } from './models/beasts';
+import { buildBat, buildEggSac, buildSpider } from './models/beasts';
 import { buildRat } from './models/rat';
 import { buildHumanoid } from './models/skeleton';
 import { buildSlime } from './models/slime';
@@ -7,8 +7,9 @@ import { SFX, vol } from '../audio/sfx';
 import { R, TAU, rr } from '../core/math';
 import { G } from '../game/state';
 import { fxNorm } from '../render/particles';
-import type { MonsterType, MonsterBody, Monster, MonsterCommon } from '../game/types';
-import { rollMonster, type FamilyId } from '../rules/monsters';
+import type { BossState, MonsterType, MonsterBody, Monster, MonsterCommon } from '../game/types';
+import { BOSSES, bossFor, bossName, type BossId } from '../rules/bosses';
+import { FAMILY_IDS, rollMonster, type FamilyId, type MonsterRoll } from '../rules/monsters';
 
 /** Movement and attack timing per monster type (combat numbers come from `rules/monsters`). */
 export const MON: Record<MonsterType, MonsterBody> = {
@@ -22,8 +23,39 @@ export const MON: Record<MonsterType, MonsterBody> = {
   bat: { r: .3, speed: 4.0, reach: 1.0, windup: .25, cd: 1.2, mass: .4 },
   // windup is the leap
   spider: { r: .45, speed: 3.6, reach: 1.2, windup: .45, cd: 1.8, mass: 1.3 },
-  boss: { r: .75, speed: 2.1, reach: 2.0, windup: .75, cd: 1.8, mass: 6 },
+  warden: { r: .75, speed: 2.1, reach: 2.0, windup: .75, cd: 1.8, mass: 6 },
+  // a fast brute; the charge is handled by the boss AI
+  gorger: { r: .7, speed: 3.2, reach: 1.8, windup: .55, cd: 1.5, mass: 6 },
+  broodmother: { r: 1.0, speed: 3.0, reach: 2.0, windup: .6, cd: 1.8, mass: 6 },
+  // mostly stands and casts; teleports instead of walking away
+  lich: { r: .55, speed: 1.3, reach: 1.6, windup: .6, cd: 2.0, mass: 4 },
+  eggsac: { r: .45, speed: 0, reach: 0, windup: 1, cd: 1, mass: 99 },
 };
+
+const isBoss = (t: MonsterType): t is BossId => t in BOSSES;
+const isFamily = (t: MonsterType): t is FamilyId => (FAMILY_IDS as readonly string[]).includes(t);
+
+function newBossState(id: BossId): BossState {
+  const b = bossFor(G.L.depth), name = bossName(id, b?.id === id && b.ascended);
+  switch (id) {
+    case 'warden': return { id, name, raised: 0 };
+    // ready to charge on first sight
+    case 'gorger': return { id, name, chargeCd: 0, charge: null };
+    case 'broodmother': return { id, name, coneCd: 4 };
+    case 'lich': return { id, name, tpCd: rr(5, 7), vulnT: 0, boltCd: 1.5, summonCd: 6, rune: 0 };
+  }
+}
+
+function rollFor(type: MonsterType, tier: number | undefined): MonsterRoll {
+  const depth = G.L.depth, hpVar = rr(.9, 1.1);
+  if (isBoss(type)) return rollMonster(BOSSES[type].family, depth, true, hpVar);
+  if (type === 'eggsac') {
+    // [OURS] three times a Cave Spider's HP; it never attacks
+    const r = rollMonster('spider', depth, false, hpVar, 0);
+    return { ...r, hp: r.hp * 3, dmgMin: 0, dmgMax: 0, ac: 0, baseXp: Math.round(r.baseXp / 2) };
+  }
+  return rollMonster(type, depth, false, hpVar, tier);
+}
 
 /** Colour multipliers per subtype tier (D1-style recolours, SPEC §8.3). */
 const TIER_TINT: Record<FamilyId, readonly [number, number, number, number]> = {
@@ -37,32 +69,39 @@ const TIER_TINT: Record<FamilyId, readonly [number, number, number, number]> = {
   spider: [0xffffff, 0xa08060, 0x80c060, 0xc04040],
 };
 
-/**
- * `rise` > 0 spawns the monster climbing out of the floor for that many seconds. `small` makes the half-size slime
- * that a tier-2+ slime splits into (half HP, does not split again).
- */
-export function spawnMonster(type: MonsterType, x: number, z: number, rise = 0, small = false): Monster {
-  const st = MON[type];
-  const roll = rollMonster(type === 'boss' ? 'skeleton' : type, G.L.depth, type === 'boss', rr(.9, 1.1));
+export interface SpawnOpts {
+  /** > 0: the monster climbs out of the floor for that many seconds. */
+  rise?: number;
+  /** The half-size slime a tier-2+ slime splits into (half HP, does not split again). */
+  small?: boolean;
+  /** Subtype tier instead of the depth's (boss summons). */
+  tier?: number;
+}
+
+export function spawnMonster(type: MonsterType, x: number, z: number, opts: SpawnOpts = {}): Monster {
+  const { rise = 0, small = false } = opts, st = MON[type];
+  const roll = rollFor(type, opts.tier);
   if (small) roll.hp = Math.max(1, Math.round(roll.hp / 2));
   const common: MonsterCommon = {
     st, roll, x, z, kx: 0, kz: 0, vx: 0, vz: 0, face: R() * TAU, r: small ? st.r * .6 : st.r, mass: st.mass, speed: st.speed * rr(.9, 1.1),
     hp: roll.hp, maxHp: roll.hp, state: 'idle', t: 0, lunge: 0, cd: rr(.3, 1), aware: false, home: { x, z }, wt: rr(0, 2), wx: x, wz: z,
     flash: 0, phase: R() * 10, rise, dead: false, deadT: 0, remove: false, eyeBoost: 0, ignoreT: 0, staggerT: 0, stoneT: 0, stoneCols: null,
-    slowT: 0, fleeT: 0, webCd: rr(1, 3), small,
+    slowT: 0, fleeT: 0, webCd: rr(1, 3), small, boss: isBoss(type) ? newBossState(type) : null,
   };
   const m: Monster = type === 'rat' ? { type, ...buildRat(), ...common }
     : type === 'slime' ? { type, ...buildSlime(), ...common }
     : type === 'bat' ? { type, ...buildBat(), ...common }
-    : type === 'spider' ? { type, ...buildSpider(), ...common }
+    : type === 'spider' || type === 'broodmother' ? { type, ...buildSpider(type === 'broodmother'), ...common }
+    : type === 'eggsac' ? { type, ...buildEggSac(), ...common }
     : { type, ...buildHumanoid(type), ...common };
-  if (type !== 'boss') {
+  if (isFamily(type)) {
     const tint = new THREE.Color(TIER_TINT[type][roll.tier]);
     for (const mt of m.mats) if (mt instanceof THREE.MeshStandardMaterial) mt.color.multiply(tint);
   }
   if (type === 'spider') m.root.scale.setScalar(1 + .12 * roll.tier);
+  if (type === 'broodmother') m.root.scale.setScalar(2.3);
   if (small) m.root.scale.multiplyScalar(.6);
-  m.root.position.set(x, rise > 0 ? -1.6 * (type === 'boss' ? 2 : 1) : 0, z); m.root.rotation.y = m.face;
+  m.root.position.set(x, rise > 0 ? -1.6 * (m.boss ? 2 : 1) : 0, z); m.root.rotation.y = m.face;
   G.L.group.add(m.root); G.L.monsters.push(m);
   if (rise > 0) { for (let k = 0; k < 14; k++) fxNorm.spawn(x + rr(-.5, .5), .1, z + rr(-.5, .5), rr(-.6, .6), rr(.5, 1.4), rr(-.6, .6), rr(.6, 1.1), .16, .14, .13, rr(.12, .22), 1.2, 1.5, 3); SFX.rise(vol(x, z)); }
   return m;

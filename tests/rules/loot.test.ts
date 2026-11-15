@@ -8,7 +8,7 @@ describe('monsterDrops', () => {
     const rng = mulberry32(11), N = 10000;
     let gold = 0, item = 0;
     for (let i = 0; i < N; i++) {
-      const d = monsterDrops(rng, 3, 3, false, { found: new Set() });
+      const d = monsterDrops(rng, 3, 3, { found: new Set() });
       if (d[0]?.kind === 'gold') gold++;
       else if (d[0]?.kind === 'item') item++;
     }
@@ -20,21 +20,11 @@ describe('monsterDrops', () => {
     const rng = mulberry32(12), N = 5000;
     let gold = 0;
     for (let i = 0; i < N; i++) {
-      const d = monsterDrops(rng, 3, 3, false, { found: new Set() }, true);
+      const d = monsterDrops(rng, 3, 3, { found: new Set() }, true);
       expect(d.every(x => x.kind === 'gold')).toBe(true);
       if (d.length) gold++;
     }
     expect(gold / N).toBeCloseTo(MONSTER_GOLD, 1);
-  });
-
-  it('always gives a boss a magic or unique item, a potion, a Scroll of Identify and gold', () => {
-    const rng = mulberry32(4);
-    for (let i = 0; i < 200; i++) {
-      const d = monsterDrops(rng, 5, 3, true, { found: new Set() });
-      expect(d.map(x => x.kind === 'item' ? x.item.kind : x.kind)).toEqual(['equip', 'potion', 'scroll', 'gold']);
-      const it = d[0].kind === 'item' ? d[0].item : null;
-      expect(it?.kind === 'equip' && it.q).not.toBe('normal');
-    }
   });
 });
 

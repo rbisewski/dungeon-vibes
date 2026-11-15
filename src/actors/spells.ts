@@ -220,7 +220,7 @@ function phase(h: Hero): void {
 }
 
 function petrify(m: Monster, slvl: number): void {
-  if (m.type === 'boss') { SFX.fizzle(); toast('IMMUNE'); return; }
+  if (m.boss) { SFX.fizzle(); toast('IMMUNE'); return; }
   if (!m.stoneCols) {
     m.stoneCols = m.flashMats.map(mt => mt.color.clone());
     for (const mt of m.flashMats) mt.color.setHex(0x8a8884);

@@ -77,19 +77,8 @@ export function rollItem(rng: Rng, ilvl: number, depth: number, ctx: LootCtx, on
   });
 }
 
-/**
- * Everything a slain monster leaves behind. Bosses use D1's unique-monster rule: always magic, 16 % unique. With
- * `noItems` (bats) an item roll gives nothing.
- */
-export function monsterDrops(rng: Rng, mlvl: number, depth: number, boss: boolean, ctx: LootCtx, noItems = false): Drop[] {
-  if (boss) {
-    return [
-      { kind: 'item', item: rollItem(rng, mlvl, depth, ctx, 'equip', true) },
-      { kind: 'item', item: rollItem(rng, mlvl, depth, ctx, 'potion') },
-      { kind: 'item', item: newScroll('identify') },
-      { kind: 'gold', amount: 10 * goldAmount(rng, mlvl) },
-    ];
-  }
+/** What a slain normal monster leaves behind (bosses: `bossDrops`). With `noItems` (bats) an item roll gives nothing. */
+export function monsterDrops(rng: Rng, mlvl: number, depth: number, ctx: LootCtx, noItems = false): Drop[] {
   const r = rng();
   if (r < MONSTER_GOLD) return [{ kind: 'gold', amount: goldAmount(rng, mlvl) }];
   if (r < MONSTER_GOLD + MONSTER_ITEM && !noItems) return [{ kind: 'item', item: rollItem(rng, mlvl, depth, ctx) }];
