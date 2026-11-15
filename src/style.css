@@ -104,3 +104,25 @@ html,body{margin:0;height:100%;overflow:hidden;background:#05060a}
 #classSelect .attrs4 b{font-weight:normal;color:#fff2d0}
 #classSelect .nameRow{display:flex;gap:10px;align-items:center;margin-top:10px}
 #classSelect input{font:inherit;font-size:11px;flex:1;background:#0e0a08;color:#ffe08a;border:2px solid #9a7020;padding:6px 8px;outline:none;text-transform:uppercase}
+
+/* title screen (SPEC §12.2) */
+#title{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:6vh 0 6vh;pointer-events:none}
+#title .title{font-size:22px;color:#f2d79a;letter-spacing:2px;text-shadow:0 3px 0 #000}
+#title .titleCard{position:static;width:min(620px,92vw);pointer-events:auto}
+#title .charList{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+#title .charRow{display:flex;justify-content:space-between;gap:12px;padding:7px 10px;border:2px solid transparent;cursor:pointer;color:#cbb894}
+#title .charRow .nm{color:#fff2d0;flex:1}
+#title .charRow.on{border-color:#e0b040;background:#2a1e12;color:#ffe08a;box-shadow:0 0 10px #9a7020}
+#title .titleBtns{display:flex;gap:10px;justify-content:center;margin-bottom:10px}
+#title button,#gameMenu button{font:inherit;font-size:10px;color:#ead6ae;background:#1e1612;border:2px solid #5a4a3a;padding:8px 12px;cursor:pointer}
+#title button:disabled{opacity:.4;cursor:default}
+#title .confirm{color:#ff8a6a;text-align:center;margin-bottom:10px;line-height:1.8}
+#title .hint{font-size:8px;opacity:.6;text-align:center}
+/* game menu (Esc) */
+#gameMenu{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;gap:8px;width:300px;pointer-events:auto}
+#gameMenu button.on{color:#ffe08a;border-color:#e0b040;box-shadow:0 0 10px #9a7020}
+/* floating damage numbers */
+.dmgNum{position:fixed;transform:translate(-50%,-100%);font-size:14px;color:#fff2d0;text-shadow:0 2px 0 #000,0 0 3px #000;pointer-events:none;white-space:nowrap}
+.dmgNum.crit{color:#ffd040;font-size:18px}
+.dmgNum.warded{color:#ff9050}
+.dmgNum.taken{color:#ff4a3a}

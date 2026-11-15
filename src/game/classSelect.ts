@@ -11,6 +11,7 @@ import { GU, scene } from '../render/renderer';
 import { CLASS_IDS, type ClassId } from '../rules/classes';
 import { fade } from '../ui/store';
 import { buildLevel } from '../world/level';
+import { beginNewCharacter, saveGame } from './save';
 import { setMenuTick } from './loop';
 import { G } from './state';
 import type { Hero } from './types';
@@ -41,8 +42,16 @@ function tick(dt: number): void {
   updateCamera(dt, false);
 }
 
-/** Shows the class select over a freshly built depth 1. */
-export function openClassSelect(): void {
+/**
+ * Shows the class select over depth 1. `fresh` rebuilds depth 1 from a new run seed first (coming from the title
+ * screen, where some other character's level may be on screen).
+ */
+export function openClassSelect(fresh = false): void {
+  if (fresh) {
+    G.charId = null; G.levels = {};
+    G.runSeed = (Math.random() * 2 ** 32) >>> 0; G.depth = 1;
+    buildLevel(1);
+  }
   scene.remove(G.hero.root);
   heroes = CLASS_IDS.map(c => createHero(c, ''));
   const cx = G.L.startRoom.cx * 2, cz = G.L.startRoom.cy * 2;
@@ -54,6 +63,14 @@ export function openClassSelect(): void {
   G.inMenu = true;
   setMenuTick(tick);
   updateCamera(0, true);
+}
+
+/** Leaves class select without starting a run (back to the title screen). */
+export function closeClassSelect(): void {
+  for (const h of heroes) scene.remove(h.root);
+  heroes = [];
+  setMenuTick(null);
+  menuStep.value = null;
 }
 
 export function chooseClass(c: ClassId): void {
@@ -74,5 +91,8 @@ export function startRun(name: string): void {
   G.inMenu = false;
   G.paused = false;
   fade.value = 1;
+  G.depth = 1;
+  beginNewCharacter();
   buildLevel(1);
+  saveGame();
 }

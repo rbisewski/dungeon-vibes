@@ -32,14 +32,18 @@ function toss(p: PickupKind, o: THREE.Object3D, x: number, z: number, speed = 1)
   return pickup;
 }
 
+function coinMesh(): THREE.Object3D {
+  const o = mesh(gCyl(.11, .11, .035, 10), MAT.gold, 0, 0, 0, null, false); o.rotation.x = PI / 2;
+  return o;
+}
+
 /** A gold pile: up to 6 coins share the amount. Returns the coins. */
 export function spawnGold(amount: number, x: number, z: number, speed = 1): Pickup[] {
   const n = Math.min(6, Math.max(1, Math.ceil(amount / 10))), out: Pickup[] = [];
   for (let k = 0; k < n; k++) {
     const share = Math.floor(amount / n) + (k < amount % n ? 1 : 0);
     if (share <= 0) continue;
-    const o = mesh(gCyl(.11, .11, .035, 10), MAT.gold, 0, 0, 0, null, false); o.rotation.x = PI / 2;
-    out.push(toss({ kind: 'coin', amount: share }, o, x, z, speed));
+    out.push(toss({ kind: 'coin', amount: share }, coinMesh(), x, z, speed));
   }
   return out;
 }
@@ -84,6 +88,21 @@ function itemObject(it: Item): THREE.Object3D {
 /** Puts an item on the floor at (x, z). `discarded` marks items the player dropped (picked up only with E). */
 export function spawnItem(it: Item, x: number, z: number, discarded = false, slot?: EquipSlot): Pickup {
   return toss({ kind: 'item', item: it, discarded, slot }, itemObject(it), x, z, discarded || slot ? .4 : 1);
+}
+
+/** A floor item or gold pile as stored in a save (SPEC §12.2). */
+export type SavedPickup = { x: number; z: number } & ({ gold: number } | { item: Item; discarded: boolean; slot?: EquipSlot });
+
+export const savePickup = (p: Pickup): SavedPickup =>
+  p.kind === 'coin' ? { x: p.x, z: p.z, gold: p.amount } : { x: p.x, z: p.z, item: p.item, discarded: p.discarded, ...(p.slot ? { slot: p.slot } : {}) };
+
+/** Puts a saved pickup back exactly where it lay, at rest and ready to pick up. */
+export function restorePickup(s: SavedPickup): Pickup {
+  const p = 'gold' in s
+    ? toss({ kind: 'coin', amount: s.gold }, coinMesh(), s.x, s.z, 0)
+    : toss({ kind: 'item', item: s.item, discarded: s.discarded, slot: s.slot }, itemObject(s.item), s.x, s.z, 0);
+  p.vx = p.vz = p.vy = 0; p.y = .18; p.t = 1;
+  return p;
 }
 
 export function spawnDrops(drops: Drop[], x: number, z: number): void {

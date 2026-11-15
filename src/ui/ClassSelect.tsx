@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { chooseClass, menuClass, menuStep, startRun } from '../game/classSelect';
+import { chooseClass, closeClassSelect, menuClass, menuStep, startRun } from '../game/classSelect';
+import { listCharacters } from '../game/save';
+import { openTitle } from '../game/title';
 import { CLASS, CLASS_BLURB, CLASS_IDS } from '../rules/classes';
 import { SKILLS, CLASS_SKILL } from '../rules/skills';
 import { derive } from '../rules/stats';
@@ -20,6 +22,7 @@ export function ClassSelect() {
       if (e.code === 'ArrowLeft' || e.code === 'KeyA') { e.preventDefault(); chooseClass(CLASS_IDS[(i + 2) % 3]); }
       else if (e.code === 'ArrowRight' || e.code === 'KeyD') { e.preventDefault(); chooseClass(CLASS_IDS[(i + 1) % 3]); }
       else if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); menuStep.value = 'name'; }
+      else if (e.code === 'Escape' && listCharacters().length) { e.preventDefault(); closeClassSelect(); openTitle(); }
     };
     addEventListener('keydown', onKey);
     return () => removeEventListener('keydown', onKey);
@@ -50,7 +53,7 @@ export function ClassSelect() {
           <span>SKILL <b>{SKILLS[CLASS_SKILL[cls]].name.toUpperCase()}</b></span>
         </div>
         {step === 'class' ? (
-          <div class="hint">LEFT / RIGHT CHOOSE - ENTER SELECT</div>
+          <div class="hint">LEFT / RIGHT CHOOSE - ENTER SELECT{listCharacters().length ? ' - ESC BACK' : ''}</div>
         ) : (
           <div class="nameRow">
             <span>NAME</span>

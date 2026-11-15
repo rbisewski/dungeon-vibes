@@ -51,7 +51,7 @@ function changed(): void {
 export function openPanel(p: Panel): void {
   if (!canOpen() || isOpen(p)) return;
   const left = p === 'char' || p === 'book';
-  openPanels.value = [...openPanels.value.filter(q => !(left && (q === 'char' || q === 'book'))), p];
+  openPanels.value = p === 'menu' ? ['menu'] : [...openPanels.value.filter(q => q !== 'menu' && !(left && (q === 'char' || q === 'book'))), p];
   G.paused = true;
   resetInput();
   syncSheet();
@@ -325,6 +325,8 @@ addEventListener('keydown', e => {
   if (/^F[5-8]$/.test(e.code)) { e.preventDefault(); spellHotkey(+e.code.slice(1) - 5); return; }
   if (identifying.value && e.code === 'Escape') { e.preventDefault(); identifying.value = null; toast('IDENTIFY CANCELLED'); return; }
   if (openPanels.value.length && (e.code === 'Escape' || e.code === 'Space')) { e.preventDefault(); closePanels(); return; }
+  if (e.code === 'Escape') { e.preventDefault(); openPanel('menu'); return; }
+  if (isOpen('menu')) return;
   if (!isOpen('inv')) {
     if (e.code === 'KeyE' && !G.paused) { e.preventDefault(); pickupNearest(); }
     return;

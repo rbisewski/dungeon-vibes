@@ -22,6 +22,13 @@ interface Graph { ctx: AudioContext; out: GainNode; rev: GainNode; nb: AudioBuff
 class SoundEngine {
   private g: Graph | null = null;
   on = false;
+  /** Master volume before the compressor (settings: sound off sets 0). */
+  private volume = 0.8;
+
+  setVolume(v: number): void {
+    this.volume = v;
+    if (this.g) this.g.out.gain.value = v;
+  }
 
   /** Must run from a user gesture (browser autoplay policy). */
   init(): void {
@@ -29,7 +36,7 @@ class SoundEngine {
     if (typeof AudioContext === 'undefined') return;
     const c = new AudioContext();
     const comp = c.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 5; comp.connect(c.destination);
-    const out = c.createGain(); out.gain.value = 0.8; out.connect(comp);
+    const out = c.createGain(); out.gain.value = this.volume; out.connect(comp);
     const len = (c.sampleRate * 2.4) | 0, ir = c.createBuffer(2, len, c.sampleRate);
     for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (R() * 2 - 1) * Math.pow(1 - i / len, 3.4); }
     const conv = c.createConvolver(); conv.buffer = ir;

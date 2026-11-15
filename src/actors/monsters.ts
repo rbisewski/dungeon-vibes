@@ -7,9 +7,11 @@ import { SFX, vol } from '../audio/sfx';
 import { R, TAU, rr } from '../core/math';
 import { G } from '../game/state';
 import { fxNorm } from '../render/particles';
-import type { BossState, MonsterType, MonsterBody, Monster, MonsterCommon } from '../game/types';
+import type { BossState, EliteInfo, MonsterType, MonsterBody, Monster, MonsterCommon } from '../game/types';
 import { BOSSES, bossFor, bossName, type BossId } from '../rules/bosses';
-import { FAMILY_IDS, rollMonster, type FamilyId, type MonsterRoll } from '../rules/monsters';
+import { FAMILY_IDS, rollMonster, tierFor, type FamilyId, type MonsterRoll } from '../rules/monsters';
+import { ELITE, eliteRoll, type EliteMod } from '../rules/elites';
+import { glowSprite } from '../render/geometry';
 
 /** Movement and attack timing per monster type (combat numbers come from `rules/monsters`). */
 export const MON: Record<MonsterType, MonsterBody> = {
@@ -46,15 +48,16 @@ function newBossState(id: BossId): BossState {
   }
 }
 
-function rollFor(type: MonsterType, tier: number | undefined): MonsterRoll {
-  const depth = G.L.depth, hpVar = rr(.9, 1.1);
+function rollFor(type: MonsterType, tier: number | undefined, lvlBonus = 0): MonsterRoll {
+  const depth = G.L.depth + lvlBonus, hpVar = rr(.9, 1.1);
   if (isBoss(type)) return rollMonster(BOSSES[type].family, depth, true, hpVar);
   if (type === 'eggsac') {
     // [OURS] three times a Cave Spider's HP; it never attacks
     const r = rollMonster('spider', depth, false, hpVar, 0);
     return { ...r, hp: r.hp * 3, dmgMin: 0, dmgMax: 0, ac: 0, baseXp: Math.round(r.baseXp / 2) };
   }
-  return rollMonster(type, depth, false, hpVar, tier);
+  // an elite leader's +5 mlvl does not change its subtype tier
+  return rollMonster(type, depth, false, hpVar, tier ?? tierFor(type, G.L.depth));
 }
 
 /** Colour multipliers per subtype tier (D1-style recolours, SPEC §8.3). */
@@ -76,17 +79,26 @@ export interface SpawnOpts {
   small?: boolean;
   /** Subtype tier instead of the depth's (boss summons). */
   tier?: number;
+  /** Elite pack member (SPEC §8.4); the leader is rolled at mlvl + 5. */
+  elite?: EliteInfo;
 }
 
+/** Aura colour under elite pack members, per modifier. */
+const ELITE_AURA: Record<EliteMod, number> = { fast: 0x60ff90, stoneskin: 0xc0c0c0, vampiric: 0xff3040, berserker: 0xff8020, spellcaster: 0x6a8aff };
+/** Fast elites: movement ×1.5, windup and attack cooldown ×0.7 [OURS]. */
+const FAST = { speed: 1.5, timing: .7 };
+
 export function spawnMonster(type: MonsterType, x: number, z: number, opts: SpawnOpts = {}): Monster {
-  const { rise = 0, small = false } = opts, st = MON[type];
-  const roll = rollFor(type, opts.tier);
+  const { rise = 0, small = false, elite } = opts, fast = elite?.mod === 'fast';
+  const st = fast ? { ...MON[type], windup: MON[type].windup * FAST.timing, cd: MON[type].cd * FAST.timing } : MON[type];
+  let roll = rollFor(type, opts.tier, elite?.leader ? ELITE.lvlBonus : 0);
+  if (elite) roll = eliteRoll(roll, elite.mod, elite.leader);
   if (small) roll.hp = Math.max(1, Math.round(roll.hp / 2));
   const common: MonsterCommon = {
-    st, roll, x, z, kx: 0, kz: 0, vx: 0, vz: 0, face: R() * TAU, r: small ? st.r * .6 : st.r, mass: st.mass, speed: st.speed * rr(.9, 1.1),
+    st, roll, x, z, kx: 0, kz: 0, vx: 0, vz: 0, face: R() * TAU, r: small ? st.r * .6 : st.r, mass: st.mass, speed: st.speed * rr(.9, 1.1) * (fast ? FAST.speed : 1),
     hp: roll.hp, maxHp: roll.hp, state: 'idle', t: 0, lunge: 0, cd: rr(.3, 1), aware: false, home: { x, z }, wt: rr(0, 2), wx: x, wz: z,
     flash: 0, phase: R() * 10, rise, dead: false, deadT: 0, remove: false, eyeBoost: 0, ignoreT: 0, staggerT: 0, stoneT: 0, stoneCols: null,
-    slowT: 0, fleeT: 0, webCd: rr(1, 3), small, boss: isBoss(type) ? newBossState(type) : null,
+    slowT: 0, fleeT: 0, webCd: rr(1, 3), small, boss: isBoss(type) ? newBossState(type) : null, genId: -1, elite: elite ?? null,
   };
   const m: Monster = type === 'rat' ? { type, ...buildRat(), ...common }
     : type === 'slime' ? { type, ...buildSlime(), ...common }
@@ -101,6 +113,11 @@ export function spawnMonster(type: MonsterType, x: number, z: number, opts: Spaw
   if (type === 'spider') m.root.scale.setScalar(1 + .12 * roll.tier);
   if (type === 'broodmother') m.root.scale.setScalar(2.3);
   if (small) m.root.scale.multiplyScalar(.6);
+  if (elite) {
+    if (elite.leader) m.root.scale.multiplyScalar(1.25);
+    const aura = glowSprite(ELITE_AURA[elite.mod], elite.leader ? 1.8 : 1.1, m.root, 0, .1, 0);
+    m.mats.push(aura.material);
+  }
   m.root.position.set(x, rise > 0 ? -1.6 * (m.boss ? 2 : 1) : 0, z); m.root.rotation.y = m.face;
   G.L.group.add(m.root); G.L.monsters.push(m);
   if (rise > 0) { for (let k = 0; k < 14; k++) fxNorm.spawn(x + rr(-.5, .5), .1, z + rr(-.5, .5), rr(-.6, .6), rr(.5, 1.4), rr(-.6, .6), rr(.6, 1.1), .16, .14, .13, rr(.12, .22), 1.2, 1.5, 3); SFX.rise(vol(x, z)); }

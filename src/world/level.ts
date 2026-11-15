@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { spawnMonster } from '../actors/monsters';
 import { pickFamilies } from '../rules/monsters';
+import { ELITE, ELITE_MODS, eliteName } from '../rules/elites';
 import { bossFor, bossName } from '../rules/bosses';
 import { dressArena } from './arenas';
+import { applyLevel } from './levelDelta';
 import { R, TAU, pick, ri, rr, withRng } from '../core/math';
 import { deriveSeed, mulberry32 } from '../core/rng';
 import { G } from '../game/state';
@@ -54,11 +56,14 @@ export function placeHeroAtStart(): void {
 
 /**
  * Replaces the current level with the run's level at `depth`, places the hero and spawns the monsters. Everything
- * generated here draws from the level's seeded stream, so the same run and depth always give the same level.
+ * generated here draws from the level's seeded stream, so the same run and depth always give the same level; a level
+ * visited before then gets its saved delta re-applied (SPEC §12.2).
  */
 export function buildLevel(depth: number): void {
   if (G.L) disposeLevel(G.L);
   withRng(mulberry32(levelSeed(depth)), () => generate(depth));
+  const delta = G.levels[depth];
+  if (delta) { applyLevel(delta); computeField(); }
   const boss = bossFor(depth);
   toast(`DEPTH ${depth}`, boss ? `${bossName(boss.id, boss.ascended)} guards the stairs`.toUpperCase() : depth === 1 ? 'THE DESCENT BEGINS' : 'DEEPER INTO THE DARK');
 }
@@ -73,7 +78,7 @@ function generate(depth: number): void {
     ...lay, depth, group,
     navBlock: new Uint8Array(lay.N), trap: new Int16Array(lay.N).fill(-1), propAt: new Array(lay.N).fill(null), dist: new Float64Array(lay.N),
     traps: [], doors: [], chests: [], monsters: [], pickups: [], spellFx: [], arrows: [], graves: [], descendWarned: false, families: pickFamilies(R, depth), shots: [], hazards: [], bossRunes: [], debris: [], decals: [], lights: [], flames: [], pillars: [], runes: [], moons: [],
-    disposeGeo: [], disposeInst: [], disposeMat: [], locked: true, fieldT: 0, killsHere: 0,
+    disposeGeo: [], disposeInst: [], disposeMat: [], locked: true, fieldT: 0, killsHere: 0, killedGen: new Set(),
     startIdx: lay.startRoom.cy * lay.W + lay.startRoom.cx,
     stairs: { tx: sr.cx, tz: sr.cy, x: sr.cx * T, z: sr.cy * T },
     lockedDoor,
@@ -134,4 +139,20 @@ function generate(depth: number): void {
   for (let z = 0; z < L.H; z++) for (let x = 0; x < L.W; x++) if (L.tiles[z * L.W + x] === 2) corr.push([x, z]);
   const nc = Math.floor(corr.length / 7);
   for (let k = 0; k < nc; k++) placeIn(corr, family());
+  // Elite pack (SPEC §8.4): a named leader and 2–4 escorts sharing its modifier, in a room other than start and stairs.
+  const eliteRooms = L.rooms.filter(r => r !== L.startRoom && r !== L.stairsRoom);
+  if (depth >= ELITE.fromDepth && eliteRooms.length && R() < ELITE.chance) {
+    const r = pick(eliteRooms), type = family(), mod = pick(ELITE_MODS), name = eliteName(R), spell = R() < .5 ? 'firebolt' as const : 'lightning' as const;
+    const cells: [number, number][] = [];
+    for (let z = r.y; z < r.y + r.h; z++) for (let x = r.x; x < r.x + r.w; x++) { const i = z * L.W + x; if (navOK(i) && !occupied.has(i) && L.tiles[i] !== 6 && L.trap[i] < 0) cells.push([x, z]); }
+    if (cells.length) {
+      const [cx, cz] = pick(cells), lead = spawnMonster(type, cx * T, cz * T, { elite: { name, mod, leader: true, spell } });
+      const n = ri(ELITE.escorts[0], ELITE.escorts[1]);
+      for (let j = 0; j < n; j++) {
+        const a = (j / n) * TAU + rr(-.3, .3), px = lead.x + Math.cos(a) * 1.1, pz = lead.z + Math.sin(a) * 1.1;
+        if (!circleBlocked(px, pz, .35, false)) spawnMonster(type, px, pz, { elite: { name, mod, leader: false, spell } });
+      }
+    }
+  }
+  L.monsters.forEach((m, i) => { m.genId = i; });
 }

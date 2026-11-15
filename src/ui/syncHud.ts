@@ -1,3 +1,4 @@
+import { ELITE_MOD_NAME } from '../rules/elites';
 import { manualActive } from '../core/input';
 import { G } from '../game/state';
 import { heroManaCost } from '../actors/spells';
@@ -29,9 +30,11 @@ export function syncHud(): void {
   if (h.inv.belt.some((it, i) => it !== hud.belt.value[i])) hud.belt.value = [...h.inv.belt];
   hud.key.value = h.key;
   hud.manual.value = manualActive();
-  const boss = L.monsters.find(m => m.boss && !m.dead && m.aware);
+  // The bar shows the boss, else an aware elite leader nearby (SPEC §8.4, §9).
+  const boss = L.monsters.find(m => m.boss && !m.dead && m.aware)
+    ?? L.monsters.find(m => m.elite?.leader && !m.dead && m.aware && Math.hypot(m.x - h.x, m.z - h.z) < 14);
   hud.bossVisible.value = !!boss;
-  if (boss?.boss) { hud.bossFrac.value = Math.max(0, boss.hp) / boss.maxHp; hud.bossName.value = boss.boss.name; }
+  if (boss) { hud.bossFrac.value = Math.max(0, boss.hp) / boss.maxHp; hud.bossName.value = boss.boss ? boss.boss.name : boss.elite ? `${boss.elite.name} - ${ELITE_MOD_NAME[boss.elite.mod]}` : ''; }
   if (isOpen('char')) syncSheet();
 }
 

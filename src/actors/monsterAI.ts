@@ -8,6 +8,7 @@ import { PI, R, TAU, clamp, damp, lerp, rr, wrapA } from '../core/math';
 import { G } from '../game/state';
 import { fxNorm } from '../render/particles';
 import { BOSSES } from '../rules/bosses';
+import { ELITE_MOD_NAME } from '../rules/elites';
 import { toast } from '../ui/store';
 import { DX8, DZ8, T } from '../world/consts';
 import { clearLine, fieldAt, navOK } from '../world/nav';
@@ -52,7 +53,7 @@ export function updateMonsters(dt: number): void {
     const fl = Math.max(0, m.flash) / .14; for (const mt of m.flashMats) mt.emissive.setRGB(fl * 1.6, fl * 1.5, fl * 1.3);
     if (m.type === 'slime' && fl <= 0) m.flashMats[0].emissive.setHex(0x0e2a08);
     const dx = h.x - m.x, dz = h.z - m.z, d = Math.hypot(dx, dz) || .001, heroOK = !h.dead && h.descend <= 0;
-    if (!m.aware && heroOK && ((d < 4 && fieldAt(m.x, m.z) < 4) || (d < 10 && clearLine(m.x, m.z, h.x, h.z, .05, false)))) { m.aware = true; m.eyeBoost = .6; SFX.squeal(m.type, vol(m.x, m.z)); if (m.boss) toast(m.boss.name.toUpperCase(), BOSSES[m.boss.id].title.toUpperCase()); }
+    if (!m.aware && heroOK && ((d < 4 && fieldAt(m.x, m.z) < 4) || (d < 10 && clearLine(m.x, m.z, h.x, h.z, .05, false)))) { m.aware = true; m.eyeBoost = .6; SFX.squeal(m.type, vol(m.x, m.z)); if (m.boss) toast(m.boss.name.toUpperCase(), BOSSES[m.boss.id].title.toUpperCase()); else if (m.elite?.leader) toast(m.elite.name.toUpperCase(), ELITE_MOD_NAME[m.elite.mod].toUpperCase()); }
     if (m.aware && (d > 24 || !heroOK)) { m.aware = false; m.state = 'idle'; }
     let mvx = 0, mvz = 0, want: number | null = null, speedMul = 1;
     const reach = m.st.reach + h.r, spidery = m.type === 'spider' || m.type === 'broodmother';
@@ -89,6 +90,8 @@ export function updateMonsters(dt: number): void {
           if (d <= 8.5 && m.cd <= 0 && windups < 3) { m.state = 'windup'; m.t = m.st.windup; m.cd = m.st.cd * rr(.85, 1.2); windups++; break; }
           if (d <= 8) break;
         }
+        // Spellcaster elites cast Firebolt or Lightning every 3–4 s from 2.5–9 m (SPEC §8.4).
+        if (m.elite?.mod === 'spellcaster' && los && d > 2.5 && m.webCd <= 0) { fireShot(m, m.elite.spell); m.webCd = rr(3, 4); m.eyeBoost = .6; }
         if (spidery && los) {
           if (m.type === 'spider' && d > 4.5 && d < 8 && m.webCd <= 0) { fireShot(m, 'web'); m.webCd = rr(4, 7); }
           if (d <= (m.boss ? 5.5 : 4.2) && d > reach * .92 && m.cd <= 0 && windups < 3) { m.state = 'windup'; m.t = m.st.windup; m.cd = m.st.cd * rr(.85, 1.2); windups++; SFX.squeal(m.type, vol(m.x, m.z) * .6); break; }

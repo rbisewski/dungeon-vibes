@@ -1,4 +1,5 @@
 import type { LootCtx } from '../rules/loot';
+import type { LevelDelta } from '../world/levelDelta';
 import type { Actor, Hero, Level, Transition } from './types';
 
 /** Mutable world state shared across systems. Single instance; never reassigned. */
@@ -21,6 +22,12 @@ export const G = {
   inMenu: false,
   /** Run-wide loot state (uniques already generated). */
   loot: { found: new Set() } as LootCtx,
+  /** Save slot of the character being played; null on the title screen and in class select. */
+  charId: null as string | null,
+  /** Deltas of the levels this character has left (the current level's is captured when saving). */
+  levels: {} as Record<number, LevelDelta>,
+  /** Game seconds until the next autosave. */
+  saveT: 30,
 };
 
 export const isHero = (a: Actor): a is Hero => a === G.hero;

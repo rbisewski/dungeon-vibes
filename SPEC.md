@@ -1,6 +1,6 @@
 # Dungeon Vibes — Diablo-Style Progression Spec
 
-Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phases 0–9.
+Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phases 0–10.
 
 This spec layers a Diablo 1 (D1) style character, spell, and loot system onto the existing game. The game is first ported from the single `index.html` to a TypeScript project (§2.1). It keeps the game's look, controls, and AUTO mode.
 
@@ -352,7 +352,7 @@ const CLASS = {
 - **Weapon meshes** follow the equipped weapon kind (sword, axe, club, staff with a glowing tip, bow), even when its requirements are unmet.
 - **Class select** runs over depth 1 with the world paused; after the name is entered, depth 1 is rebuilt fresh for the chosen hero. The name keeps letters, digits, space, `'` and `-`; an empty name uses the class name.
 - **Belt priority:** a picked-up potion moves a scroll from a full belt into the backpack (when it has room), so potions are never stuck in the backpack where AUTO cannot drink them.
-- **Monster risers:** the legacy rule that raised 1–3 monsters near the hero after 3 s without a fight was capped at 10 per level here (unlimited, it made every level endless). **Removed after Phase 9 [USER, Q11]:** levels hold only their generated monsters, as in D1.
+- **Monster risers:** the legacy rule that raised 1–3 monsters near the hero after 3 s without a fight was capped at 10 per level here (unlimited, it made every level endless). **Removed after Phase 9 [USER, Q11]:** levels hold only their generated monsters, as in D1. AUTO pacing without it (Phase 10): all three classes reach depth 6 at clvl 8–9, matching `depth + 2`.
 - **AUTO acceptance runs** use a dev-only `simulate(seconds)` that advances the fixed-step game without rendering, so results do not depend on browser frame throttling.
 
 **Class selection screen [OURS]** (shown on `NEW RUN`)
@@ -463,6 +463,7 @@ Monsters gain `mlvl`, `ac`, `toHit`, `dmg: [min, max]`, `xp`, and `undead: bool`
 - Each orb is a canvas with a liquid level, highlight, and 1 px dark outline.
 - Hovering an orb shows its value, e.g. `LIFE 54/70`.
 - Floating damage numbers are off by default, as in D1. A settings toggle turns them on.
+  - **As implemented in Phase 10** [OURS]: the Esc game menu holds the toggle. Numbers rise and fade over 1 s above the target: white for hero damage, gold and larger for crits, orange when the Ember Lich's ward reduced it, red for damage the hero takes.
 
 ### 3.4 Character screen (`C`)
 
@@ -953,13 +954,19 @@ Level pacing meets the targets: level 2 after depth 1, then about `depth + 2` (1
   - 8 legs, each with 2 segments, using an alternating tetrapod gait.
   - 8 red emissive eyes.
 
-### 8.4 Elite packs (stretch)
+### 8.4 Elite packs
 
 - From depth 3, each level has a 20 % chance of one named elite, e.g. `Gutripper the Foul`.
 - The elite gets 3× HP and +5 mlvl.
 - It has one modifier: Fast, Stoneskin (+50 AC), Vampiric, Berserker (+50 % dmg), or **Spellcaster** (casts Firebolt or Lightning).
 - 2–4 escorts accompany it. They share the modifier and have 2× HP.
 - Its loot follows the unique-monster drop rules.
+
+**As implemented in Phase 10** [OURS unless noted]
+- **Placement:** the roll happens inside the level's seeded generation, so a level always has the same pack (saves rely on it). The pack stands in a random room other than the start and stairs rooms, and its family is one of the level's three. In 150 seeds at depth 4, 15 % of levels had a pack (some rolls find no free cell).
+- **Stats:** the leader is rolled at depth + 5 for its mlvl, HP, damage and XP, but keeps the depth's subtype tier; it is 1.25× the size. Fast: movement ×1.5, windup and attack cooldown ×0.7. Vampiric: heals by the life each landed hit takes. Spellcaster: every 3–4 s, from more than 2.5 m with a clear line, casts straight-flying Firebolt or Lightning (per pack). Both use monster magic to-hit, can be blocked, deal the caster's normal damage, and fly at 5 and 14 m/s.
+- **Look:** every pack member has a glowing aura in the modifier's colour. On first sight the leader's name and modifier toast plays; the boss bar shows "<Name> - <Modifier>" while the leader is aware and within 14 m (a boss takes precedence).
+- **Loot:** the leader drops one item that is always magic (16 % unique), plus 3× a gold pile; escorts drop normally.
 
 ### 8.5 Monster spells
 
@@ -1209,6 +1216,13 @@ Saved to `localStorage['dv.save.v3']`. There are up to 6 character slots:
 - The title screen lists characters, showing class, name, clvl, and depth.
 - Choices are `CONTINUE`, `NEW CHARACTER` (opens class select, §3.1), and `DELETE`.
 - `CONTINUE` rebuilds the layout from `levelSeed` and reapplies the level delta.
+
+**As implemented in Phase 10** [OURS unless noted]
+- **Format:** each character stores its `runSeed` (every level's seed derives from it, §12.1) instead of per-level seeds. It also stores the hero's position, life and mana, so a reload continues mid-level. The town and stash parts of the format arrive with Phase 11.
+- **Level delta:** floor items and gold (oldest normal-quality items dropped first beyond 200), grave piles, killed generated monsters (by spawn order in generation), opened chests and bookshelves, disarmed traps, the unlocked door, and visited rooms. Living monsters come back at full health where they were generated; monsters added later (boss summons, hatchlings, slime splits) are not saved.
+- **When:** at the end of the descend and death transitions, every 30 s of game time, on Save and Quit, and when the page is hidden or closed (`pagehide`, `visibilitychange`), so a reload loses nothing.
+- **Title screen:** on start-up it lists the characters, last played first. Up/Down choose, Enter continues, N starts a new character (class select, disabled at 6), Delete asks to confirm with Y. With no characters the game opens class select directly; Esc in class select goes back to the title.
+- **Game menu (Esc):** Resume, Damage Numbers on/off, Sound on/off, Save and Quit to Title. It pauses like every panel. Settings live in `localStorage['dv.settings']`, apart from characters.
 
 ---
 

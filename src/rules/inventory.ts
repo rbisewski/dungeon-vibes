@@ -36,6 +36,8 @@ export const BELT_SLOTS = 8;
 export const PACK_W = 10, PACK_H = 4;
 
 let nextUid = 1;
+/** After loading saved items: new items get uids above every loaded one. */
+export const reserveUids = (maxUsed: number): void => { nextUid = Math.max(nextUid, maxUsed + 1); };
 export const newPotion = (potion: PotionId): Item => ({ uid: nextUid++, kind: 'potion', potion });
 export const newElixir = (attr: Attr): Item => ({ uid: nextUid++, kind: 'elixir', attr });
 export const newScroll = (spell: SpellId): Item => ({ uid: nextUid++, kind: 'scroll', spell });

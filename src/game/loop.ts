@@ -1,3 +1,6 @@
+import { updateDamageNumbers } from '../ui/DamageNumbers';
+import { saveGame } from './save';
+import { captureLevel } from '../world/levelDelta';
 import { computeField } from '../world/nav';
 import { buildLevel } from '../world/level';
 import { resolveCollisions } from '../world/collisions';
@@ -45,12 +48,16 @@ function updateTransition(dt: number): void {
     fade.value = 1;
     const hero = G.hero;
     // Descending restores a fifth of max life (the legacy +2 of 10 hearts).
-    if (tr.kind === 'descend') { G.depth++; hero.life = Math.min(hero.d.maxLife, hero.life + hero.d.maxLife * .2); buildLevel(G.depth); }
+    if (tr.kind === 'descend') {
+      if (G.charId) G.levels[G.depth] = captureLevel();
+      G.depth++; hero.life = Math.min(hero.d.maxLife, hero.life + hero.d.maxLife * .2); buildLevel(G.depth);
+    }
     // SPEC §11: dying does not rebuild the level.
     else respawnHero();
   } else {
     fade.value = Math.max(0, fade.value - dt * 1.4);
-    if (fade.value <= 0) G.transition = null;
+    // saves on arriving at a new depth and after waking from death (SPEC §12.2), once the transition is over
+    if (fade.value <= 0) { G.transition = null; saveGame(); }
   }
 }
 
@@ -63,6 +70,7 @@ function step(frozen: boolean): number {
     const L = G.L;
     L.fieldT -= g;
     if (L.fieldT <= 0) { L.fieldT = 0.25; computeField(); }
+    G.saveT -= g; if (G.saveT <= 0) { G.saveT = 30; saveGame(); }
     updateHero(g); updateMonsters(g); resolveCollisions(); updateWorld(g); updateSpellFx(g); updateArrows(g); updateShots(g); updateHazards(g); updateGraves();
   }
   return g;
@@ -117,6 +125,7 @@ function frame(nowMs: number): void {
   updateCamera(dt, !!(tr && tr.built && fade.value >= 0.99));
   tickToast(dt);
   updateGroundLabels();
+  updateDamageNumbers();
   renderFrame();
 }
 

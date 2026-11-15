@@ -48,7 +48,11 @@ export function dropBelongings(): void {
   inv.belt.forEach((it, i) => { if (it) { pickups.push(spawnItem(it, x, z, false)); inv.belt[i] = null; } });
   if (h.gold > 0) { pickups.push(...spawnGold(h.gold, x, z, .5)); h.gold = 0; }
   recompute(h);
-  if (!pickups.length) return;
+  if (pickups.length) addGrave(x, z, pickups);
+}
+
+/** Marks `pickups` as a grave pile at (x, z): bone marker, beacon and light (also used when loading a save). */
+export function addGrave(x: number, z: number, pickups: Pickup[]): void {
   const { marker, beacon } = graveMarker(x, z);
   const light = { x, y: 1.4, z, base: 9, cold: true, seed: R() * 100, steady: true, d: 0 };
   G.L.lights.push(light);

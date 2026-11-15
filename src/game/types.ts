@@ -1,6 +1,7 @@
 import type * as THREE from 'three';
 import type { FamilyId, MonsterRoll } from '../rules/monsters';
 import type { BossId } from '../rules/bosses';
+import type { EliteMod } from '../rules/elites';
 import type { CharState, Derived } from '../rules/stats';
 import type { Progress } from '../rules/xp';
 import type { EquipSlot, Inventory, Item } from '../rules/inventory';
@@ -84,6 +85,8 @@ export interface Level extends Layout {
   pillars: { x: number; z: number }[]; runes: THREE.Mesh[]; moons: { x: number; z: number }[];
   disposeGeo: THREE.BufferGeometry[]; disposeInst: THREE.InstancedMesh[]; disposeMat: THREE.Material[];
   locked: boolean; fieldT: number; killsHere: number;
+  /** `genId`s of generated monsters killed on this level (dead monsters leave `monsters` once their corpse is gone). */
+  killedGen: Set<number>;
   startIdx: number;
   stairs: { tx: number; tz: number; x: number; z: number };
   lockedDoor: Door;
@@ -163,13 +166,18 @@ export interface MonsterCommon {
   slowT: number;
   /** Fallen: fleeing after a nearby death (s left). */
   fleeT: number;
-  /** Spider: web spit cooldown. */
+  /** Ranged cooldown: a spider's web spit, a Spellcaster elite's cast. */
   webCd: number;
   /** A small slime split from a larger one (does not split again). */
   small: boolean;
   /** Mini-boss state; null for everything else. */
   boss: BossState | null;
+  /** Spawn order in level generation (stable for a level seed, used by saves); -1 for monsters added later. */
+  genId: number;
+  /** Elite pack member (SPEC §8.4): the named leader or one of its escorts; null otherwise. */
+  elite: EliteInfo | null;
 }
+export interface EliteInfo { name: string; mod: EliteMod; leader: boolean; /** Spellcaster's spell. */ spell: 'firebolt' | 'lightning' }
 export type Monster = MonsterCommon & (
   | ({ type: HumanoidType } & SkeletonParts)
   | ({ type: 'rat' } & RatParts)
@@ -255,7 +263,7 @@ export interface Arrow { x: number; z: number; dx: number; dz: number; speed: nu
 export interface Grave { x: number; z: number; marker: THREE.Group; beacon: THREE.Sprite; light: LightSrc; pickups: Pickup[] }
 
 /** A monster projectile: an archer's arrow or a spider's web. `flight` (s) feeds the arrow distance penalty. */
-/** A monster projectile. Firebolts (Ember Lich) home in on the hero. */
-export interface Shot { kind: 'arrow' | 'web' | 'firebolt'; from: Monster; x: number; z: number; dx: number; dz: number; speed: number; flight: number; mesh: THREE.Object3D }
+/** A monster projectile. The Ember Lich's firebolts home in on the hero (`homing`); an elite's fly straight. */
+export interface Shot { kind: 'arrow' | 'web' | 'firebolt' | 'lightning'; from: Monster; x: number; z: number; dx: number; dz: number; speed: number; flight: number; homing: boolean; mesh: THREE.Object3D }
 /** A poison pool left by the Brood Mother's leaps: poisons the hero standing in it. */
 export interface Hazard { x: number; z: number; r: number; life: number; mesh: THREE.Mesh }

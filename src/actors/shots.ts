@@ -16,8 +16,8 @@ import { arrowPenalty, monsterMagicHit } from '../rules/monsters';
 import { circleBlocked } from '../world/nav';
 import { heroBlocks, hitHero } from './combat';
 
-const SPEED: Record<Shot['kind'], number> = { arrow: 11, web: 7, firebolt: 5 };
-const LIFE: Record<Shot['kind'], number> = { arrow: 1.6, web: 1.6, firebolt: 4 };
+const SPEED: Record<Shot['kind'], number> = { arrow: 11, web: 7, firebolt: 5, lightning: 14 };
+const LIFE: Record<Shot['kind'], number> = { arrow: 1.6, web: 1.6, firebolt: 4, lightning: 1 };
 /** Firebolt homing turn rate (rad/s): slow enough to sidestep. */
 const HOMING = 1.6;
 /** Slow applied by a web (s). */
@@ -33,14 +33,17 @@ export function fireShot(m: Monster, kind: Shot['kind'], spread = 0): void {
   } else if (kind === 'web') {
     glowSprite(0xd8d8c8, .5, o, 0, 0, 0);
     if (spread === 0) SFX.squeal('spider', .6);
-  } else {
+  } else if (kind === 'firebolt') {
     glowSprite(0xff7020, .9, o, 0, 0, 0); glowSprite(0xffe0a0, .35, o, 0, 0, 0);
     SFX.cast();
+  } else {
+    glowSprite(0x6aa0ff, .8, o, 0, 0, 0); glowSprite(0xe0f0ff, .3, o, 0, 0, 0);
+    SFX.cast();
   }
-  o.position.set(m.x + Math.sin(dir) * (m.r + .3), kind === 'arrow' ? 1.1 : kind === 'firebolt' ? 1.3 : .6, m.z + Math.cos(dir) * (m.r + .3));
+  o.position.set(m.x + Math.sin(dir) * (m.r + .3), kind === 'arrow' ? 1.1 : kind === 'web' ? .6 : 1.3, m.z + Math.cos(dir) * (m.r + .3));
   o.rotation.y = dir;
   G.L.group.add(o);
-  G.L.shots.push({ kind, from: m, x: o.position.x, z: o.position.z, dx: Math.sin(dir), dz: Math.cos(dir), speed: SPEED[kind], flight: 0, mesh: o });
+  G.L.shots.push({ kind, from: m, x: o.position.x, z: o.position.z, dx: Math.sin(dir), dz: Math.cos(dir), speed: SPEED[kind], flight: 0, homing: kind === 'firebolt' && m.boss?.id === 'lich', mesh: o });
 }
 
 function dispose(s: Shot): void {
@@ -59,11 +62,12 @@ export function updateShots(dt: number): void {
   for (let i = L.shots.length - 1; i >= 0; i--) {
     const s = L.shots[i];
     s.flight += dt;
-    if (s.kind === 'firebolt') {
+    if (s.homing) {
       const cur = Math.atan2(s.dx, s.dz), turn = Math.max(-HOMING * dt, Math.min(HOMING * dt, wrapA(Math.atan2(h.x - s.x, h.z - s.z) - cur)));
       s.dx = Math.sin(cur + turn); s.dz = Math.cos(cur + turn);
-      if (R() < .6) fxAdd.spawn(s.x, 1.3, s.z, rr(-.3, .3), rr(0, .5), rr(-.3, .3), rr(.3, .5), 1.6, .6, .2, rr(.05, .09), 2, .5, 1);
     }
+    if (s.kind === 'firebolt' && R() < .6) fxAdd.spawn(s.x, 1.3, s.z, rr(-.3, .3), rr(0, .5), rr(-.3, .3), rr(.3, .5), 1.6, .6, .2, rr(.05, .09), 2, .5, 1);
+    if (s.kind === 'lightning' && R() < .8) fxAdd.spawn(s.x, 1.3, s.z, rr(-.6, .6), rr(-.3, .6), rr(-.6, .6), rr(.15, .3), .6, .9, 1.8, rr(.04, .07), 0, .5, 1);
     s.x += s.dx * s.speed * dt; s.z += s.dz * s.speed * dt;
     s.mesh.position.x = s.x; s.mesh.position.z = s.z;
     let done = s.flight > LIFE[s.kind] || circleBlocked(s.x, s.z, .06, true);
@@ -74,10 +78,11 @@ export function updateShots(dt: number): void {
         const chance = Math.max(5, monsterHitChance(m.roll.toHit, m.roll.mlvl, clvl, h.d.ac) - arrowPenalty(s.flight));
         if (!roll(R, chance)) SFX.whiff();
         else if (!heroBlocks(m, s.dx, s.dz)) hitHero(m, s.dx, s.dz);
-      } else if (s.kind === 'firebolt') {
+      } else if (s.kind === 'firebolt' || s.kind === 'lightning') {
         if (!roll(R, monsterMagicHit(m.roll.mlvl, clvl))) SFX.whiff();
         else if (!heroBlocks(m, s.dx, s.dz)) hitHero(m, s.dx, s.dz);
-        for (let k = 0; k < 16; k++) fxAdd.spawn(s.x, 1.2, s.z, rr(-2, 2), rr(0, 2.5), rr(-2, 2), rr(.3, .6), 1.8, .7, .2, rr(.05, .1), 4, .6, 1);
+        const [r, g, b] = s.kind === 'firebolt' ? [1.8, .7, .2] : [.7, 1, 1.9];
+        for (let k = 0; k < 16; k++) fxAdd.spawn(s.x, 1.2, s.z, rr(-2, 2), rr(0, 2.5), rr(-2, 2), rr(.3, .6), r, g, b, rr(.05, .1), 4, .6, 1);
       } else if (roll(R, monsterMagicHit(m.roll.mlvl, clvl))) {
         h.slowT = WEB_SLOW;
         for (let k = 0; k < 14; k++) fxNorm.spawn(h.x + rr(-.3, .3), rr(.2, 1.2), h.z + rr(-.3, .3), rr(-.5, .5), rr(-.2, .4), rr(-.5, .5), rr(.8, 1.4), .8, .8, .75, rr(.05, .09), 1, 1.5, 0);

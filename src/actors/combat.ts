@@ -1,3 +1,4 @@
+import { addDamageNumber } from '../ui/DamageNumbers';
 import { SFX, vol } from '../audio/sfx';
 import { PI, R, pick, ri, rr } from '../core/math';
 import { G, addShake } from '../game/state';
@@ -8,6 +9,7 @@ import { CLASS } from '../rules/classes';
 import { blockChance, monsterHitChance, roll, staggers } from '../rules/combat';
 import { monsterDrops, rollBookSpell, rollItem } from '../rules/loot';
 import { bossDrops } from '../rules/bosses';
+import { eliteDrops } from '../rules/elites';
 import { newBook } from '../rules/inventory';
 import { spawnDrops, spawnGold, spawnItem } from '../world/groundItems';
 import { toast } from '../ui/store';
@@ -30,6 +32,7 @@ export function damageHero(dmg: number, nx: number, nz: number): void {
     if (!dmg) { h.invuln = .5; SFX.block(); return; }
   }
   h.life -= dmg; h.invuln = .5; h.flash = .2; h.kx += nx * 5; h.kz += nz * 5; addShake(.35);
+  addDamageNumber(h.x, 2, h.z, dmg, 'taken');
   // Chip damage below 5 % of max life does not interrupt the hero.
   if (dmg >= .05 * h.d.maxLife) h.flinch = CLASS[h.stats.cls].recover;
   SFX.hurt();
@@ -74,6 +77,11 @@ export function hitHero(m: Monster, nx: number, nz: number): void {
   if (m.type === 'spider' && r.tier >= 2) { h.poisonT = 3; toast('POISONED'); }
   // Black Death: every hit costs 1 max life for good (D1).
   if (m.type === 'zombie' && r.tier >= 3) { h.lifeDrain++; recompute(h); }
+  // Vampiric elites heal by the life they take (SPEC §8.4).
+  if (m.elite?.mod === 'vampiric' && !m.dead) {
+    m.hp = Math.min(m.maxHp, m.hp + (before - Math.max(0, h.life)));
+    for (let k = 0; k < 10; k++) fxAdd.spawn(m.x + rr(-.3, .3), rr(.6, 1.6), m.z + rr(-.3, .3), 0, rr(.5, 1.2), 0, rr(.4, .7), 1.6, .15, .2, rr(.04, .07), -.5, .5, 1);
+  }
 }
 
 /** A monster's blow lands on the hero's position: roll to-hit against AC, then the shield block, then damage. */
@@ -104,6 +112,7 @@ export function damageMonster(m: Monster, dmg: number, nx: number, nz: number, b
   const warded = m.boss?.id === 'lich' && m.boss.vulnT <= 0;
   if (warded) dmg = Math.max(1, Math.round(dmg * LICH_WARDED));
   m.hp -= dmg; m.flash = .14; m.aware = true;
+  if (byHero) addDamageNumber(m.x, m.boss ? 3.2 : 1.6, m.z, dmg, crit ? 'crit' : warded ? 'warded' : 'dealt');
   const kb = (m.boss ? 1.2 : 7 / m.mass) * (crit ? 1.6 : 1); m.kx += nx * kb; m.kz += nz * kb;
   if (staggers(dmg, m.roll.mlvl) && (!m.boss || m.staggerT <= 0)) {
     m.state = 'stun'; m.t = .3;
@@ -121,6 +130,7 @@ export function damageMonster(m: Monster, dmg: number, nx: number, nz: number, b
 const BONE_GEOS = () => [gCyl(.035, .03, .34, 5), gCyl(.03, .025, .28, 5), gBox(.28, .035, .18), gBox(.26, .08, .12), gSph(.13, 8, 6)];
 function killMonster(m: Monster, nx: number, nz: number, byHero: boolean): void {
   m.dead = true; m.deadT = 0; G.hero.slain++; G.L.killsHere++;
+  if (m.genId >= 0) G.L.killedGen.add(m.genId);
   if (byHero) awardKill(m);
   SFX.death(m.type, vol(m.x, m.z)); addShake(m.boss ? .8 : .25);
   if (m.type === 'skeleton' || m.type === 'archer' || m.type === 'warden' || m.type === 'lich') {
@@ -143,6 +153,7 @@ function killMonster(m: Monster, nx: number, nz: number, byHero: boolean): void 
   }
   // Bosses drop their guaranteed set; bats never drop items (D1), gold is still possible; egg sacs drop nothing.
   if (m.boss) spawnDrops(bossDrops(R, m.boss.id, m.roll.mlvl, G.L.depth, G.loot), m.x, m.z);
+  else if (m.elite?.leader) spawnDrops(eliteDrops(R, m.roll.mlvl, G.L.depth, G.loot), m.x, m.z);
   else if (m.type !== 'eggsac') spawnDrops(monsterDrops(R, m.roll.mlvl, G.L.depth, G.loot, m.type === 'bat'), m.x, m.z);
   // Fallen nearby flee for a moment (D1).
   for (const o of G.L.monsters) if (o.type === 'fallen' && !o.dead && o !== m && Math.hypot(o.x - m.x, o.z - m.z) < 6) o.fleeT = rr(1.5, 3);

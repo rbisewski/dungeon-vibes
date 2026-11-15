@@ -16,6 +16,10 @@ import { useSkill } from '../actors/skills';
 import { GroundLabels } from './GroundLabels';
 import { ClassSelect } from './ClassSelect';
 import { menuStep } from '../game/classSelect';
+import { titleOpen } from '../game/title';
+import { TitleScreen } from './TitleScreen';
+import { GameMenu } from './GameMenu';
+import { DamageNumbers } from './DamageNumbers';
 
 function Pix({ img, scale = 3, style }: { img: PixImage; scale?: number; style?: Record<string, string> }) {
   return <img src={img.src} width={img.w * scale} height={img.h * scale} style={style} alt="" />;
@@ -158,10 +162,12 @@ function SoundPrompt() {
 }
 
 export function Hud() {
+  if (titleOpen.value) return (<><Fade /><TitleScreen /><SoundPrompt /></>);
   if (menuStep.value) return (<><Fade /><ClassSelect /><SoundPrompt /></>);
   return (
     <>
       <GroundLabels />
+      <DamageNumbers />
       <Stats />
       <Mode />
       <Toast />
@@ -172,6 +178,7 @@ export function Hud() {
       {isOpen('char') && <CharacterPanel />}
       {isOpen('inv') && <InventoryPanel />}
       {isOpen('book') && <SpellbookPanel />}
+      {isOpen('menu') && <GameMenu />}
       {openPanels.value.length > 0 && <div id="paused" class="px">PAUSED</div>}
       <Fade />
       <SoundPrompt />
