@@ -18,7 +18,7 @@ import { fade, tickToast } from '../ui/store';
 import { syncHud } from '../ui/syncHud';
 import { updateGroundLabels } from '../ui/GroundLabels';
 import { G } from './state';
-import { ensureHealingPotion } from '../actors/heroStats';
+import { respawnHero, updateGraves } from './death';
 
 /** Simulation step: the world always advances in 1/60 s increments. */
 export const STEP = 1 / 60;
@@ -42,10 +42,10 @@ function updateTransition(dt: number): void {
     tr.built = true;
     fade.value = 1;
     const hero = G.hero;
-    // Descending restores a fifth of max life (the legacy +2 of 10 hearts); dying restores everything.
-    if (tr.kind === 'descend') { G.depth++; hero.life = Math.min(hero.d.maxLife, hero.life + hero.d.maxLife * .2); }
-    else { hero.life = hero.d.maxLife; hero.mana = hero.d.maxMana; ensureHealingPotion(hero); }
-    buildLevel(G.depth);
+    // Descending restores a fifth of max life (the legacy +2 of 10 hearts).
+    if (tr.kind === 'descend') { G.depth++; hero.life = Math.min(hero.d.maxLife, hero.life + hero.d.maxLife * .2); buildLevel(G.depth); }
+    // SPEC §11: dying does not rebuild the level.
+    else respawnHero();
   } else {
     fade.value = Math.max(0, fade.value - dt * 1.4);
     if (fade.value <= 0) G.transition = null;
@@ -61,7 +61,7 @@ function step(frozen: boolean): number {
     const L = G.L;
     L.fieldT -= g;
     if (L.fieldT <= 0) { L.fieldT = 0.25; computeField(); }
-    updateHero(g); updateMonsters(g); resolveCollisions(); updateWorld(g); updateSpellFx(g); updateArrows(g);
+    updateHero(g); updateMonsters(g); resolveCollisions(); updateWorld(g); updateSpellFx(g); updateArrows(g); updateGraves();
   }
   return g;
 }

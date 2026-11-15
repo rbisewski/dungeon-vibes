@@ -5,7 +5,8 @@ import { PI, R, TAU, rr } from '../core/math';
 import { G } from '../game/state';
 import { gCyl, glowSprite, gSph, mesh } from '../render/geometry';
 import { MAT, POTION_MAT } from '../render/materials';
-import { addItem, quality, type Item, type Quality } from '../rules/inventory';
+import { addItem, fitsSlot, meetsReq, quality, type EquipSlot, type Item, type Quality } from '../rules/inventory';
+import { recompute } from '../actors/heroStats';
 import type { LightSrc, Pickup } from '../game/types';
 import { SFX } from '../audio/sfx';
 import { fxAdd } from '../render/particles';
@@ -17,25 +18,30 @@ import { POTIONS } from '../rules/potions';
 /** Ground sprite size per backpack cell, in world units. */
 const SPRITE_PER_CELL = .36;
 
-function toss(p: { kind: 'coin'; amount: number } | { kind: 'item'; item: Item; discarded: boolean }, o: THREE.Object3D, x: number, z: number, speed = 1): void {
+type PickupKind = { kind: 'coin'; amount: number } | { kind: 'item'; item: Item; discarded: boolean; slot?: EquipSlot };
+
+function toss(p: PickupKind, o: THREE.Object3D, x: number, z: number, speed = 1): Pickup {
   const a = R() * TAU, s = rr(.8, 2.4) * speed;
   o.position.set(x, .5, z);
   G.L.group.add(o);
   // Uniques borrow a pooled warm light so they show in the dark (SPEC §10.4).
   const light: LightSrc | undefined = p.kind === 'item' && quality(p.item) === 'unique' ? { x, y: .8, z, base: 6, cold: false, seed: R() * 100, steady: true, d: 0 } : undefined;
   if (light) G.L.lights.push(light);
-  G.L.pickups.push({ ...p, o, x, z, y: .5, vx: Math.cos(a) * s, vz: Math.sin(a) * s, vy: rr(2.5, 4.5), t: 0, light });
+  const pickup: Pickup = { ...p, o, x, z, y: .5, vx: Math.cos(a) * s, vz: Math.sin(a) * s, vy: rr(2.5, 4.5), t: 0, light };
+  G.L.pickups.push(pickup);
+  return pickup;
 }
 
-/** A gold pile: up to 6 coins share the amount. */
-export function spawnGold(amount: number, x: number, z: number): void {
-  const n = Math.min(6, Math.max(1, Math.ceil(amount / 10)));
+/** A gold pile: up to 6 coins share the amount. Returns the coins. */
+export function spawnGold(amount: number, x: number, z: number, speed = 1): Pickup[] {
+  const n = Math.min(6, Math.max(1, Math.ceil(amount / 10))), out: Pickup[] = [];
   for (let k = 0; k < n; k++) {
     const share = Math.floor(amount / n) + (k < amount % n ? 1 : 0);
     if (share <= 0) continue;
     const o = mesh(gCyl(.11, .11, .035, 10), MAT.gold, 0, 0, 0, null, false); o.rotation.x = PI / 2;
-    toss({ kind: 'coin', amount: share }, o, x, z);
+    out.push(toss({ kind: 'coin', amount: share }, o, x, z, speed));
   }
+  return out;
 }
 
 const spriteMats = new Map<HTMLCanvasElement, THREE.SpriteMaterial>();
@@ -76,8 +82,8 @@ function itemObject(it: Item): THREE.Object3D {
 }
 
 /** Puts an item on the floor at (x, z). `discarded` marks items the player dropped (picked up only with E). */
-export function spawnItem(it: Item, x: number, z: number, discarded = false): void {
-  toss({ kind: 'item', item: it, discarded }, itemObject(it), x, z, discarded ? .4 : 1);
+export function spawnItem(it: Item, x: number, z: number, discarded = false, slot?: EquipSlot): Pickup {
+  return toss({ kind: 'item', item: it, discarded, slot }, itemObject(it), x, z, discarded || slot ? .4 : 1);
 }
 
 export function spawnDrops(drops: Drop[], x: number, z: number): void {
@@ -94,8 +100,14 @@ export function collect(p: Pickup): boolean {
     h.gold += p.amount; SFX.coin();
     for (let k = 0; k < 6; k++) fxAdd.spawn(p.x, p.y + .2, p.z, rr(-.6, .6), rr(1, 2), rr(-.6, .6), rr(.3, .5), 1.6, 1.2, .4, .045, 3, 1, 1);
   } else {
-    if (!addItem(h.inv, p.item)) return false;
-    if (p.item.kind === 'potion') SFX.potion(); else SFX.pickup();
+    // Gear recovered from the hero's own grave goes back into the slot it was worn in, if that slot is free and the
+    // hero can use it [OURS, SPEC §11]; anything else follows the normal belt/backpack rules.
+    const it = p.item, slot = p.slot;
+    if (slot && it.kind === 'equip' && !h.inv.equip[slot] && fitsSlot(it, slot) && meetsReq(it, h.d.attr)) {
+      h.inv.equip[slot] = it;
+      recompute(h);
+    } else if (!addItem(h.inv, it)) return false;
+    if (it.kind === 'potion') SFX.potion(); else SFX.pickup();
   }
   G.L.group.remove(p.o);
   G.L.pickups.splice(G.L.pickups.indexOf(p), 1);

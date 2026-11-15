@@ -22,4 +22,4 @@ startLoop();
 openClassSelect();
 
 // Dev-only handle for inspecting live state from the browser console.
-if (import.meta.env.DEV) Object.assign(window, { G, renderer, simulate });
+if (import.meta.env.DEV) Object.assign(window, { G, renderer, simulate, buildLevel });

@@ -15,6 +15,8 @@ export const G = {
   transition: null as Transition | null,
   /** True while a UI panel is open: the world does not advance. */
   paused: false,
+  /** Seed of this run; each level's seed derives from it (SPEC §12.1). */
+  runSeed: (Math.random() * 2 ** 32) >>> 0,
   /** A full-screen menu (class select) owns the input; the HUD is hidden. */
   inMenu: false,
   /** Run-wide loot state (uniques already generated). */

@@ -34,8 +34,8 @@ export const NO_BONUS: Readonly<Bonus> = {
 };
 
 export interface Weapon { kind: WeaponKind; min: number; max: number }
-/** Bare hands. */
-export const FISTS: Readonly<Weapon> = { kind: 'bare', min: 1, max: 1 };
+/** Bare hands: 1–2 plus character damage (SPEC §11). */
+export const FISTS: Readonly<Weapon> = { kind: 'bare', min: 1, max: 2 };
 
 export interface CharState {
   cls: ClassId;

@@ -63,12 +63,21 @@ function setGoal(goal: Goal): void {
   if (h.goalKey !== key) { h.goalKey = key; h.goalT = 0; h.path = null; }
   h.goal = goal;
 }
-/** Priority: nearby monster > pickup > locked door (if key and most rooms seen) > nearest chest/unvisited room > door > stairs > wander. */
+/**
+ * Priority: own grave (SPEC §14, fending off only monsters right next to the hero) > nearby monster > pickup >
+ * locked door (if key and most rooms seen) > nearest chest/unvisited room > door > stairs > wander.
+ */
 function chooseGoal(): void {
   const h = G.hero, L = G.L;
+  let grave: Pickup | null = null, gd = 1e9;
+  for (const g of L.graves) for (const p of g.pickups) {
+    if (p.t < .6 || !canCollect(h, p) || unreachable.has(p)) continue;
+    const fd = fieldAt(p.x, p.z); if (fd < gd) { gd = fd; grave = p; }
+  }
   let best: Monster | null = null, bd = 1e9;
-  for (const m of L.monsters) { if (m.dead || m.rise > 0 || m.ignoreT > 0) continue; const fd = fieldAt(m.x, m.z); if (fd > (m.aware ? 11 : 8)) continue; const s = fd - (m.aware ? 3 : 0); if (s < bd) { bd = s; best = m; } }
+  for (const m of L.monsters) { if (m.dead || m.rise > 0 || m.ignoreT > 0) continue; const fd = fieldAt(m.x, m.z); if (fd > (grave ? 2.5 : m.aware ? 11 : 8)) continue; const s = fd - (m.aware ? 3 : 0); if (s < bd) { bd = s; best = m; } }
   if (best) return setGoal({ kind: 'mon', ref: best, tx: Math.round(best.x / T), tz: Math.round(best.z / T) });
+  if (grave) return setGoal({ kind: 'pick', ref: grave, tx: Math.round(grave.x / T), tz: Math.round(grave.z / T) });
   let pk: Pickup | null = null; bd = 7;
   for (const p of L.pickups) { if (p.t < .6 || !canCollect(h, p) || unreachable.has(p)) continue; const fd = fieldAt(p.x, p.z); if (fd < bd) { bd = fd; pk = p; } }
   if (pk) return setGoal({ kind: 'pick', ref: pk, tx: Math.round(pk.x / T), tz: Math.round(pk.z / T) });

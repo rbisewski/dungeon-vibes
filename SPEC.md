@@ -1,6 +1,6 @@
 # Dungeon Vibes — Diablo-Style Progression Spec
 
-Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phases 0–6.
+Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phases 0–7.
 
 This spec layers a Diablo 1 (D1) style character, spell, and loot system onto the existing game. The game is first ported from the single `index.html` to a TypeScript project (§2.1). It keeps the game's look, controls, and AUTO mode.
 
@@ -1126,6 +1126,14 @@ The target behaviour, once the town exists:
 - Without a weapon, the hero deals `1–2 + Str·clvl/100` damage.
 - The sword mesh is hidden.
 
+**As implemented in Phase 7** [OURS unless noted]
+- Belongings drop the moment the hero dies (during the death animation), gear tagged with the slot it was worn in. Gold is split over up to six coins.
+- The marker is a small bone pile with a pulsing blue beacon drawn over walls, plus a cold pooled light. It disappears, with `BELONGINGS RECOVERED`, once every pickup from that pile is gone.
+- Recovered gear goes back into its old slot whenever that slot is free and the hero meets its requirements; otherwise it follows the normal belt/backpack rules.
+- The old "free Potion of Healing after death" stopgap is removed.
+- Spells and arrows in flight vanish on respawn.
+- **AUTO** goes for its own grave before anything else, fighting only monsters within 2.5 m of its path. Items it cannot carry (full backpack) or reach stay behind. On the stairs, AUTO descends after 2 s even when warned; the player must step off and on again.
+
 **Leaving the level** (taking the stairs down) with piles still on the floor:
 - The level's delta is saved with the piles on it (Q7, §12.2). They stay where they are.
 - There is no way back up until up-stairs and the town exist (§13). So a confirmation toast warns before descending: `YOUR BELONGINGS REMAIN ABOVE — PRESS AGAIN TO DESCEND`.
@@ -1140,6 +1148,7 @@ The target behaviour, once the town exists:
 - `generateLayout`, `decorate`, and the monster spawns draw from a seeded PRNG (`mulberry32`) instead of `Math.random`.
 - Combat and loot rolls use the separate session-seeded `rollRng` (§2.1), so they don't disturb the layout sequence.
 - This is required for saving mid-level. It is also required for the planned town, because leaving a level and coming back must rebuild the same layout.
+- **As implemented in Phase 7:** `G.runSeed` is drawn once per page load; each level's seed is `deriveSeed(runSeed, depth)` (a 32-bit hash). `buildLevel` runs generation (layout, decoration, floor and wall detail, monster spawns including their HP rolls) inside `withRng(mulberry32(seed))`; everything else draws from a session roll stream. Rebuilding a depth in the same run gives the identical level (tested in `tests/world/layout.test.ts` and in the browser).
 
 ### 12.2 Save file
 

@@ -239,6 +239,11 @@ export function unpetrify(m: Monster): void {
 
 /* ---------- live effects ---------- */
 
+/** Removes every live spell effect (respawn). */
+export function clearSpellFx(): void {
+  for (let i = G.L.spellFx.length - 1; i >= 0; i--) removeFx(i);
+}
+
 function removeFx(i: number): void {
   const f = G.L.spellFx[i];
   if (f.kind !== 'jet') { G.L.group.remove(f.sprite); f.sprite.material.dispose(); }

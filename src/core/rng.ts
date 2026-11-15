@@ -13,5 +13,13 @@ export function mulberry32(seed: number): Rng {
   };
 }
 
+/** A well-mixed 32-bit seed for item `n` of a family (e.g. one level of a run). */
+export function deriveSeed(seed: number, n: number): number {
+  let h = (seed ^ Math.imul(n + 1, 0x9e3779b1)) >>> 0;
+  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
 /** Integer in [a, b] inclusive. */
 export const rngInt = (rng: Rng, a: number, b: number): number => Math.floor(a + (b - a + 1) * rng());

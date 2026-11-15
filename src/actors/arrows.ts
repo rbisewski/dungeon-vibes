@@ -40,6 +40,12 @@ export function fireArrow(h: Hero, dir: number): void {
   SFX.bow();
 }
 
+/** Removes every arrow in flight (respawn). */
+export function clearArrows(): void {
+  for (const a of G.L.arrows) G.L.group.remove(a.mesh);
+  G.L.arrows.length = 0;
+}
+
 /**
  * Moves arrows; each strikes the first monster it reaches. A miss lets the arrow fly on (D1). D1's distance penalty
  * counts flight time in 1/20 s ticks.

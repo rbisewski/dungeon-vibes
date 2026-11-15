@@ -2,7 +2,7 @@ import type * as THREE from 'three';
 import type { MonsterRoll } from '../rules/monsters';
 import type { CharState, Derived } from '../rules/stats';
 import type { Progress } from '../rules/xp';
-import type { Inventory, Item } from '../rules/inventory';
+import type { EquipSlot, Inventory, Item } from '../rules/inventory';
 import type { SpellId } from '../rules/spells';
 import type { WeaponKind } from '../rules/classes';
 
@@ -52,7 +52,7 @@ interface PickupBody {
  * Something lying on the floor. `discarded` items were dropped by the player: they are only picked up again with `E`,
  * never by walking over them or by AUTO.
  */
-export type Pickup = PickupBody & ({ kind: 'coin'; amount: number } | { kind: 'item'; item: Item; discarded: boolean });
+export type Pickup = PickupBody & ({ kind: 'coin'; amount: number } | { kind: 'item'; item: Item; discarded: boolean; /** Equipment slot it was worn in when the hero died (SPEC §11). */ slot?: EquipSlot });
 export interface Debris { o: THREE.Mesh; vx: number; vy: number; vz: number; sx: number; sz: number; t: number; life: number; rest: boolean }
 export interface Decal { o: THREE.Mesh; t: number }
 
@@ -67,6 +67,10 @@ export interface Level extends Layout {
   /** Live spell effects: missiles, flame jets and fire walls. */
   spellFx: SpellFx[];
   arrows: Arrow[];
+  /** Death piles still on this level (SPEC §11). */
+  graves: Grave[];
+  /** The descend warning about remaining graves has been shown on this level. */
+  descendWarned: boolean;
   debris: Debris[]; decals: Decal[]; lights: LightSrc[]; flames: FlameSpec[];
   pillars: { x: number; z: number }[]; runes: THREE.Mesh[]; moons: { x: number; z: number }[];
   disposeGeo: THREE.BufferGeometry[]; disposeInst: THREE.InstancedMesh[]; disposeMat: THREE.Material[];
@@ -179,6 +183,9 @@ export interface Hero extends HeroParts {
   skillCd: number;
   /** Weapon kind whose mesh the hero holds (the equipped weapon, usable or not). */
   heldKind: WeaponKind;
+  /** Standing on the stairs last step, and for how long (AUTO descends after a warning). */
+  onStairs: boolean;
+  stairsT: number;
 }
 
 export type Actor = Hero | Monster;
@@ -198,3 +205,6 @@ export type SpellFx = Missile | Jet | WallFlame;
 
 /** A flying arrow (hero bows; monster archers later). `flight` counts seconds for the D1 distance penalty. */
 export interface Arrow { x: number; z: number; dx: number; dz: number; speed: number; flight: number; mesh: THREE.Object3D; passed: Set<Monster> }
+
+/** Where the hero died: a bone-pile marker with a beacon, and the pickups that fell there. */
+export interface Grave { x: number; z: number; marker: THREE.Group; beacon: THREE.Sprite; light: LightSrc; pickups: Pickup[] }

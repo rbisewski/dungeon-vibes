@@ -7,8 +7,8 @@ import { CLASS, KITS, type Attr, type ClassId } from '../rules/classes';
 import { base } from '../rules/bases';
 import { setHeldWeapon } from './models/heroModel';
 import { gear } from '../rules/gear';
-import { addItem, countPotions, newEquip, newInventory, newPotion, putInGrid, takeFromBelt, type Inventory } from '../rules/inventory';
-import { POTIONS, potionEffect, type PotionId } from '../rules/potions';
+import { addItem, newEquip, newInventory, newPotion, putInGrid, takeFromBelt, type Inventory } from '../rules/inventory';
+import { potionEffect, type PotionId } from '../rules/potions';
 import { derive, spendPoint } from '../rules/stats';
 import { gainXp, killXp } from '../rules/xp';
 import { toast } from '../ui/store';
@@ -97,9 +97,4 @@ export function drinkElixir(a: Attr): boolean {
   recompute(h);
   SFX.levelUp();
   return true;
-}
-
-/** Gives the hero a Potion of Healing if they carry no life potion at all (used after death, until Phase 7). */
-export function ensureHealingPotion(h: Hero): void {
-  if (countPotions(h.inv, p => POTIONS[p].life !== 'none') === 0) addItem(h.inv, newPotion('heal'));
 }

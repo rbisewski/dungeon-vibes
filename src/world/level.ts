@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { monsterTypeFor, spawnMonster } from '../actors/monsters';
-import { pick, rr } from '../core/math';
+import { pick, rr, withRng } from '../core/math';
+import { deriveSeed, mulberry32 } from '../core/rng';
 import { G } from '../game/state';
 import type { Level, Monster, MonsterType } from '../game/types';
 import { mergeBuckets, resetBuckets } from '../render/buckets';
@@ -31,9 +32,33 @@ function disposeLevel(L: Level): void {
   L.debris.length = 0; fxAdd.clear(); fxNorm.clear();
 }
 
-/** Replaces the current level with a freshly generated one at `depth` and places the hero and monsters. */
+/** Seed of the level at `depth` in this run (SPEC §12.1). */
+export const levelSeed = (depth: number): number => deriveSeed(G.runSeed, depth);
+
+/** Puts the hero at the start room's centre, standing and ready (new level or respawn). */
+export function placeHeroAtStart(): void {
+  const L = G.L, hero = G.hero;
+  hero.x = L.startRoom.cx * T; hero.z = L.startRoom.cy * T; hero.vx = hero.vz = hero.kx = hero.kz = 0;
+  hero.path = null; hero.goal = null; hero.dead = false; hero.descend = 0; hero.atkT = -1; hero.drink = 0; hero.flinch = 0;
+  // D1: Mana Shield ends when the level changes.
+  hero.cast = null; hero.manaShield = false;
+  hero.root.position.set(hero.x, 0, hero.z); hero.body.rotation.set(0, 0, 0); hero.body.position.set(0, 0, 0);
+  hero.root.visible = true;
+  camTarget.set(hero.x, 0, hero.z);
+  computeField();
+}
+
+/**
+ * Replaces the current level with the run's level at `depth`, places the hero and spawns the monsters. Everything
+ * generated here draws from the level's seeded stream, so the same run and depth always give the same level.
+ */
 export function buildLevel(depth: number): void {
   if (G.L) disposeLevel(G.L);
+  withRng(mulberry32(levelSeed(depth)), () => generate(depth));
+  toast(`DEPTH ${depth}`, depth % 3 === 0 ? 'A WARDEN GUARDS THE STAIRS' : depth === 1 ? 'THE DESCENT BEGINS' : 'DEEPER INTO THE DARK');
+}
+
+function generate(depth: number): void {
   resetBuckets();
   const lay = generateLayout();
   const group = new THREE.Group();
@@ -42,7 +67,7 @@ export function buildLevel(depth: number): void {
   const L: Level = {
     ...lay, depth, group,
     navBlock: new Uint8Array(lay.N), trap: new Int16Array(lay.N).fill(-1), propAt: new Array(lay.N).fill(null), dist: new Float64Array(lay.N),
-    traps: [], doors: [], chests: [], monsters: [], pickups: [], spellFx: [], arrows: [], debris: [], decals: [], lights: [], flames: [], pillars: [], runes: [], moons: [],
+    traps: [], doors: [], chests: [], monsters: [], pickups: [], spellFx: [], arrows: [], graves: [], descendWarned: false, debris: [], decals: [], lights: [], flames: [], pillars: [], runes: [], moons: [],
     disposeGeo: [], disposeInst: [], disposeMat: [], locked: true, fieldT: 0, quietT: 0, killsHere: 0, risen: 0,
     startIdx: lay.startRoom.cy * lay.W + lay.startRoom.cx,
     stairs: { tx: sr.cx, tz: sr.cy, x: sr.cx * T, z: sr.cy * T },
@@ -56,15 +81,8 @@ export function buildLevel(depth: number): void {
   buildFloor(tint); buildWalls(tint); mergeBuckets();
   L.flameMesh = makeFlames(L.flames); L.group.add(L.flameMesh);
   ambient.intensity = Math.max(1.6, 2.2 - depth * .03);
-  // hero placement
-  const hero = G.hero;
-  hero.x = L.startRoom.cx * T; hero.z = L.startRoom.cy * T; hero.vx = hero.vz = hero.kx = hero.kz = 0; hero.key = false;
-  hero.path = null; hero.goal = null; hero.dead = false; hero.descend = 0;
-  // D1: Mana Shield ends when the level changes.
-  hero.cast = null; hero.manaShield = false;
-  hero.root.position.set(hero.x, 0, hero.z); hero.body.rotation.set(0, 0, 0); hero.body.position.set(0, 0, 0);
-  hero.root.visible = true;
-  computeField();
+  G.hero.key = false;
+  placeHeroAtStart();
   // monsters
   const occupied = new Set([L.startIdx]);
   const placeIn = (cands: [number, number][], type: MonsterType): Monster | null => {
@@ -94,6 +112,4 @@ export function buildLevel(depth: number): void {
   for (let z = 0; z < L.H; z++) for (let x = 0; x < L.W; x++) if (L.tiles[z * L.W + x] === 2) corr.push([x, z]);
   const nc = Math.floor(corr.length / 7);
   for (let k = 0; k < nc; k++) placeIn(corr, monsterTypeFor(depth));
-  camTarget.set(hero.x, 0, hero.z);
-  toast(`DEPTH ${depth}`, depth % 3 === 0 ? 'A WARDEN GUARDS THE STAIRS' : depth === 1 ? 'THE DESCENT BEGINS' : 'DEEPER INTO THE DARK');
 }

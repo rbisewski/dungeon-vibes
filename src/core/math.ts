@@ -1,5 +1,20 @@
-/** Cosmetic and (for now) gameplay randomness. Level and roll streams move to seeded `Rng`s in later phases. */
-export const R: () => number = Math.random;
+import { mulberry32, type Rng } from './rng';
+
+/**
+ * Gameplay randomness (SPEC §2.1, §12.1). By default `R` draws from the session's roll stream (combat, loot, AI,
+ * effects); `withRng` swaps in a level's seeded stream while that level is generated, so the same seed always builds
+ * the same layout, props and monsters.
+ */
+const rollRng: Rng = mulberry32((Math.random() * 2 ** 32) >>> 0);
+let current: Rng = rollRng;
+export const R = (): number => current();
+
+/** Runs `fn` with `R` (and `rr`, `ri`, `pick`) drawing from `rng`. */
+export function withRng<T>(rng: Rng, fn: () => T): T {
+  const prev = current;
+  current = rng;
+  try { return fn(); } finally { current = prev; }
+}
 export const PI = Math.PI, TAU = PI * 2;
 
 export const rr = (a: number, b: number): number => a + (b - a) * R();

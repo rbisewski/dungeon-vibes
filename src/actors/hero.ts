@@ -13,6 +13,8 @@ import { POTIONS } from '../rules/potions';
 import { SFX } from '../audio/sfx';
 import { manualActive, readInput, takeBeltPresses, takeCast, takeSkill } from '../core/input';
 import { autoSkillWanted, useSkill } from './skills';
+import { dropBelongings } from '../game/death';
+import { toast } from '../ui/store';
 import { PI, R, clamp, damp, lerp, wrapA } from '../core/math';
 import { G, addShake } from '../game/state';
 import { trailMat } from '../render/materials';
@@ -35,7 +37,7 @@ export function createHero(cls: ClassId, name: string): Hero {
     dead: false, deadT: 0, descend: 0,
     stuckT: 0, stuck: 0, sx: 0, sz: 0, unstickT: 0, ux: 0, uz: 0, killsAtGoal: 0, waitTrap: false,
     spells: Object.fromEntries(kit.spells), readied: kit.spells[0]?.[0] ?? null, hotkeys: [null, null, null, null], cast: null, manaShield: false,
-    shieldFx: null as unknown as THREE.Sprite, name, skillCd: 0, heldKind: 'bare',
+    shieldFx: null as unknown as THREE.Sprite, name, skillCd: 0, heldKind: 'bare', onStairs: false, stairsT: 0,
   };
   h.shieldFx = glowSprite(0x4a7aff, 2.4, h.root, 0, 1, 0);
   h.shieldFx.visible = false;
@@ -73,6 +75,7 @@ export function updateHero(dt: number): void {
   const fl = Math.max(0, h.flash) / .2;
   for (const m of h.flashMats) m.emissive.setRGB(fl * 1.2, fl * .15, fl * .1);
   if (h.dead) {
+    if (h.deadT === 0) dropBelongings();
     h.deadT += dt; h.body.rotation.x = damp(h.body.rotation.x, -PI / 2, 8, dt); h.body.position.y = damp(h.body.position.y, .15, 8, dt);
     h.trail.visible = false;
     if (h.deadT > 2.4 && !G.transition) { G.transition = { t: 0, kind: 'death' }; }
@@ -140,7 +143,14 @@ export function updateHero(dt: number): void {
   // interactions
   for (const c of G.L.chests) if (!c.open && Math.hypot(c.x - h.x, c.z - h.z) < 1.5) openChest(c);
   if (G.L.locked && h.key && Math.hypot(G.L.lockedDoor.x - h.x, G.L.lockedDoor.z - h.z) < 2.2) unlockDoor();
-  if (!G.L.locked && Math.abs(h.x - G.L.stairs.x) < .85 && Math.abs(h.z - G.L.stairs.z) < .85) { h.descend = .001; SFX.descend(); G.transition = { t: 0, kind: 'descend' }; }
+  // Stairs (SPEC §11): with a grave still on this level, the first step onto the stairs only warns; stepping on again
+  // descends. AUTO, which nobody needs to warn, goes down after standing on the stairs for 2 s.
+  const onStairs = !G.L.locked && Math.abs(h.x - G.L.stairs.x) < .85 && Math.abs(h.z - G.L.stairs.z) < .85;
+  if (onStairs && !h.onStairs && G.L.graves.length && !G.L.descendWarned) {
+    G.L.descendWarned = true; h.stairsT = 0;
+    toast('YOUR BELONGINGS REMAIN HERE', 'STEP ON THE STAIRS AGAIN TO DESCEND');
+  } else if (onStairs && (!h.onStairs || (!manual && (h.stairsT += dt) > 2))) { h.descend = .001; SFX.descend(); G.transition = { t: 0, kind: 'descend' }; }
+  h.onStairs = onStairs;
   const rid = G.L.roomId[clamp(Math.round(h.z / T), 0, G.L.H - 1) * G.L.W + clamp(Math.round(h.x / T), 0, G.L.W - 1)]; if (rid >= 0) G.L.rooms[rid].visited = true;
 }
 function walkAnim(dt: number, spd: number): void {
