@@ -1,6 +1,6 @@
 # Dungeon Vibes — Diablo-Style Progression Spec
 
-Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phases 0–7.
+Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phases 0–8.
 
 This spec layers a Diablo 1 (D1) style character, spell, and loot system onto the existing game. The game is first ported from the single `index.html` to a TypeScript project (§2.1). It keeps the game's look, controls, and AUTO mode.
 
@@ -890,8 +890,9 @@ subtype   = min(3, floor((depth − family.minDepth) / 4))   // +15 % hp/dmg per
 
 ### 8.2 Level composition
 
-- Each depth picks **3 families** from those allowed at that depth, weighted. This mirrors D1's limit on families per level, and replaces `monsterTypeFor` (L1136).
+- Each depth picks **3 families** from those allowed at that depth. This mirrors D1's limit on families per level, and replaces `monsterTypeFor` (L1136).
 - Spawn counts stay as they are (L1222, L1227).
+- **As implemented in Phase 8** [OURS]: the three are picked uniformly (no weights) inside the level's seeded stream. When fewer than three families qualify (very deep), the families whose depth range ended most recently fill in. Each spawn picks uniformly among the level's three. The start room holds one monster of the level's first family, never a pack. A Fallen placement brings 2–4 more Fallen around it (packs of 3–5), on top of the usual counts. "Rise from the dark" spawns also use the level's families.
 
 ### 8.3 Family table
 
@@ -900,15 +901,36 @@ subtype   = min(3, floor((depth − family.minDepth) / 4))   // +15 % hp/dmg per
 | Rat (existing) | Scavenger | 1–8 | | 6 | 4–8 | 5 | 30 | 0.8 |
 | Skeleton (existing) | Skeleton | 1–14 | ✔ | 8 | 5–10 | 10 | 35 | 1.0 |
 | Slime (existing) | [OURS] | 2–12 | | 12 | 6–11 | 0 | 30 | 1.1 |
-| **Zombie** | Zombie | 1–10 | ✔ | 12 | 2–5 | 5 | 15 | 1.1 |
-| **Fallen** | Fallen One | 1–9 | | 5 | 1–3 | 5 | 20 | 0.7 |
-| **Skeleton Archer** | Skeleton Archer | 3–14 | ✔ | 7 | 1–4 | 8 | 30 | 1.2 |
-| **Bat** | Winged Fiend | 2–12 | | 4 | 1–3 | 10 | 25 | 0.6 |
-| **Giant Spider** | Hellfire Arachnon / Spider Lord | 4–16 | | 10 | 2–6 | 15 | 30 | 1.4 |
-| Goat Man (stretch) | Goat Men | 8+ | | 20 | 4–9 | 25 | 40 | 1.6 |
-| Hidden (stretch) | Hidden | 6+ | | 15 | 3–8 | 20 | 35 | 1.5 |
+| **Zombie** | Zombie | 1–10 | ✔ | 12 | 5–11 | 5 | 25 | 1.1 |
+| **Fallen** | Fallen One | 1–9 | | 5 | 3–6 | 5 | 30 | 0.7 |
+| **Skeleton Archer** | Skeleton Archer | 3–14 | ✔ | 7 | 3–7 | 8 | 40 | 1.2 |
+| **Bat** | Winged Fiend | 2–12 | | 4 | 3–6 | 10 | 35 | 0.6 |
+| **Giant Spider** | Hellfire Arachnon / Spider Lord | 4–16 | | 10 | 4–9 | 15 | 40 | 1.4 |
+| Goat Man (stretch, not built) | Goat Men | 8+ | | 20 | 4–9 | 25 | 40 | 1.6 |
+| Hidden (stretch, not built) | Hidden | 6+ | | 15 | 3–8 | 20 | 35 | 1.5 |
 
-Damage and to-hit for the three existing families were raised during Phase 1 playtesting; at D1-like values the Warrior was almost never hurt. The new families get the same simulation-based tuning in Phase 8.
+Damage and to-hit for every family sit above D1 (about ×2 damage, +10 to-hit), the same uplift the first three families got in Phase 1; at D1-like values the heroes were almost never hurt. The v1 D1-like values of the new families were 2–5/15, 1–3/20, 1–4/30, 1–3/25 and 2–6/30.
+
+**As implemented in Phase 8** [OURS unless noted]
+- **Movement:** zombie speed 1.4 with a 0.8 s windup; Fallen 3.1; archer 2.3 (draw 0.6 s, 2 s between shots); bat 4.0 (0.25 s swoop); spider 3.6 (0.45 s leap).
+- **Archers** hold 5–8 m, stepping back when the hero is closer, and shoot at up to 8.5 m with a clear line; very close they still shoot. Arrows fly at 11 m/s; to-hit is the monster's melee to-hit minus `2 × flight in 1/20 s`, at least 5 %; the hero's shield can block them (D1). Archers shatter into bones like skeletons.
+- **Spiders** leap from up to 4.2 m (the windup is the pounce) and spit a web every 4–7 s at 4.5–8 m. The web uses monster magic to-hit (§8.5) and slows the hero 40 % for 2 s. From tier 2 a landed bite poisons: 2 % of max life per second for 3 s, ignoring Mana Shield.
+- **Bats** weave across their line of approach and swoop down to strike; they still drop gold, never items.
+- **Fallen** within 6 m of any monster's death flee for 1.5–3 s (D1).
+- **Slimes** from tier 2 split into two half-size, half-HP slimes that do not split again.
+- **Black Death** (zombie tier 3): each landed hit lowers the hero's max life by 1 for the rest of the run.
+- **Subtype tiers** step every 4 depths after a family's first depth (max 3), add 15 % HP and damage each, and tint the model (spiders also grow 12 % per tier). Subtype names are data only for now; nothing displays them.
+- **Corpses** of zombies, Fallen, bats, spiders and rats fall over and sink; skeletons, archers and slimes burst as before.
+
+**Pacing simulation (Phase 8)** — AUTO from depth 1 to 9 (game time, depths 1–9 with the riser cap of §3.1):
+
+| Class | Reached depth 9 | clvl on reaching depth 2 / 4 / 6 / 9 | Deaths |
+|---|---|---|---|
+| Warrior | 38 min | 2 / 6 / 9 / 12 | 1 |
+| Thief | 62 min | 2 / 6 / 9 / 12 | 45 (0 before depth 6, then 5, 10, 11, 19 per level) |
+| Mage | 38 min | 2 / 6 / 9 / 12 | 19 |
+
+Level pacing meets the targets: level 2 after depth 1, then about `depth + 2` (12 at depth 9). AUTO never spends attribute points, so these heroes are weaker than played ones; the Thief's deaths from depth 6 on come mostly from spiders, whose leap and web defeat kiting.
 
 | Family | Behaviour | Subtypes (tiers 0–3) |
 |---|---|---|

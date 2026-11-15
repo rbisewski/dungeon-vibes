@@ -12,7 +12,8 @@ import { spawnDrops, spawnGold, spawnItem } from '../world/groundItems';
 import { toast } from '../ui/store';
 import { computeField } from '../world/nav';
 import type { Chest, Monster } from '../game/types';
-import { awardKill } from './heroStats';
+import { awardKill, recompute } from './heroStats';
+import { spawnMonster } from './monsters';
 
 /** Trap damage scales with depth (spikes and blades hit heroes and monsters alike). */
 export const trapDamage = (): number => ri(5, 10) + 2 * G.L.depth;
@@ -32,24 +33,55 @@ export function damageHero(dmg: number, nx: number, nz: number): void {
   if (dmg >= .05 * h.d.maxLife) h.flinch = CLASS[h.stats.cls].recover;
   SFX.hurt();
   for (let k = 0; k < 10; k++) fxNorm.spawn(h.x + rr(-.2, .2), .9, h.z + rr(-.2, .2), nx * 2 + rr(-1.2, 1.2), rr(.5, 2.2), nz * 2 + rr(-1.2, 1.2), rr(.4, .7), .35, .03, .02, rr(.06, .1), 9, .5, 1);
-  if (h.life <= 0) { h.life = 0; h.dead = true; h.deadT = 0; toast('YOU DIED', 'THE TORCH GUTTERS...'); }
+  if (h.life <= 0) killHero();
+}
+
+function killHero(): void {
+  const h = G.hero;
+  h.life = 0; h.dead = true; h.deadT = 0;
+  toast('YOU DIED', 'THE TORCH GUTTERS...');
+}
+
+/** Life lost over time (poison): no flinch, invulnerability or Mana Shield. */
+export function loseLife(amount: number): void {
+  const h = G.hero;
+  if (h.dead || h.descend > 0) return;
+  h.life -= amount;
+  if (h.life <= 0) killHero();
+}
+
+/**
+ * D1 shield block: needs a usable shield and the hero standing still or swinging. On a block, plays the effect and
+ * returns true.
+ */
+export function heroBlocks(m: Monster, nx: number, nz: number): boolean {
+  const h = G.hero, s = h.stats;
+  const canBlock = !!h.inv.equip.shield && h.gearOk.has(h.inv.equip.shield.uid) && (h.atkT >= 0 || Math.hypot(h.vx, h.vz) < .6);
+  if (!canBlock || !roll(R, blockChance(s.cls, h.d, s.clvl, m.roll.mlvl))) return false;
+  SFX.block(); h.kx += nx * 2; h.kz += nz * 2;
+  impact(h.x - nx * .35, 1.0, h.z - nz * .35, 0xbfd8ff, 1.2);
+  for (let k = 0; k < 10; k++) fxAdd.spawn(h.x - nx * .35, 1.0, h.z - nz * .35, -nx * rr(1, 3) + rr(-1, 1), rr(.5, 2), -nz * rr(1, 3) + rr(-1, 1), rr(.15, .3), 1.2, 1.4, 1.8, rr(.03, .05), 9, 1, 1);
+  return true;
+}
+
+/** A monster's damage reaches the hero (after to-hit and block). Item damage reduction leaves at least 1 (D1). */
+export function hitHero(m: Monster, nx: number, nz: number): void {
+  const h = G.hero, r = m.roll, before = h.life;
+  damageHero(Math.max(1, ri(r.dmgMin, r.dmgMax) - h.d.dmgTaken), nx, nz);
+  if (h.life >= before) return;
+  // From tier 2, spiders poison: 2 % of max life per second for 3 s.
+  if (m.type === 'spider' && r.tier >= 2) { h.poisonT = 3; toast('POISONED'); }
+  // Black Death: every hit costs 1 max life for good (D1).
+  if (m.type === 'zombie' && r.tier >= 3) { h.lifeDrain++; recompute(h); }
 }
 
 /** A monster's blow lands on the hero's position: roll to-hit against AC, then the shield block, then damage. */
 export function monsterStrike(m: Monster, nx: number, nz: number): void {
   const h = G.hero; if (h.dead || h.invuln > 0 || h.descend > 0) return;
-  const s = h.stats, r = m.roll;
-  if (!roll(R, monsterHitChance(r.toHit, r.mlvl, s.clvl, h.d.ac))) { SFX.whiff(); return; }
-  // D1: a shield blocks only while standing still or swinging.
-  const canBlock = !!h.inv.equip.shield && h.gearOk.has(h.inv.equip.shield.uid) && (h.atkT >= 0 || Math.hypot(h.vx, h.vz) < .6);
-  if (canBlock && roll(R, blockChance(s.cls, h.d, s.clvl, r.mlvl))) {
-    SFX.block(); h.kx += nx * 2; h.kz += nz * 2;
-    impact(h.x - nx * .35, 1.0, h.z - nz * .35, 0xbfd8ff, 1.2);
-    for (let k = 0; k < 10; k++) fxAdd.spawn(h.x - nx * .35, 1.0, h.z - nz * .35, -nx * rr(1, 3) + rr(-1, 1), rr(.5, 2), -nz * rr(1, 3) + rr(-1, 1), rr(.15, .3), 1.2, 1.4, 1.8, rr(.03, .05), 9, 1, 1);
-    return;
-  }
-  // Item damage reduction leaves at least 1 point (D1).
-  damageHero(Math.max(1, ri(r.dmgMin, r.dmgMax) - h.d.dmgTaken), nx, nz);
+  const r = m.roll;
+  if (!roll(R, monsterHitChance(r.toHit, r.mlvl, h.stats.clvl, h.d.ac))) { SFX.whiff(); return; }
+  if (heroBlocks(m, nx, nz)) return;
+  hitHero(m, nx, nz);
   if (h.d.thorns > 0 && !m.dead) damageMonster(m, ri(1, 3 * h.d.thorns), -nx, -nz, true);
 }
 
@@ -85,7 +117,7 @@ function killMonster(m: Monster, nx: number, nz: number, byHero: boolean): void 
   m.dead = true; m.deadT = 0; G.hero.slain++; G.L.killsHere++;
   if (byHero) awardKill(m);
   SFX.death(m.type, vol(m.x, m.z)); addShake(m.type === 'boss' ? .8 : .25);
-  if (m.type === 'skeleton' || m.type === 'boss') {
+  if (m.type === 'skeleton' || m.type === 'boss' || m.type === 'archer') {
     const sc = m.type === 'boss' ? 1.8 : 1, gs = BONE_GEOS();
     for (let k = 0; k < (m.type === 'boss' ? 22 : 11); k++) {
       const g = k < 2 ? gs[4] : pick(gs.slice(0, 4)); const b = mesh(g, MAT.bone, m.x + rr(-.2, .2), rr(.3, 1.2) * sc, m.z + rr(-.2, .2), G.L.group);
@@ -100,7 +132,15 @@ function killMonster(m: Monster, nx: number, nz: number, byHero: boolean): void 
     const d = mesh(gCircle(1), MAT.goo, m.x, .02, m.z, G.L.group, false); d.rotation.x = -PI / 2; d.scale.set(rr(.6, .9), rr(.5, .8), 1); G.L.decals.push({ o: d, t: 0 });
     m.remove = true;
   }
-  spawnDrops(monsterDrops(R, m.roll.mlvl, G.L.depth, m.type === 'boss', G.loot), m.x, m.z);
+  // Bats never drop items (D1); gold is still possible.
+  spawnDrops(monsterDrops(R, m.roll.mlvl, G.L.depth, m.type === 'boss', G.loot, m.type === 'bat'), m.x, m.z);
+  // Fallen nearby flee for a moment (D1).
+  for (const o of G.L.monsters) if (o.type === 'fallen' && !o.dead && o !== m && Math.hypot(o.x - m.x, o.z - m.z) < 6) o.fleeT = rr(1.5, 3);
+  // From tier 2, slimes split into two small slimes.
+  if (m.type === 'slime' && m.roll.tier >= 2 && !m.small) for (const s of [-1, 1]) {
+    const c = spawnMonster('slime', m.x + s * .5, m.z, 0, true);
+    c.aware = true; c.state = 'chase';
+  }
   if (m.type === 'boss') toast('THE WARDEN FALLS');
 }
 export function openChest(c: Chest): void {

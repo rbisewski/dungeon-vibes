@@ -7,6 +7,7 @@ import { Snd } from './audio/sound';
 import { G } from './game/state';
 import { createHero } from './actors/hero';
 import { buildLevel } from './world/level';
+import { spawnMonster } from './actors/monsters';
 import { simulate, startLoop } from './game/loop';
 import { openClassSelect } from './game/classSelect';
 import { renderer } from './render/renderer';
@@ -22,4 +23,4 @@ startLoop();
 openClassSelect();
 
 // Dev-only handle for inspecting live state from the browser console.
-if (import.meta.env.DEV) Object.assign(window, { G, renderer, simulate, buildLevel });
+if (import.meta.env.DEV) Object.assign(window, { G, renderer, simulate, buildLevel, spawnMonster });

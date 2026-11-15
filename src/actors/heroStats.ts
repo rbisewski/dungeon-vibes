@@ -22,6 +22,9 @@ export function recompute(h: Hero): void {
   const g = gear(h.inv.equip, h.stats.base), shown = gear(h.inv.equip, h.stats.base, true);
   h.d = derive(h.stats, g.bonus, g.weapon);
   h.dShown = derive(h.stats, shown.bonus, shown.weapon);
+  // Max life lost to Black Death hits (SPEC §8.3).
+  h.d.maxLife = Math.max(1, h.d.maxLife - h.lifeDrain);
+  h.dShown.maxLife = Math.max(1, h.dShown.maxLife - h.lifeDrain);
   h.gearOk = g.active;
   // The hand shows the equipped weapon even when its requirements are unmet.
   const w = h.inv.equip.weapon, wb = w && base(w.base), held = wb && wb.kind === 'weapon' ? wb.wk : 'bare';

@@ -11,19 +11,26 @@ export const SFX = {
   swing() { Snd.noise({ type: 'bandpass', f: 500, f2: 2600, q: 2.5, dur: .16, a: .03, gain: .3, rev: .2 }); },
   hit(type: MonsterType, v: number) {
     Snd.noise({ type: 'lowpass', f: 900, dur: .09, gain: .45 * v }); Snd.tone({ wave: 'square', f: 160, f2: 50, dur: .09, gain: .12 * v });
-    if (type === 'skeleton' || type === 'boss') { Snd.noise({ type: 'bandpass', f: 2600, q: 4, dur: .05, gain: .22 * v }); Snd.tone({ wave: 'triangle', f: 1250, dur: .14, gain: .04 * v }); }
+    if (type === 'skeleton' || type === 'boss' || type === 'archer') { Snd.noise({ type: 'bandpass', f: 2600, q: 4, dur: .05, gain: .22 * v }); Snd.tone({ wave: 'triangle', f: 1250, dur: .14, gain: .04 * v }); }
+    else if (type === 'zombie') Snd.noise({ type: 'lowpass', f: 400, f2: 150, dur: .18, gain: .35 * v });
+    else if (type === 'spider') Snd.noise({ type: 'bandpass', f: 1800, q: 3, dur: .07, gain: .2 * v });
     else if (type === 'slime') Snd.tone({ wave: 'sine', f: 320, f2: 90, dur: .15, gain: .22 * v });
     else Snd.tone({ wave: 'sawtooth', f: 1900, f2: 1200, dur: .08, gain: .035 * v });
   },
   squeal(type: MonsterType, v: number) {
     if (v < .03) return;
     if (type === 'rat') { Snd.tone({ wave: 'sawtooth', f: 1500, f2: 2700, dur: .11, gain: .035 * v }); Snd.tone({ wave: 'sawtooth', f: 2500, f2: 1200, dur: .15, gain: .03 * v, delay: .1 }); }
-    else if (type === 'skeleton') for (let k = 0; k < 6; k++) Snd.noise({ type: 'bandpass', f: rr(2000, 3600), q: 6, dur: .025, gain: .14 * v, delay: k * .035 });
+    else if (type === 'skeleton' || type === 'archer') for (let k = 0; k < 6; k++) Snd.noise({ type: 'bandpass', f: rr(2000, 3600), q: 6, dur: .025, gain: .14 * v, delay: k * .035 });
     else if (type === 'slime') { Snd.tone({ wave: 'sine', f: 140, f2: 260, dur: .18, gain: .2 * v }); Snd.tone({ wave: 'sine', f: 260, f2: 110, dur: .2, gain: .15 * v, delay: .15 }); }
+    else if (type === 'zombie') { Snd.tone({ wave: 'sawtooth', f: 90, f2: 70, dur: .9, gain: .07 * v, a: .15 }); Snd.noise({ type: 'lowpass', f: 350, dur: .8, gain: .18 * v, a: .2 }); }
+    else if (type === 'fallen') for (let k = 0; k < 4; k++) Snd.tone({ wave: 'square', f: rr(700, 1100), dur: .05, gain: .03 * v, delay: k * .07 });
+    else if (type === 'bat') Snd.tone({ wave: 'sine', f: 3800, f2: 5200, dur: .08, gain: .04 * v });
+    else if (type === 'spider') Snd.noise({ type: 'highpass', f: 3500, dur: .35, gain: .12 * v, a: .05 });
     else { Snd.tone({ wave: 'sawtooth', f: 110, f2: 50, dur: 1.1, gain: .16 * v, a: .08 }); Snd.noise({ type: 'lowpass', f: 500, f2: 150, dur: 1.1, gain: .3 * v, a: .1 }); }
   },
   death(type: MonsterType, v: number) {
-    if (type === 'skeleton' || type === 'boss') { for (let k = 0; k < 11; k++) Snd.noise({ type: 'bandpass', f: rr(1500, 4200), q: 5, dur: .03, gain: .17 * v, delay: rr(0, .45) }); Snd.noise({ type: 'lowpass', f: 300, dur: .2, gain: .3 * v }); }
+    if (type === 'skeleton' || type === 'boss' || type === 'archer') { for (let k = 0; k < 11; k++) Snd.noise({ type: 'bandpass', f: rr(1500, 4200), q: 5, dur: .03, gain: .17 * v, delay: rr(0, .45) }); Snd.noise({ type: 'lowpass', f: 300, dur: .2, gain: .3 * v }); }
+    else if (type === 'zombie') { Snd.tone({ wave: 'sawtooth', f: 80, f2: 40, dur: .7, gain: .08 * v }); Snd.noise({ type: 'lowpass', f: 300, dur: .4, gain: .35 * v, delay: .3 }); }
     else if (type === 'slime') { Snd.noise({ type: 'lowpass', f: 800, f2: 200, dur: .35, gain: .45 * v }); Snd.tone({ wave: 'sine', f: 240, f2: 40, dur: .3, gain: .2 * v }); }
     else Snd.tone({ wave: 'sawtooth', f: 2200, f2: 500, dur: .25, gain: .04 * v });
   },

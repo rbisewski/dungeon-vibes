@@ -16,6 +16,17 @@ describe('monsterDrops', () => {
     expect(item / N).toBeCloseTo(MONSTER_ITEM, 1);
   });
 
+  it('never gives bats an item, but still gold (D1)', () => {
+    const rng = mulberry32(12), N = 5000;
+    let gold = 0;
+    for (let i = 0; i < N; i++) {
+      const d = monsterDrops(rng, 3, 3, false, { found: new Set() }, true);
+      expect(d.every(x => x.kind === 'gold')).toBe(true);
+      if (d.length) gold++;
+    }
+    expect(gold / N).toBeCloseTo(MONSTER_GOLD, 1);
+  });
+
   it('always gives a boss a magic or unique item, a potion, a Scroll of Identify and gold', () => {
     const rng = mulberry32(4);
     for (let i = 0; i < 200; i++) {

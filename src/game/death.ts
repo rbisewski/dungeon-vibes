@@ -4,6 +4,7 @@
  */
 import * as THREE from 'three';
 import { clearArrows } from '../actors/arrows';
+import { clearShots } from '../actors/shots';
 import { recompute } from '../actors/heroStats';
 import { clearSpellFx } from '../actors/spells';
 import { R, rr } from '../core/math';
@@ -78,6 +79,7 @@ export function respawnHero(): void {
   const h = G.hero, L = G.L;
   clearSpellFx();
   clearArrows();
+  clearShots();
   h.life = h.d.maxLife;
   h.mana = h.d.maxMana;
   placeHeroAtStart();

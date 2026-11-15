@@ -1,7 +1,8 @@
 import { WAR_CRY } from '../rules/skills';
 import { unpetrify } from './spells';
 import { monsterStrike } from './combat';
-import { monsterTypeFor, spawnMonster } from './monsters';
+import { levelFamily, spawnMonster } from './monsters';
+import { fireShot } from './shots';
 import { SFX, vol } from '../audio/sfx';
 import { PI, R, TAU, clamp, damp, lerp, pick, ri, rr, wrapA } from '../core/math';
 import { G, addShake } from '../game/state';
@@ -36,8 +37,12 @@ export function updateMonsters(dt: number): void {
   let nearAware = false;
   for (const m of G.L.monsters) {
     if (m.dead) {
+      // Corpses that did not shatter (skeletons and slimes are removed when killed) fall over and sink away.
       m.deadT += dt;
-      if (m.type === 'rat') { m.root.rotation.z = damp(m.root.rotation.z, PI / 2, 10, dt); m.root.position.y = m.deadT > 1.4 ? -(m.deadT - 1.4) * .35 : .1; if (m.deadT > 3) m.remove = true; }
+      m.root.rotation.z = damp(m.root.rotation.z, PI / 2, 10, dt);
+      if (m.type === 'bat') m.body.position.y = damp(m.body.position.y, .15, 8, dt);
+      m.root.position.y = m.deadT > 1.4 ? -(m.deadT - 1.4) * .35 : m.type === 'rat' ? .1 : 0;
+      if (m.deadT > 3) m.remove = true;
       continue;
     }
     m.ignoreT -= dt;
@@ -48,7 +53,7 @@ export function updateMonsters(dt: number): void {
       if (m.stoneT <= 0) unpetrify(m);
       continue;
     }
-    m.cd -= dt; m.flash -= dt; m.staggerT -= dt; m.slowT -= dt; m.eyeBoost = Math.max(0, m.eyeBoost - dt);
+    m.cd -= dt; m.flash -= dt; m.staggerT -= dt; m.slowT -= dt; m.fleeT -= dt; m.webCd -= dt; m.eyeBoost = Math.max(0, m.eyeBoost - dt);
     const fl = Math.max(0, m.flash) / .14; for (const mt of m.flashMats) mt.emissive.setRGB(fl * 1.6, fl * 1.5, fl * 1.3);
     if (m.type === 'slime' && fl <= 0) m.flashMats[0].emissive.setHex(0x0e2a08);
     const dx = h.x - m.x, dz = h.z - m.z, d = Math.hypot(dx, dz) || .001, heroOK = !h.dead && h.descend <= 0;
@@ -59,10 +64,14 @@ export function updateMonsters(dt: number): void {
     const reach = m.st.reach + h.r;
     switch (m.state) {
       case 'stun': m.t -= dt; if (m.t <= 0) m.state = m.aware ? 'chase' : 'idle'; break;
-      case 'windup': m.t -= dt; want = Math.atan2(dx, dz); if (m.t <= 0) {
-        m.state = 'recover'; m.t = .4; m.lunge = .15;
+      case 'windup': m.t -= dt; want = Math.atan2(dx, dz);
+        // Spider leap: the windup is a pounce toward the hero.
+        if (m.type === 'spider' && d > reach * .8) { mvx = dx / d; mvz = dz / d; speedMul = 2.8; }
+        if (m.t <= 0) {
+        m.state = 'recover'; m.t = .4; m.lunge = m.type === 'spider' || m.type === 'archer' ? 0 : .15;
         const facing = Math.abs(wrapA(Math.atan2(dx, dz) - m.face)) < 1.3;
-        if (d <= reach + .25 && facing) monsterStrike(m, dx / d, dz / d);
+        if (m.type === 'archer') { if (facing && heroOK && clearLine(m.x, m.z, h.x, h.z, .1, false)) fireShot(m, 'arrow'); }
+        else if (d <= reach + (m.type === 'spider' ? .4 : .25) && facing) monsterStrike(m, dx / d, dz / d);
         if (m.type === 'boss') { addShake(.3); impact(m.x + Math.sin(m.face) * 1.6, .2, m.z + Math.cos(m.face) * 1.6, 0xffb070, 2.4); }
       } break;
       case 'recover': m.t -= dt; if (m.t <= 0) m.state = m.aware ? 'chase' : 'idle'; break;
@@ -72,15 +81,35 @@ export function updateMonsters(dt: number): void {
         if (m.wt <= 0) { m.wt = rr(2, 5); const a = R() * TAU, r = rr(1, 4); const wx = m.home.x + Math.cos(a) * r, wz = m.home.z + Math.sin(a) * r; if (clearLine(m.x, m.z, wx, wz, m.r, false)) { m.wx = wx; m.wz = wz; } }
         { const ex = m.wx - m.x, ez = m.wz - m.z, ed = Math.hypot(ex, ez); if (ed > .3) { mvx = ex / ed; mvz = ez / ed; speedMul = .35; } }
         break;
-      case 'chase':
+      case 'chase': {
         if (!m.aware) { m.state = 'idle'; break; }
+        // Fallen flee for a moment when a monster near them dies (D1).
+        if (m.fleeT > 0) { mvx = -dx / d; mvz = -dz / d; want = Math.atan2(mvx, mvz); break; }
+        const los = heroOK && d < 9 && clearLine(m.x, m.z, h.x, h.z, .1, false);
+        if (m.type === 'archer' && los && d > 2.2) {
+          // Keep 5–8 m: step back when closer, shoot after a telegraphed draw.
+          want = Math.atan2(dx, dz);
+          if (d < 5 && clearLine(m.x, m.z, m.x - dx / d * 1.2, m.z - dz / d * 1.2, m.r, false)) { mvx = -dx / d; mvz = -dz / d; }
+          if (d <= 8.5 && m.cd <= 0 && windups < 3) { m.state = 'windup'; m.t = m.st.windup; m.cd = m.st.cd * rr(.85, 1.2); windups++; break; }
+          if (d <= 8) break;
+        }
+        if (m.type === 'spider' && los) {
+          if (d > 4.5 && d < 8 && m.webCd <= 0) { fireShot(m, 'web'); m.webCd = rr(4, 7); }
+          if (d <= 4.2 && d > reach * .92 && m.cd <= 0 && windups < 3) { m.state = 'windup'; m.t = m.st.windup; m.cd = m.st.cd * rr(.85, 1.2); windups++; SFX.squeal(m.type, vol(m.x, m.z) * .6); break; }
+        }
         if (d <= reach * .92 && m.cd <= 0 && windups < 3 && heroOK) { m.state = 'windup'; m.t = m.st.windup; m.cd = m.st.cd * rr(.85, 1.2); windups++; if (m.type === 'rat' || m.type === 'skeleton') SFX.squeal(m.type, vol(m.x, m.z) * .5); break; }
         if (d > m.r + h.r + .25) {
           if (d < 9 && clearLine(m.x, m.z, h.x, h.z, m.r * .9, false)) { mvx = dx / d; mvz = dz / d; }
           else { const s = flowStep(m); if (s) { const ex = s.x - m.x, ez = s.z - m.z, ed = Math.hypot(ex, ez) || 1; mvx = ex / ed; mvz = ez / ed; } }
+          if (m.type === 'bat') {
+            // erratic flight: weave across the line of approach
+            const w = Math.sin(G.now * 5 + m.phase * 3) * .9, bx = mvx - mvz * w, bz = mvz + mvx * w, bl = Math.hypot(bx, bz) || 1;
+            mvx = bx / bl; mvz = bz / bl;
+          }
         }
         want = Math.atan2(dx, dz);
         break;
+      }
     }
     if (m.type === 'slime') speedMul *= .4 + Math.max(0, Math.sin(m.phase * 1.0)) * 1.4;
     if (m.slowT > 0) speedMul *= 1 - WAR_CRY.bossSlow;
@@ -106,9 +135,8 @@ export function updateMonsters(dt: number): void {
     if (!cands.length) for (let i = 0; i < G.L.N; i++) if (ok(i)) cands.push(i);
     if (cands.length) {
       const c = pick(cands), n = ri(1, Math.min(3, 1 + Math.floor(G.L.depth / 2))), cx = (c % G.L.W) * T, cz = Math.floor(c / G.L.W) * T;
-      const type = monsterTypeFor(G.L.depth);
       G.L.risen += n;
-      for (let k = 0; k < n; k++) { const m = spawnMonster(k === 0 ? type : monsterTypeFor(G.L.depth), cx + rr(-.5, .5), cz + rr(-.5, .5), .9 + k * .25); m.aware = true; m.state = 'chase'; }
+      for (let k = 0; k < n; k++) { const m = spawnMonster(levelFamily(), cx + rr(-.5, .5), cz + rr(-.5, .5), .9 + k * .25); m.aware = true; m.state = 'chase'; }
     }
   }
 }
@@ -119,13 +147,16 @@ function animateMonster(m: Monster, dt: number, spd: number): void {
   const s = Math.sin(m.phase);
   const eb = 1 + m.eyeBoost * 2 + (m.state === 'windup' ? 1 : 0);
   for (const e of m.eyes) e.material.opacity = Math.min(1, .7 * eb);
-  if (m.type === 'skeleton' || m.type === 'boss') {
+  if (m.type === 'skeleton' || m.type === 'boss' || m.type === 'zombie' || m.type === 'fallen' || m.type === 'archer') {
     m.legs[0].hip.rotation.x = s * .6 * amt; m.legs[1].hip.rotation.x = -s * .6 * amt;
     m.legs[0].knee.rotation.x = Math.max(0, -s) * .7 * amt; m.legs[1].knee.rotation.x = Math.max(0, s) * .7 * amt;
     m.body.position.y = Math.abs(s) * .04 * amt;
-    m.armL.rotation.x = -s * .4 * amt - (m.aware ? .3 : 0);
-    let ax = -.35, ex = -.3;
-    if (m.state === 'windup') { const k = 1 - m.t / m.st.windup; ax = lerp(-.35, -2.8, Math.min(1, k * 1.6)); ex = -.6; }
+    // Zombies shamble with both arms reaching forward.
+    const reachOut = m.type === 'zombie' ? -1.35 : 0;
+    m.armL.rotation.x = reachOut - s * .4 * amt - (m.aware ? .3 : 0);
+    let ax = -.35 + reachOut, ex = -.3;
+    if (m.type === 'archer' && (m.state === 'windup' || m.state === 'recover')) { ax = -1.55; ex = 0; }
+    else if (m.state === 'windup') { const k = 1 - m.t / m.st.windup; ax = lerp(-.35, -2.8, Math.min(1, k * 1.6)); ex = -.6; }
     else if (m.state === 'recover') { const k = 1 - m.t / .4; ax = k < .3 ? lerp(-2.8, -.5, k / .3) : -.5; ex = -.2; }
     m.armR.rotation.x = damp(m.armR.rotation.x, ax, m.state === 'recover' ? 40 : 14, dt); m.elR.rotation.x = damp(m.elR.rotation.x, ex, 14, dt);
     m.jaw.rotation.x = m.aware ? Math.max(0, Math.sin(G.now * 18 + m.phase)) * .35 : 0;
@@ -145,5 +176,22 @@ function animateMonster(m: Monster, dt: number, spd: number): void {
     if (m.state === 'windup') { sy = .62; sxz = 1.25; } if (m.state === 'recover' && m.t > .25) { sy = .85; sxz = 1.1; m.body.position.z = .25; } else m.body.position.z = damp(m.body.position.z, 0, 10, dt);
     if (m.state === 'stun') { sy = 1.2; sxz = .9; }
     m.body.scale.set(damp(m.body.scale.x, sxz, 14, dt), damp(m.body.scale.y, sy, 14, dt), damp(m.body.scale.z, sxz, 14, dt));
+  } else if (m.type === 'bat') {
+    const flap = Math.sin(G.now * 18 + m.phase) * .8;
+    m.wings[0].rotation.z = flap; m.wings[1].rotation.z = -flap;
+    // flies at ~1.1 m and swoops down to strike
+    const swoop = m.state === 'windup' ? 1 - m.t / m.st.windup : m.state === 'recover' ? m.t / .4 : 0;
+    m.body.position.y = damp(m.body.position.y, 1.1 + Math.sin(G.now * 3 + m.phase) * .15 - swoop * .6, 10, dt);
+    m.body.rotation.x = m.state === 'stun' ? .8 : swoop * .5;
+  } else if (m.type === 'spider') {
+    // alternating tetrapod gait: legs 0,2,5,7 move against 1,3,4,6
+    m.legs.forEach((l, i) => {
+      const grp = (i % 2) ^ (i >= 4 ? 1 : 0);
+      l.hip.rotation.x = Math.sin(m.phase * 2.2 + grp * PI) * .35 * amt;
+      l.knee.rotation.x = Math.max(0, Math.sin(m.phase * 2.2 + grp * PI)) * .3 * amt;
+    });
+    const leap = m.state === 'windup' ? Math.sin((1 - m.t / m.st.windup) * PI) : 0;
+    m.body.position.y = leap * .45 + Math.abs(Math.sin(m.phase * 2.2)) * .03 * amt;
+    m.body.rotation.x = m.state === 'stun' ? -.3 : -leap * .25;
   }
 }

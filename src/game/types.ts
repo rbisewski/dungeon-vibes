@@ -1,5 +1,5 @@
 import type * as THREE from 'three';
-import type { MonsterRoll } from '../rules/monsters';
+import type { FamilyId, MonsterRoll } from '../rules/monsters';
 import type { CharState, Derived } from '../rules/stats';
 import type { Progress } from '../rules/xp';
 import type { EquipSlot, Inventory, Item } from '../rules/inventory';
@@ -69,6 +69,10 @@ export interface Level extends Layout {
   arrows: Arrow[];
   /** Death piles still on this level (SPEC §11). */
   graves: Grave[];
+  /** The monster families this level draws from (SPEC §8.2). */
+  families: FamilyId[];
+  /** Monster projectiles: archer arrows and spider webs. */
+  shots: Shot[];
   /** The descend warning about remaining graves has been shown on this level. */
   descendWarned: boolean;
   debris: Debris[]; decals: Decal[]; lights: LightSrc[]; flames: FlameSpec[];
@@ -98,6 +102,9 @@ export interface SkeletonParts extends ModelBase {
 }
 export interface RatParts extends ModelBase { head: THREE.Group; legs: THREE.Group[]; tail: THREE.Group[] }
 export interface SlimeParts extends ModelBase { blob: THREE.Mesh }
+export interface BatParts extends ModelBase { wings: THREE.Group[] }
+/** Eight legs, each a hip (swing) and knee joint; legs alternate in two groups of four. */
+export interface SpiderParts extends ModelBase { legs: { hip: THREE.Group; knee: THREE.Group }[] }
 
 export interface HeroParts {
   root: THREE.Group; body: THREE.Group; legs: THREE.Group[]; torso: THREE.Group; cloak: THREE.Group; head: THREE.Group;
@@ -109,7 +116,10 @@ export interface HeroParts {
 
 /* ---------- actors ---------- */
 
-export type MonsterType = 'skeleton' | 'rat' | 'slime' | 'boss';
+/** A family (rules/monsters) or the boss. */
+export type MonsterType = FamilyId | 'boss';
+/** Monster types built on the humanoid skeleton rig. */
+export type HumanoidType = 'skeleton' | 'boss' | 'zombie' | 'fallen' | 'archer';
 export type MonsterState = 'idle' | 'chase' | 'windup' | 'recover' | 'stun';
 /** Movement and attack timing per monster type; combat numbers come from `rules/monsters` (`roll`). */
 export interface MonsterBody { r: number; speed: number; reach: number; windup: number; cd: number; mass: number }
@@ -133,11 +143,19 @@ export interface MonsterCommon {
   stoneCols: THREE.Color[] | null;
   /** War Cry slow on bosses: 30 % slower while > 0. */
   slowT: number;
+  /** Fallen: fleeing after a nearby death (s left). */
+  fleeT: number;
+  /** Spider: web spit cooldown. */
+  webCd: number;
+  /** A small slime split from a larger one (does not split again). */
+  small: boolean;
 }
 export type Monster = MonsterCommon & (
-  | ({ type: 'skeleton' | 'boss' } & SkeletonParts)
+  | ({ type: HumanoidType } & SkeletonParts)
   | ({ type: 'rat' } & RatParts)
   | ({ type: 'slime' } & SlimeParts)
+  | ({ type: 'bat' } & BatParts)
+  | ({ type: 'spider' } & SpiderParts)
 );
 
 export type GoalKind = 'mon' | 'pick' | 'chest' | 'room' | 'door' | 'stairs';
@@ -186,6 +204,12 @@ export interface Hero extends HeroParts {
   /** Standing on the stairs last step, and for how long (AUTO descends after a warning). */
   onStairs: boolean;
   stairsT: number;
+  /** Spider web: 40 % slower while > 0. */
+  slowT: number;
+  /** Spider poison: loses 2 % of max life per second while > 0. */
+  poisonT: number;
+  /** Max life permanently lost to Black Death hits (D1). */
+  lifeDrain: number;
 }
 
 export type Actor = Hero | Monster;
@@ -208,3 +232,6 @@ export interface Arrow { x: number; z: number; dx: number; dz: number; speed: nu
 
 /** Where the hero died: a bone-pile marker with a beacon, and the pickups that fell there. */
 export interface Grave { x: number; z: number; marker: THREE.Group; beacon: THREE.Sprite; light: LightSrc; pickups: Pickup[] }
+
+/** A monster projectile: an archer's arrow or a spider's web. `flight` (s) feeds the arrow distance penalty. */
+export interface Shot { kind: 'arrow' | 'web'; from: Monster; x: number; z: number; dx: number; dz: number; speed: number; flight: number; mesh: THREE.Object3D }

@@ -6,6 +6,7 @@ import { updateHero } from '../actors/hero';
 import { updateMonsters } from '../actors/monsterAI';
 import { updateSpellFx } from '../actors/spells';
 import { updateArrows } from '../actors/arrows';
+import { updateShots } from '../actors/shots';
 import { updateLights } from '../render/lights';
 import { fxAdd, fxNorm } from '../render/particles';
 import { renderFrame } from '../render/post';
@@ -61,7 +62,7 @@ function step(frozen: boolean): number {
     const L = G.L;
     L.fieldT -= g;
     if (L.fieldT <= 0) { L.fieldT = 0.25; computeField(); }
-    updateHero(g); updateMonsters(g); resolveCollisions(); updateWorld(g); updateSpellFx(g); updateArrows(g); updateGraves();
+    updateHero(g); updateMonsters(g); resolveCollisions(); updateWorld(g); updateSpellFx(g); updateArrows(g); updateShots(g); updateGraves();
   }
   return g;
 }

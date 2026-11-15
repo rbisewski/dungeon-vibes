@@ -1,6 +1,7 @@
 import { glowSprite } from '../render/geometry';
 import type * as THREE from 'three';
-import { damageMonster, missMonster, openChest, unlockDoor } from './combat';
+import { damageMonster, loseLife, missMonster, openChest, unlockDoor } from './combat';
+import { fxAdd } from '../render/particles';
 import { drinkFromBelt, recompute, startingInventory } from './heroStats';
 import { meleeHitChance, rollDamage, roll } from '../rules/combat';
 import { CLASS, KITS, type ClassId } from '../rules/classes';
@@ -15,7 +16,7 @@ import { manualActive, readInput, takeBeltPresses, takeCast, takeSkill } from '.
 import { autoSkillWanted, useSkill } from './skills';
 import { dropBelongings } from '../game/death';
 import { toast } from '../ui/store';
-import { PI, R, clamp, damp, lerp, wrapA } from '../core/math';
+import { PI, R, clamp, damp, lerp, rr, wrapA } from '../core/math';
 import { G, addShake } from '../game/state';
 import { trailMat } from '../render/materials';
 import { T } from '../world/consts';
@@ -37,7 +38,7 @@ export function createHero(cls: ClassId, name: string): Hero {
     dead: false, deadT: 0, descend: 0,
     stuckT: 0, stuck: 0, sx: 0, sz: 0, unstickT: 0, ux: 0, uz: 0, killsAtGoal: 0, waitTrap: false,
     spells: Object.fromEntries(kit.spells), readied: kit.spells[0]?.[0] ?? null, hotkeys: [null, null, null, null], cast: null, manaShield: false,
-    shieldFx: null as unknown as THREE.Sprite, name, skillCd: 0, heldKind: 'bare', onStairs: false, stairsT: 0,
+    shieldFx: null as unknown as THREE.Sprite, name, skillCd: 0, heldKind: 'bare', onStairs: false, stairsT: 0, slowT: 0, poisonT: 0, lifeDrain: 0,
   };
   h.shieldFx = glowSprite(0x4a7aff, 2.4, h.root, 0, 1, 0);
   h.shieldFx.visible = false;
@@ -71,7 +72,12 @@ function heroHitCheck(): void {
 }
 export function updateHero(dt: number): void {
   const h = G.hero;
-  h.cd -= dt; h.invuln -= dt; h.flinch -= dt; h.flash -= dt;
+  h.cd -= dt; h.invuln -= dt; h.flinch -= dt; h.flash -= dt; h.slowT -= dt;
+  if (h.poisonT > 0 && !h.dead) {
+    h.poisonT -= dt;
+    loseLife(h.d.maxLife * .02 * dt);
+    if (R() < dt * 8) fxAdd.spawn(h.x + rr(-.3, .3), rr(.3, 1.3), h.z + rr(-.3, .3), 0, rr(.4, 1), 0, rr(.5, .9), .4, 1.4, .3, rr(.04, .07), -.3, .5, 2);
+  }
   const fl = Math.max(0, h.flash) / .2;
   for (const m of h.flashMats) m.emissive.setRGB(fl * 1.2, fl * .15, fl * .1);
   if (h.dead) {
@@ -109,7 +115,7 @@ export function updateHero(dt: number): void {
   h.drink -= dt;
   if (atk && h.cd <= 0 && h.atkT < 0 && h.flinch <= 0 && !h.cast) { if (faceT !== null) h.face = faceT; startAttack(); }
   const attacking = h.atkT >= 0;
-  const sp = (manual ? 4.3 : 4.0) * (attacking || h.cast ? .3 : 1) * (h.drink > 0 ? .5 : 1) * (h.flinch > 0 ? .3 : 1);
+  const sp = (manual ? 4.3 : 4.0) * (h.slowT > 0 ? .6 : 1) * (attacking || h.cast ? .3 : 1) * (h.drink > 0 ? .5 : 1) * (h.flinch > 0 ? .3 : 1);
   h.vx = damp(h.vx, mx * sp, 14, dt); h.vz = damp(h.vz, mz * sp, 14, dt);
   h.x += (h.vx + h.kx) * dt; h.z += (h.vz + h.kz) * dt; h.kx *= Math.exp(-9 * dt); h.kz *= Math.exp(-9 * dt);
   const spd = Math.hypot(h.vx, h.vz);

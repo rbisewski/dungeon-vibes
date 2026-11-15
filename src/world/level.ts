@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { monsterTypeFor, spawnMonster } from '../actors/monsters';
-import { pick, rr, withRng } from '../core/math';
+import { spawnMonster } from '../actors/monsters';
+import { pickFamilies } from '../rules/monsters';
+import { R, TAU, pick, ri, rr, withRng } from '../core/math';
 import { deriveSeed, mulberry32 } from '../core/rng';
 import { G } from '../game/state';
 import type { Level, Monster, MonsterType } from '../game/types';
@@ -14,7 +15,7 @@ import { T } from './consts';
 import { decorate } from './decorate';
 import { buildFloor, buildWalls, type Tint } from './floorWalls';
 import { generateLayout } from './layout';
-import { computeField, navOK } from './nav';
+import { circleBlocked, computeField, navOK } from './nav';
 import { makeDoor } from './objects';
 
 const levelRoot = new THREE.Group();
@@ -40,6 +41,7 @@ export function placeHeroAtStart(): void {
   const L = G.L, hero = G.hero;
   hero.x = L.startRoom.cx * T; hero.z = L.startRoom.cy * T; hero.vx = hero.vz = hero.kx = hero.kz = 0;
   hero.path = null; hero.goal = null; hero.dead = false; hero.descend = 0; hero.atkT = -1; hero.drink = 0; hero.flinch = 0;
+  hero.slowT = 0; hero.poisonT = 0;
   // D1: Mana Shield ends when the level changes.
   hero.cast = null; hero.manaShield = false;
   hero.root.position.set(hero.x, 0, hero.z); hero.body.rotation.set(0, 0, 0); hero.body.position.set(0, 0, 0);
@@ -67,7 +69,7 @@ function generate(depth: number): void {
   const L: Level = {
     ...lay, depth, group,
     navBlock: new Uint8Array(lay.N), trap: new Int16Array(lay.N).fill(-1), propAt: new Array(lay.N).fill(null), dist: new Float64Array(lay.N),
-    traps: [], doors: [], chests: [], monsters: [], pickups: [], spellFx: [], arrows: [], graves: [], descendWarned: false, debris: [], decals: [], lights: [], flames: [], pillars: [], runes: [], moons: [],
+    traps: [], doors: [], chests: [], monsters: [], pickups: [], spellFx: [], arrows: [], graves: [], descendWarned: false, families: pickFamilies(R, depth), shots: [], debris: [], decals: [], lights: [], flames: [], pillars: [], runes: [], moons: [],
     disposeGeo: [], disposeInst: [], disposeMat: [], locked: true, fieldT: 0, quietT: 0, killsHere: 0, risen: 0,
     startIdx: lay.startRoom.cy * lay.W + lay.startRoom.cx,
     stairs: { tx: sr.cx, tz: sr.cy, x: sr.cx * T, z: sr.cy * T },
@@ -85,15 +87,25 @@ function generate(depth: number): void {
   placeHeroAtStart();
   // monsters
   const occupied = new Set([L.startIdx]);
-  const placeIn = (cands: [number, number][], type: MonsterType): Monster | null => {
+  /** One monster on a free cell; Fallen come in packs of 3–5 (D1) unless `pack` is false. */
+  const placeIn = (cands: [number, number][], type: MonsterType, pack = true): Monster | null => {
     for (let k = 0; k < 20; k++) {
       const [x, z] = pick(cands); const i = z * L.W + x;
       if (!navOK(i) || occupied.has(i) || L.tiles[i] === 6 || L.trap[i] >= 0) continue;
       occupied.add(i);
-      return spawnMonster(type, x * T + rr(-.3, .3), z * T + rr(-.3, .3));
+      const m = spawnMonster(type, x * T + rr(-.3, .3), z * T + rr(-.3, .3));
+      if (type === 'fallen' && pack) {
+        const extra = ri(2, 4);
+        for (let j = 0; j < extra; j++) {
+          const a = (j / extra) * TAU + rr(-.3, .3), px = m.x + Math.cos(a) * .8, pz = m.z + Math.sin(a) * .8;
+          if (!circleBlocked(px, pz, .3, false)) spawnMonster('fallen', px, pz);
+        }
+      }
+      return m;
     }
     return null;
   };
+  const family = () => L.families[Math.floor(R() * L.families.length)];
   for (const r of L.rooms) {
     const cells: [number, number][] = [];
     for (let z = r.y; z < r.y + r.h; z++) for (let x = r.x; x < r.x + r.w; x++) if (Math.abs(x - L.startRoom.cx) + Math.abs(z - L.startRoom.cy) > 2) cells.push([x, z]);
@@ -106,10 +118,11 @@ function generate(depth: number): void {
         if (b) b.home = { x: L.stairs.x, z: L.stairs.z };
       }
     }
-    for (let k = 0; k < n; k++) placeIn(cells, r === L.startRoom ? 'rat' : monsterTypeFor(depth));
+    // The start room holds a single monster of the level's first family, never a pack.
+    for (let k = 0; k < n; k++) r === L.startRoom ? placeIn(cells, L.families[0], false) : placeIn(cells, family());
   }
   const corr: [number, number][] = [];
   for (let z = 0; z < L.H; z++) for (let x = 0; x < L.W; x++) if (L.tiles[z * L.W + x] === 2) corr.push([x, z]);
   const nc = Math.floor(corr.length / 7);
-  for (let k = 0; k < nc; k++) placeIn(corr, monsterTypeFor(depth));
+  for (let k = 0; k < nc; k++) placeIn(corr, family());
 }

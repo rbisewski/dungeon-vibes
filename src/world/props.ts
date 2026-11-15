@@ -1,4 +1,4 @@
-import { buildSkeleton } from '../actors/models/skeleton';
+import { buildHumanoid } from '../actors/models/skeleton';
 import { PI, R, TAU, lerp, ri, rr } from '../core/math';
 import { G } from '../game/state';
 import { S } from '../render/buckets';
@@ -49,7 +49,7 @@ export function propStairs(cx: number, cz: number): void {
 }
 export function propPuddle(x: number, z: number): void { S('puddle', gCircle(1), x, .015, z, R() * TAU, -PI / 2, 0, rr(.35, .8), rr(.3, .6), 1); }
 export function sittingSkeleton(x: number, z: number, ry: number): void {
-  const s = buildSkeleton(false); s.root.position.set(x, -.38, z); s.root.rotation.y = ry;
+  const s = buildHumanoid('skeleton'); s.root.position.set(x, -.38, z); s.root.rotation.y = ry;
   s.legs.forEach(l => { l.hip.rotation.x = -1.4; l.knee.rotation.x = 1.3; });
   s.torso.rotation.x = -.25; s.head.rotation.set(.5, .3, .2); s.armL.rotation.x = -.3; s.armR.rotation.x = -.2; s.armR.rotation.z = -.3;
   s.weapon.visible = false; s.eyes.forEach(e => e.visible = false);
