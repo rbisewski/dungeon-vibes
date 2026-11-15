@@ -930,7 +930,7 @@ Damage and to-hit for every family sit above D1 (about ×2 damage, +10 to-hit), 
 | Thief | 62 min | 2 / 6 / 9 / 12 | 45 (0 before depth 6, then 5, 10, 11, 19 per level) |
 | Mage | 38 min | 2 / 6 / 9 / 12 | 19 |
 
-Level pacing meets the targets: level 2 after depth 1, then about `depth + 2` (12 at depth 9). AUTO never spends attribute points, so these heroes are weaker than played ones; the Thief's deaths from depth 6 on come mostly from spiders, whose leap and web defeat kiting.
+Level pacing meets the targets: level 2 after depth 1, then about `depth + 2` (12 at depth 9). AUTO never spends attribute points, so these heroes are weaker than played ones. The Thief's deaths start at depth 6 and every one of depths 6–9 had spiders in that run; causes of death were not recorded, so spiders (whose leap and web counter kiting) are the likely but unconfirmed culprit.
 
 | Family | Behaviour | Subtypes (tiers 0–3) |
 |---|---|---|
