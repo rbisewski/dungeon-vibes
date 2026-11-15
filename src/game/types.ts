@@ -83,9 +83,7 @@ export interface Level extends Layout {
   debris: Debris[]; decals: Decal[]; lights: LightSrc[]; flames: FlameSpec[];
   pillars: { x: number; z: number }[]; runes: THREE.Mesh[]; moons: { x: number; z: number }[];
   disposeGeo: THREE.BufferGeometry[]; disposeInst: THREE.InstancedMesh[]; disposeMat: THREE.Material[];
-  locked: boolean; fieldT: number; quietT: number; killsHere: number;
-  /** Monsters added by the rise-from-the-dark rule on this level. */
-  risen: number;
+  locked: boolean; fieldT: number; killsHere: number;
   startIdx: number;
   stairs: { tx: number; tz: number; x: number; z: number };
   lockedDoor: Door;

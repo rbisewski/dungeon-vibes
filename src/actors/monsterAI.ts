@@ -1,11 +1,10 @@
 import { WAR_CRY } from '../rules/skills';
 import { unpetrify } from './spells';
 import { monsterStrike } from './combat';
-import { levelFamily, spawnMonster } from './monsters';
 import { fireShot } from './shots';
 import { bossStrike, bossTick, updateEggSac } from './bosses';
 import { SFX, vol } from '../audio/sfx';
-import { PI, R, TAU, clamp, damp, lerp, pick, ri, rr, wrapA } from '../core/math';
+import { PI, R, TAU, clamp, damp, lerp, rr, wrapA } from '../core/math';
 import { G } from '../game/state';
 import { fxNorm } from '../render/particles';
 import { BOSSES } from '../rules/bosses';
@@ -27,16 +26,9 @@ function flowStep(m: Monster): { x: number; z: number } | null {
   }
   return best < 0 ? null : { x: (best % W) * T, z: Math.floor(best / W) * T };
 }
-/**
- * [OURS] Most monsters the legacy "rise from the dark" rule may add to one level. Unlimited, it made levels endless
- * (D1 levels are finite) and let weaker heroes farm forever without progressing.
- */
-const RISE_BUDGET = 10;
-
 export function updateMonsters(dt: number): void {
   const h = G.hero; let windups = 0;
   for (const m of G.L.monsters) if (m.state === 'windup') windups++;
-  let nearAware = false;
   for (const m of G.L.monsters) {
     if (m.dead) {
       // Corpses that did not shatter (skeletons and slimes are removed when killed) fall over and sink away.
@@ -62,7 +54,6 @@ export function updateMonsters(dt: number): void {
     const dx = h.x - m.x, dz = h.z - m.z, d = Math.hypot(dx, dz) || .001, heroOK = !h.dead && h.descend <= 0;
     if (!m.aware && heroOK && ((d < 4 && fieldAt(m.x, m.z) < 4) || (d < 10 && clearLine(m.x, m.z, h.x, h.z, .05, false)))) { m.aware = true; m.eyeBoost = .6; SFX.squeal(m.type, vol(m.x, m.z)); if (m.boss) toast(m.boss.name.toUpperCase(), BOSSES[m.boss.id].title.toUpperCase()); }
     if (m.aware && (d > 24 || !heroOK)) { m.aware = false; m.state = 'idle'; }
-    if (m.aware && d < 14 && fieldAt(m.x, m.z) < 10) nearAware = true;
     let mvx = 0, mvz = 0, want: number | null = null, speedMul = 1;
     const reach = m.st.reach + h.r, spidery = m.type === 'spider' || m.type === 'broodmother';
     const bm = m.boss ? bossTick(m, dt, d, dx, dz, heroOK) : null;
@@ -129,21 +120,6 @@ export function updateMonsters(dt: number): void {
   }
   // remove finished
   for (let i = G.L.monsters.length - 1; i >= 0; i--) { const m = G.L.monsters[i]; if (m.remove) { G.L.group.remove(m.root); m.mats.forEach(x => x.dispose()); G.L.monsters.splice(i, 1); } }
-  // keep the action going: wandering monsters rise from the dark, up to a per-level budget so levels stay finite
-  G.L.quietT = nearAware ? 0 : G.L.quietT + dt;
-  const alive = G.L.monsters.filter(m => !m.dead).length;
-  if (G.L.quietT > 3 && alive < 24 && G.L.risen < RISE_BUDGET && !h.dead && h.descend <= 0) {
-    G.L.quietT = 0;
-    const ok = (i: number): boolean => { const dd = G.L.dist[i]; return dd >= 3 && dd <= 6.5 && G.L.tiles[i] !== 6 && G.L.trap[i] < 0 && navOK(i); };
-    const cands: number[] = [];
-    if (h.path && h.path.length > h.pi + 3) for (let k = h.pi + 3; k < h.path.length; k++) { const p = h.path[k], i = Math.round(p.z / T) * G.L.W + Math.round(p.x / T); if (ok(i)) cands.push(i); }
-    if (!cands.length) for (let i = 0; i < G.L.N; i++) if (ok(i)) cands.push(i);
-    if (cands.length) {
-      const c = pick(cands), n = ri(1, Math.min(3, 1 + Math.floor(G.L.depth / 2))), cx = (c % G.L.W) * T, cz = Math.floor(c / G.L.W) * T;
-      G.L.risen += n;
-      for (let k = 0; k < n; k++) { const m = spawnMonster(levelFamily(), cx + rr(-.5, .5), cz + rr(-.5, .5), { rise: .9 + k * .25 }); m.aware = true; m.state = 'chase'; }
-    }
-  }
 }
 function animateMonster(m: Monster, dt: number, spd: number): void {
   m.root.position.set(m.x, m.root.position.y, m.z); m.root.rotation.y = m.face;

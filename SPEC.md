@@ -352,7 +352,7 @@ const CLASS = {
 - **Weapon meshes** follow the equipped weapon kind (sword, axe, club, staff with a glowing tip, bow), even when its requirements are unmet.
 - **Class select** runs over depth 1 with the world paused; after the name is entered, depth 1 is rebuilt fresh for the chosen hero. The name keeps letters, digits, space, `'` and `-`; an empty name uses the class name.
 - **Belt priority:** a picked-up potion moves a scroll from a full belt into the backpack (when it has room), so potions are never stuck in the backpack where AUTO cannot drink them.
-- **Monster risers:** the legacy rule that raises 1–3 monsters near the hero after 3 s without a fight is capped at **10 per level**. Unlimited, it made every level endless: weaker heroes farmed instead of progressing, and earlier XP pacing measurements were inflated by it. Whether to remove the rule entirely is open (Q11).
+- **Monster risers:** the legacy rule that raised 1–3 monsters near the hero after 3 s without a fight was capped at 10 per level here (unlimited, it made every level endless). **Removed after Phase 9 [USER, Q11]:** levels hold only their generated monsters, as in D1.
 - **AUTO acceptance runs** use a dev-only `simulate(seconds)` that advances the fixed-step game without rendering, so results do not depend on browser frame throttling.
 
 **Class selection screen [OURS]** (shown on `NEW RUN`)
@@ -892,7 +892,7 @@ subtype   = min(3, floor((depth − family.minDepth) / 4))   // +15 % hp/dmg per
 
 - Each depth picks **3 families** from those allowed at that depth. This mirrors D1's limit on families per level, and replaces `monsterTypeFor` (L1136).
 - Spawn counts stay as they are (L1222, L1227).
-- **As implemented in Phase 8** [OURS]: the three are picked uniformly (no weights) inside the level's seeded stream. When fewer than three families qualify (very deep), the families whose depth range ended most recently fill in. Each spawn picks uniformly among the level's three. The start room holds one monster of the level's first family, never a pack. A Fallen placement brings 2–4 more Fallen around it (packs of 3–5), on top of the usual counts. "Rise from the dark" spawns also use the level's families.
+- **As implemented in Phase 8** [OURS]: the three are picked uniformly (no weights) inside the level's seeded stream. When fewer than three families qualify (very deep), the families whose depth range ended most recently fill in. Each spawn picks uniformly among the level's three. The start room holds one monster of the level's first family, never a pack. A Fallen placement brings 2–4 more Fallen around it (packs of 3–5), on top of the usual counts.
 
 ### 8.3 Family table
 
@@ -922,7 +922,7 @@ Damage and to-hit for every family sit above D1 (about ×2 damage, +10 to-hit), 
 - **Subtype tiers** step every 4 depths after a family's first depth (max 3), add 15 % HP and damage each, and tint the model (spiders also grow 12 % per tier). Subtype names are data only for now; nothing displays them.
 - **Corpses** of zombies, Fallen, bats, spiders and rats fall over and sink; skeletons, archers and slimes burst as before.
 
-**Pacing simulation (Phase 8)** — AUTO from depth 1 to 9 (game time, depths 1–9 with the riser cap of §3.1):
+**Pacing simulation (Phase 8)** — AUTO from depth 1 to 9 (game time, depths 1–9, with the since-removed riser rule capped at 10 per level):
 
 | Class | Reached depth 9 | clvl on reaching depth 2 / 4 / 6 / 9 | Deaths |
 |---|---|---|---|
@@ -1297,12 +1297,7 @@ Each phase ships playable and is verified in the browser before the next starts.
 | Q8 | Class skills | **[USER]** New skills on `R`: Warrior **War Cry**, Thief **Disarm Trap** (D1), Mage **Mana Surge**. Repair and Recharge are revisited with the town. |
 | Q9 | Shared stash? | **[USER]** No. Each character has their own stash. |
 | Q10 | Keep the single `index.html`? | **[USER]** No. **[OURS]** The project moves to Vite + TypeScript + three.js 0.160 + Preact + Vitest (§2.1), via a behaviour-preserving port in Phase 0. |
-
-### Open questions
-
-| # | Question | Options | Recommendation |
-|---|---|---|---|
-| Q11 | The legacy "rise from the dark" rule (Phase 6 note in §3.1) raises monsters near a hero who has been out of combat for 3 s. Keep it? | (a) Keep, capped at 10 per level (current).<br>(b) Remove: levels hold only their generated monsters, as in D1. | (b) is closer to D1 and makes pacing predictable; (a) keeps the original game's pressure. |
+| Q11 | The legacy "rise from the dark" rule raised monsters near a hero out of combat for 3 s. Keep it? | **[USER]** No: removed after Phase 9. Levels hold only their generated monsters, as in D1. |
 
 ---
 

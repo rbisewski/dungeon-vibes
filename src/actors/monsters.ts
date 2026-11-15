@@ -107,5 +107,3 @@ export function spawnMonster(type: MonsterType, x: number, z: number, opts: Spaw
   return m;
 }
 
-/** A family for one spawn, uniform among the level's families (SPEC §8.2). */
-export const levelFamily = (): FamilyId => G.L.families[Math.floor(R() * G.L.families.length)];
