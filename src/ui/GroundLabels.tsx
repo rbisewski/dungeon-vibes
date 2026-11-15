@@ -1,3 +1,4 @@
+import { NPCS } from '../game/shops';
 import { signal } from '@preact/signals';
 import * as THREE from 'three';
 import { G } from '../game/state';
@@ -54,6 +55,7 @@ export function updateGroundLabels(): void {
     if (text) place(`exit${i}`, e.x, e.kind === 'portal' ? 2.6 : 1.2, e.z, text, !e.open);
   });
   if (G.L.stash) place('stash', G.L.stash.x, 1.6, G.L.stash.z, 'STASH');
+  for (const n of G.L.npcs) place(`npc-${n.id}`, n.x, 2.3, n.z, NPCS[n.id].name.toUpperCase());
   if (out.length || labels.value.length) labels.value = out;
 }
 

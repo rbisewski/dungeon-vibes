@@ -12,11 +12,14 @@ import { base } from '../rules/bases';
 import type { Attr } from '../rules/classes';
 import {
   addItem, beltable, carried, equipFromPack, equipInto, findSpot, fitsSlot, isTwoHanded, isUnidentified, itemAt, itemName,
-  itemSize, meetsReq, placeAt, putInGrid, removeFromGrid, takeFromBelt, unequipToPack, PACK_W, PACK_H, type EquipSlot, type Grid, type Item,
+  itemSize, meetsReq, placeAt, putInGrid, removeFromGrid, storeTarget, takeFromBelt, unequipToPack, PACK_W, PACK_H, type EquipSlot, type Grid, type Item,
 } from '../rules/inventory';
 import { pickupNearest, spawnItem } from '../world/groundItems';
 import { heroManaCost, startCast } from '../actors/spells';
 import { canLearn, learnReq, MAX_SLVL, scrollReq, SPELLS, type SpellId } from '../rules/spells';
+import { sellPrice } from '../rules/prices';
+import { buys, PEDDLER_LOOK, SAGE_FEE, type MerchantId } from '../rules/shops';
+import { catchUpShops, NPCS, offers, type NpcId, type Offer } from '../game/shops';
 import { isOpen, openPanels, toast, type Panel } from './store';
 import { syncHud, syncSheet } from './syncHud';
 
@@ -25,15 +28,19 @@ export const held = signal<Item | null>(null);
 /** Bumped after every inventory change so panels re-read the (mutable) inventory. */
 export const invVersion = signal(0);
 
-/** Keyboard cursor in the inventory: a backpack cell or an equipment slot. */
-export type Cursor = { area: 'pack'; x: number; y: number } | { area: 'stash'; x: number; y: number } | { area: 'equip'; slot: EquipSlot };
+/** Keyboard cursor in the inventory: a backpack, stash or shop-list position, or an equipment slot. */
+export type Cursor =
+  | { area: 'pack'; x: number; y: number } | { area: 'stash'; x: number; y: number } | { area: 'shop'; i: number } | { area: 'equip'; slot: EquipSlot };
 export const cursor = signal<Cursor>({ area: 'pack', x: 0, y: 0 });
 
 /** Where the Scroll of Identify being read sits; while set, inventory clicks choose the item to identify. */
 export type ScrollSource = { belt: number } | { pack: Item };
-/** What pays for an identification: a scroll, or the Identify spell's mana. */
-export type IdentifySource = ScrollSource | { spell: true };
+/** What pays for an identification: a scroll, the Identify spell's mana, or the sage's fee. */
+export type IdentifySource = ScrollSource | { spell: true } | { sage: true };
 export const identifying = signal<IdentifySource | null>(null);
+/** The merchant whose shop is open (SPEC §13.2), and whether the smith shows his premium list. */
+export const shopFor = signal<MerchantId | null>(null);
+export const smithPremium = signal(false);
 /** Spell under the mouse in the spellbook (F5–F8 assigns it). */
 export const hoverSpell = signal<SpellId | null>(null);
 /** uid of the item that was just identified (its cell sparkles briefly). */
@@ -49,14 +56,14 @@ function changed(): void {
   syncHud();
 }
 
-const LEFT: readonly Panel[] = ['char', 'book', 'stash'];
+const LEFT: readonly Panel[] = ['char', 'book', 'stash', 'shop'];
 
 export function openPanel(p: Panel): void {
   if (!canOpen() || isOpen(p)) return;
   const left = LEFT.includes(p);
   const keep = openPanels.value.filter(q => q !== 'menu' && !(left && LEFT.includes(q)));
-  // The stash always shows the inventory beside it (SPEC §13.1).
-  openPanels.value = p === 'menu' ? ['menu'] : p === 'stash' ? [...keep.filter(q => q !== 'inv'), 'stash', 'inv'] : [...keep, p];
+  // The stash and shops always show the inventory beside them (SPEC §13.1, §13.2).
+  openPanels.value = p === 'menu' ? ['menu'] : p === 'stash' || p === 'shop' ? [...keep.filter(q => q !== 'inv'), p, 'inv'] : [...keep, p];
   G.paused = true;
   resetInput();
   syncSheet();
@@ -73,28 +80,29 @@ function stowHeld(): void {
 }
 
 export function closePanel(p: Panel): void {
-  if (p === 'inv' || p === 'stash') { stowHeld(); identifying.value = null; }
-  const stash = isOpen('stash') && (p === 'stash' || p === 'inv');
-  // closing either half of the stash view closes both
-  openPanels.value = openPanels.value.filter(q => q !== p && !(stash && (q === 'stash' || q === 'inv')));
+  if (p === 'inv' || p === 'stash' || p === 'shop') { stowHeld(); identifying.value = null; }
+  // closing either half of the stash or shop view closes both
+  const pair = (['stash', 'shop'] as const).find(q => isOpen(q) && (p === q || p === 'inv'));
+  openPanels.value = openPanels.value.filter(q => q !== p && !(pair && (q === pair || q === 'inv')));
   G.paused = openPanels.value.length > 0;
   resetInput();
-  if (stash) stashClosed();
+  if (pair) tradeClosed();
 }
 
 export function closePanels(): void {
-  const stash = isOpen('stash');
+  const pair = isOpen('stash') || isOpen('shop');
   stowHeld();
   identifying.value = null;
   openPanels.value = [];
   G.paused = false;
   resetInput();
-  if (stash) stashClosed();
+  if (pair) tradeClosed();
 }
 
-/** Closing the stash saves the character (SPEC §12.2). */
-function stashClosed(): void {
-  if (cursor.value.area === 'stash') cursor.value = { area: 'pack', x: 0, y: 0 };
+/** Closing the stash or a shop saves the character (SPEC §12.2). */
+function tradeClosed(): void {
+  if (cursor.value.area === 'stash' || cursor.value.area === 'shop') cursor.value = { area: 'pack', x: 0, y: 0 };
+  shopFor.value = null;
   saveGame();
 }
 
@@ -126,10 +134,11 @@ function reqText(it: Item): string {
 function beginIdentify(src: IdentifySource): void {
   if (!carried(G.hero.inv).some(isUnidentified)) { toast('NOTHING TO IDENTIFY'); return; }
   if ('spell' in src && G.hero.mana < heroManaCost(G.hero, 'identify')) { SFX.fizzle(); toast('NOT ENOUGH MANA'); return; }
+  if ('sage' in src && G.hero.gold < SAGE_FEE) { toast('NOT ENOUGH GOLD', `THE SAGE ASKS ${SAGE_FEE} GOLD`); return; }
   openPanel('inv');
   if (!isOpen('inv')) return;
   identifying.value = src;
-  toast('IDENTIFY', 'CHOOSE AN ITEM - ESC CANCELS');
+  toast('IDENTIFY', 'sage' in src ? `${SAGE_FEE} GOLD EACH - ESC CANCELS` : 'CHOOSE AN ITEM - ESC CANCELS');
 }
 
 /**
@@ -205,10 +214,14 @@ function identify(it: Item | null): void {
     const cost = heroManaCost(G.hero, 'identify');
     if (G.hero.mana < cost) { SFX.fizzle(); toast('NOT ENOUGH MANA'); identifying.value = null; return; }
     G.hero.mana -= cost;
+  } else if ('sage' in src) {
+    if (G.hero.gold < SAGE_FEE) { toast('NOT ENOUGH GOLD'); identifying.value = null; return; }
+    G.hero.gold -= SAGE_FEE;
   } else if ('belt' in src) takeFromBelt(inv, src.belt);
   else removeFromGrid(inv.pack, src.pack);
   it.identified = true;
-  identifying.value = null;
+  // the sage keeps going while there is something left to identify and gold to pay for it
+  identifying.value = 'sage' in src && G.hero.gold >= SAGE_FEE && carried(inv).some(isUnidentified) ? src : null;
   sparkle.value = it.uid;
   setTimeout(() => { if (sparkle.value === it.uid) sparkle.value = null; }, 900);
   SFX.identify();
@@ -304,10 +317,14 @@ export function clickBelt(slot: number): void {
   changed();
 }
 
-/** Right-click / X on a backpack item: drink, read, or equip; with the stash open, move it into the stash. */
+/**
+ * Right-click / X on a backpack item: drink, read, or equip; with the stash open, move it into the stash; with a
+ * shop open, sell it.
+ */
 export function usePackItem(it: Item): void {
   const inv = G.hero.inv;
   if (isOpen('stash')) { packToStash(it); return; }
+  if (shopFor.value) { sellItem(it); return; }
   if (it.kind === 'potion') { removeFromGrid(inv.pack, it); drinkPotion(it.potion); changed(); return; }
   if (it.kind === 'elixir') { if (drinkElixir(it.attr)) { removeFromGrid(inv.pack, it); changed(); } return; }
   if (it.kind === 'scroll') { readScroll({ pack: it }); return; }
@@ -334,6 +351,57 @@ export function dropHeld(): void {
   changed();
 }
 
+/* ---------- town (SPEC §13.2) ---------- */
+
+/**
+ * Walking up to someone in town. The healer first heals the hero for free; the sage opens the inventory to identify
+ * for a fee; the merchants open their shop beside the inventory.
+ */
+export function openNpc(id: NpcId): void {
+  const h = G.hero;
+  catchUpShops();
+  if (id === 'sage') { beginIdentify({ sage: true }); return; }
+  if (id === 'healer' && h.life < h.d.maxLife) { h.life = h.d.maxLife; h.poisonT = 0; SFX.potion(); toast('YOU ARE HEALED'); }
+  shopFor.value = id;
+  smithPremium.value = false;
+  openPanel('shop');
+}
+
+/** Buys an offer: needs the gold and room for it (belt first for potions and scrolls, as when picking up). */
+export function buyOffer(o: Offer): void {
+  const h = G.hero;
+  if (h.gold < o.price) { SFX.fizzle(); toast('NOT ENOUGH GOLD'); return; }
+  if (!storeTarget(h.inv, o.item)) { SFX.fizzle(); toast('NO ROOM'); return; }
+  h.gold -= o.price;
+  addItem(h.inv, o.take());
+  SFX.coin();
+  changed();
+}
+
+/** The peddler shows his item only for a fee (D1). */
+export function payPeddler(): void {
+  const h = G.hero;
+  if (h.gold < PEDDLER_LOOK) { SFX.fizzle(); toast('NOT ENOUGH GOLD'); return; }
+  h.gold -= PEDDLER_LOOK;
+  G.shops.peddler.seen = true;
+  SFX.coin();
+  changed();
+}
+
+/** Sells a backpack item to the open shop for a quarter of its price, if that merchant buys its kind (D1). */
+function sellItem(it: Item): void {
+  const m = shopFor.value;
+  if (!m) return;
+  if (!buys(m, it)) { SFX.fizzle(); toast(`${NPCS[m].role.toUpperCase()} WILL NOT BUY THIS`); return; }
+  removeFromGrid(G.hero.inv.pack, it);
+  G.hero.gold += sellPrice(it);
+  SFX.coin();
+  changed();
+}
+
+/** The open shop's current offers. */
+export const shopOffers = (): Offer[] => (shopFor.value ? offers(shopFor.value, smithPremium.value) : []);
+
 /* ---------- keyboard ---------- */
 
 /** Equipment slots in on-screen order for arrow-key cycling. */
@@ -348,6 +416,14 @@ function moveCursor(dx: number, dy: number): void {
     return;
   }
   if (c.area === 'pack' && c.x + dx < 0 && isOpen('stash')) { cursor.value = { area: 'stash', x: STASH_W - 1, y: c.y }; return; }
+  // with a shop open, its list sits left of the backpack
+  if (c.area === 'shop') {
+    const n = shopOffers().length;
+    if (dx > 0) { cursor.value = { area: 'pack', x: 0, y: Math.min(PACK_H - 1, c.i) }; return; }
+    cursor.value = { area: 'shop', i: Math.max(0, Math.min(n - 1, c.i + dy)) };
+    return;
+  }
+  if (c.area === 'pack' && c.x + dx < 0 && isOpen('shop')) { cursor.value = { area: 'shop', i: c.y }; return; }
   if (c.area === 'pack') {
     const ny = c.y + dy;
     if (ny < 0) { cursor.value = { area: 'equip', slot: c.x < 3 ? 'weapon' : c.x > 6 ? 'shield' : 'body' }; return; }
@@ -361,7 +437,15 @@ function moveCursor(dx: number, dy: number): void {
 
 function cursorItem(): Item | null {
   const c = cursor.value, inv = G.hero.inv;
+  if (c.area === 'shop') return shopOffers()[c.i]?.item ?? null;
   return c.area === 'equip' ? inv.equip[c.slot] : itemAt(c.area === 'pack' ? inv.pack : G.stash.grid, c.x, c.y)?.item ?? null;
+}
+
+/** Enter in the shop list: buy the selected offer (the peddler first wants his fee). */
+function shopEnter(i: number): void {
+  if (shopFor.value === 'peddler' && !G.shops.peddler.seen) { payPeddler(); return; }
+  const o = shopOffers()[i];
+  if (o) buyOffer(o);
 }
 
 addEventListener('keydown', e => {
@@ -381,11 +465,20 @@ addEventListener('keydown', e => {
   const arrows: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
   if (arrows[e.code]) { e.preventDefault(); moveCursor(...arrows[e.code]); return; }
   const c = cursor.value;
-  if (e.code === 'Enter') { e.preventDefault(); c.area === 'equip' ? clickEquip(c.slot) : c.area === 'pack' ? clickPack(c.x, c.y) : clickStash(c.x, c.y); }
-  else if (e.code === 'KeyX') {
+  if (e.code === 'Tab' && shopFor.value === 'smith') { e.preventDefault(); smithPremium.value = !smithPremium.value; if (c.area === 'shop') cursor.value = { area: 'shop', i: 0 }; return; }
+  if (e.code === 'Enter') {
+    e.preventDefault();
+    if (c.area === 'equip') clickEquip(c.slot);
+    else if (c.area === 'pack') clickPack(c.x, c.y);
+    else if (c.area === 'stash') clickStash(c.x, c.y);
+    else shopEnter(c.i);
+  } else if (e.code === 'KeyX') {
     e.preventDefault();
     const it = cursorItem();
-    if (it) c.area === 'equip' ? unequip(c.slot) : c.area === 'pack' ? usePackItem(it) : stashToPack(it);
+    if (!it || c.area === 'shop') return;
+    if (c.area === 'equip') unequip(c.slot);
+    else if (c.area === 'pack') usePackItem(it);
+    else stashToPack(it);
   } else if (e.code === 'KeyG') { e.preventDefault(); dropHeld(); }
   else if (/^Digit[1-8]$/.test(e.code)) { e.preventDefault(); clickBelt(+e.code.slice(5) - 1); }
 });

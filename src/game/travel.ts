@@ -11,6 +11,7 @@ import { addPortalExit, buildLevel, placeHero } from '../world/level';
 import { captureLevel } from '../world/levelDelta';
 import { circleBlocked } from '../world/nav';
 import { G } from './state';
+import { restockShops } from './shops';
 import type { Exit } from './types';
 
 function leaveLevel(): void {
@@ -38,6 +39,8 @@ export function travel(ex: Exit): void {
   if (ex.kind === 'down' && from > 0) h.life = Math.min(h.d.maxLife, h.life + h.d.maxLife * .2);
   G.depth = ex.to;
   G.deepest = Math.max(G.deepest, ex.to);
+  // back in town from the dungeon: the merchants restock (D1)
+  if (ex.to === 0 && from > 0) restockShops();
   buildLevel(ex.to);
   if (ex.kind === 'up') {
     const back = G.L.exits.find(e => e.kind === 'down' && e.to === from);
@@ -56,6 +59,7 @@ export function wakeInTown(): void {
   leaveLevel();
   const graves = Object.values(G.levels).some(d => d.graves.length);
   G.depth = 0;
+  restockShops();
   buildLevel(0);
   h.life = h.d.maxLife; h.mana = h.d.maxMana;
   toast('YOU WAKE IN TOWN', graves ? 'YOUR BELONGINGS LIE WHERE YOU FELL' : '');

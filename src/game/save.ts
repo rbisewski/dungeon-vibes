@@ -15,6 +15,7 @@ import { captureLevel, type LevelDelta } from '../world/levelDelta';
 import { circleBlocked, computeField } from '../world/nav';
 import { camTarget } from '../render/cameraRig';
 import { G, STASH_W, STASH_H } from './state';
+import { loadShops, newShops, saveShops, type SavedShops } from './shops';
 import type { HeroStats } from './types';
 
 export const SAVE_KEY = 'dv.save.v3';
@@ -51,6 +52,8 @@ export interface CharSave {
   /** The open Town Portal's dungeon end. */
   portal: { depth: number; x: number; z: number } | null;
   stash: { grid: Grid; gold: number };
+  /** The smith's and peddler's stock; the witch's and healer's reroll on load [USER Q19]. Absent before Phase 12. */
+  shops?: SavedShops;
 }
 
 export interface SaveFile { characters: CharSave[]; lastPlayed: string | null }
@@ -99,7 +102,7 @@ export function saveGame(): void {
   const c: CharSave = {
     id, cls: h.stats.cls, name: h.name, clvl: h.stats.clvl, depth: G.depth, runSeed: G.runSeed, savedAt: Date.now(),
     hero, levels: { ...G.levels, [G.depth]: captureLevel() }, uniquesFound: [...G.loot.found],
-    deepest: G.deepest, portal: G.portal, stash: G.stash,
+    deepest: G.deepest, portal: G.portal, stash: G.stash, shops: saveShops(G.shops),
   };
   const f = readSaves();
   const i = f.characters.findIndex(x => x.id === id);
@@ -120,6 +123,7 @@ export function beginNewCharacter(): void {
   G.deepest = 0;
   G.portal = null;
   G.stash = { grid: { w: STASH_W, h: STASH_H, items: [] }, gold: 0 };
+  G.shops = newShops();
 }
 
 /** Loads a saved character and puts them back where they were. */
@@ -132,7 +136,8 @@ export function continueCharacter(id: string): boolean {
     stats: s.stats, inv: s.inv, gold: s.gold, slain: s.slain,
     spells: s.spells, readied: s.readied, hotkeys: s.hotkeys, lifeDrain: s.lifeDrain,
   });
-  reserveUids(Math.max(0, ...carried(h.inv).map(it => it.uid), ...c.stash.grid.items.map(p => p.item.uid), ...Object.values(c.levels).flatMap(d => [...d.ground, ...d.graves.flatMap(g => g.pickups)].flatMap(p => ('item' in p ? [p.item.uid] : [])))));
+  const sh = c.shops, shopUids = sh ? [...sh.smith, ...sh.premium, ...(sh.peddler.item ? [sh.peddler.item] : [])].map(it => it.uid) : [];
+  reserveUids(Math.max(0, ...carried(h.inv).map(it => it.uid), ...c.stash.grid.items.map(p => p.item.uid), ...shopUids, ...Object.values(c.levels).flatMap(d => [...d.ground, ...d.graves.flatMap(g => g.pickups)].flatMap(p => ('item' in p ? [p.item.uid] : [])))));
   recompute(h);
   h.life = Math.min(s.life, h.d.maxLife); h.mana = Math.min(s.mana, h.d.maxMana);
   G.hero = h;
@@ -143,6 +148,7 @@ export function continueCharacter(id: string): boolean {
   G.deepest = c.deepest;
   G.portal = c.portal;
   G.stash = c.stash;
+  G.shops = c.shops ? loadShops(c.shops) : newShops();
   // the saved current level is rebuilt like any other visited level
   G.levels = { ...c.levels };
   clearShots();

@@ -1,6 +1,7 @@
 import type { LootCtx } from '../rules/loot';
 import type { Grid } from '../rules/inventory';
 import type { LevelDelta } from '../world/levelDelta';
+import type { ShopStock } from './shops';
 import type { Actor, Hero, Level, Transition } from './types';
 
 /** Stash grid size [OURS]: 10×10, as D2R's stash. */
@@ -37,6 +38,8 @@ export const G = {
   deepest: 0,
   /** The open Town Portal's dungeon end, if any (its town end is the town's portal spot). */
   portal: null as { depth: number; x: number; z: number } | null,
+  /** Town merchants' stock (SPEC §13.2); set for each character by `newShops` / `loadShops`. */
+  shops: { smith: [], premium: [], premiumLvl: 0, witch: [], healer: [], peddler: { item: null, seen: false, lvl: 0 } } as ShopStock,
   /** The character's stash (SPEC §13.1). */
   stash: { grid: { w: STASH_W, h: STASH_H, items: [] } as Grid, gold: 0 },
 };

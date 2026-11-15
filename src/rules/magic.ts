@@ -11,14 +11,17 @@ export const UNIQUE_CHANCE = 2, BOSS_UNIQUE_CHANCE = 16;
 
 const pickOf = <T>(rng: Rng, a: readonly T[]): T => a[Math.floor(rng() * a.length)];
 
+/** The qlvl window affixes are drawn from: [lo, hi]. */
+export interface AffixWindow { lo: number; hi: number }
+
 /**
- * Affixes allowed on `id` at `ilvl`. D1 draws affixes with qlvl in [ilvl/2, ilvl] so deep items do not get the
- * weakest tiers; when that window is empty for a slot, any qlvl ≤ ilvl is allowed.
+ * Affixes allowed on `id`. D1 draws affixes with qlvl in [ilvl/2, ilvl] so deep items do not get the weakest tiers;
+ * shops use other windows (`win`). When the window is empty for a slot, any qlvl ≤ its top is allowed.
  */
-export function eligibleAffixes(id: BaseId, ilvl: number, pos: 'pre' | 'suf'): AffixId[] {
+export function eligibleAffixes(id: BaseId, ilvl: number, pos: 'pre' | 'suf', win: AffixWindow = { lo: Math.floor(ilvl / 2), hi: ilvl }): AffixId[] {
   const tags = baseTags(base(id));
-  const ok = AFFIX_IDS.filter(a => AFFIXES[a].pos === pos && AFFIXES[a].on.some(t => tags.includes(t)) && AFFIXES[a].qlvl <= ilvl);
-  const windowed = ok.filter(a => AFFIXES[a].qlvl >= Math.floor(ilvl / 2));
+  const ok = AFFIX_IDS.filter(a => AFFIXES[a].pos === pos && AFFIXES[a].on.some(t => tags.includes(t)) && AFFIXES[a].qlvl <= win.hi);
+  const windowed = ok.filter(a => AFFIXES[a].qlvl >= win.lo);
   return windowed.length ? windowed : ok;
 }
 
@@ -31,8 +34,8 @@ function rollAffix(rng: Rng, id: AffixId): Prop[] {
  * Turns a normal item magic. D1 (devilutionX `GetItemPower`): a prefix with 1/4 chance, a suffix with 2/3 chance,
  * and when neither was chosen one of the two at random. Returns false when the base takes no affixes at this ilvl.
  */
-export function makeMagic(rng: Rng, it: EquipItem, ilvl: number): boolean {
-  const pres = eligibleAffixes(it.base, ilvl, 'pre'), sufs = eligibleAffixes(it.base, ilvl, 'suf');
+export function makeMagic(rng: Rng, it: EquipItem, ilvl: number, win?: AffixWindow): boolean {
+  const pres = eligibleAffixes(it.base, ilvl, 'pre', win), sufs = eligibleAffixes(it.base, ilvl, 'suf', win);
   let wantPre = rng() < 1 / 4, wantSuf = rng() < 2 / 3;
   if (!wantPre && !wantSuf) { if (rng() < .5) wantPre = true; else wantSuf = true; }
   if (wantPre && !pres.length) { wantPre = false; wantSuf = sufs.length > 0; }

@@ -1,6 +1,6 @@
 # Dungeon Vibes — Diablo-Style Progression Spec
 
-Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phases 0–11.
+Status: draft v5. All questions (Q1–Q9) are answered and folded in (see §16). The single-file constraint is lifted (§2.1). **Implemented:** Phases 0–12.
 
 This spec layers a Diablo 1 (D1) style character, spell, and loot system onto the existing game. The game is first ported from the single `index.html` to a TypeScript project (§2.1). It keeps the game's look, controls, and AUTO mode.
 
@@ -1289,7 +1289,7 @@ Saved to `localStorage['dv.save.v3']`. There are up to 6 character slots:
 - **Persistence:** the stash is saved with the character (§12.2). It survives death, because only carried items drop.
 - **The stash belongs to one character [USER Q9].** Each character has their own stash, so items cannot be passed between characters through it.
 
-### 13.2 Merchants and the sage (Phase 12, draft)
+### 13.2 Merchants and the sage (Phase 12)
 
 D1's town has four shopkeepers, plus Wirt. They sell, buy and identify; Griswold also repairs and Adria recharges, but those need durability and charges, which we don't have.
 
@@ -1305,18 +1305,22 @@ D1's town has four shopkeepers, plus Wirt. They sell, buy and identify; Griswold
 - **Potions:** Healing 50, Full Healing 150, Mana 50, Full Mana 150, Rejuvenation 120, Full Rejuvenation 600. Elixirs are never sold (they stay dungeon finds).
 - **Scrolls and books:** the D1 table, e.g. Identify scroll 100; Town Portal scroll 200, book 3 000; Firebolt book 1 000; Healing scroll 50, book 1 000; Lightning scroll 150, book 3 000; Fireball scroll 300, book 8 000; Mana Shield scroll 1 200, book 16 000; Chain Lightning scroll 750, book 11 000. Our Identify book has no D1 price: **[OURS] 5 000**.
 - **Base items:** the D1 price column of each base (e.g. Dagger 60, Buckler 30, Short Bow 100, Rags 5, Quilted Armor 200). Rings and amulets have no normal version, so only magic prices apply.
-- **Magic items:** D1's formula `C = Bp + Bs + Qp + Qs + I·(Mp + Ms)`, where `I` is the base price and each affix contributes its base effect `B`, its quality share `Q = (roll position) · R`, and a multiplier `M`. Every affix in our table gets D1's `B`, `R`, `M` data, matched by its D1 name; affixes we invented get values interpolated from the nearest D1 affix [OURS].
-- **Uniques [OURS]:** priced by the same formula, summing their properties as if they were affixes, ×1.5. They are never sold by merchants, only bought from the player.
+- **Magic items:** D1's formula (devilutionX `CalcItemValue`): `value = add₁ + add₂ + (mult₁ + mult₂) · I`, where `I` is the base price. Each affix's `add` is interpolated by roll position between its D1 `minVal` and `maxVal` in whole percent (`PLVal`); two-effect affixes (Sharp … King's) use their damage roll. Every one of our 89 affixes matches a D1 affix by name, so all use D1 data (`item_prefixes.tsv`, `item_suffixes.tsv`).
+- **Uniques [OURS]:** each positive property is priced as the D1 affix of the same stat whose range is nearest its value, summed by the same formula, ×1.5. Properties with no D1 counterpart (flat AC, crit multiplier) and negative ones add nothing. Uniques are never sold by merchants, only bought from the player.
 - **Unidentified magic and unique items** are priced at their base item's price (D1). Identify first to sell high.
 - **Selling:** merchants pay **¼ of the price** (D1), rounded down, at least 1. Gold has no cap (our gold is a counter, not inventory cells).
 
 **Stock**
-- **Item level:** basic stock (smith's basic, witch, healer) uses `ilvl = max(1, deepest)`, capped at 16 like D1's single-player table. The smith's premium items use `ilvl = clvl − 1 … clvl + 2`, capped at 30 (D1).
-- **Basic stock:** 10–16 normal items at the smith [OURS count; D1 does not state a fixed number in our sources], 7–14 random items at the witch and healer (D1).
-- **Premium stock:** 6 magic items at the smith (D1 Diablo, not Hellfire's 15).
-- **Restocking:** basic stock and the witch's and healer's random items renew each time the hero arrives in town from the dungeon (D1). Premium stock replaces a bought item at once, and replaces half its items when the hero gains a level (D1: "some of them").
+- **Item level:** basic stock (smith's basic, witch, healer) uses D1's single-player `ilvl = clamp(deepest + 2, 6, 16)`. The smith's premium slots use `clvl + [−1, −1, 0, 0, +1, +2]`, at most 30, with base qlvl in [ilvl/4, ilvl] and affix qlvl in [ilvl/2, ilvl] (D1).
+- **Basic stock (D1):** the smith has 10–19 normal items, never staves or jewelry, with bows drawn at double weight. The witch and the healer each have 7–14 random items beside their unlimited ones.
+  - **Witch:** books (book qlvl ≤ ilvl), scrolls other than her fixed ones, and staves. A staff turns magic with the dungeon chance, with affixes from [ilvl, 2·ilvl].
+  - **Healer:** Potions of Rejuvenation and Full Rejuvenation (from qlvl 7), and Scrolls of Healing.
+  - **Picking:** the random items are drawn uniformly among eligible bases, then grouped by kind, slot and price (D1 `SortVendor`).
+- **Premium stock:** 6 magic items at the smith (D1 Diablo, not Hellfire's 15), never staves, identified.
+- **Value caps (D1):** the smith never offers an item worth over 140 000; the peddler never one over 90 000 (rerolled until under).
+- **Restocking (D1):** basic stock and the witch's and healer's random items renew each time the hero comes up from the dungeon, by any way including death. A bought premium item is replaced at once at its slot's level. For each level gained, premium items 2–4 move down to slots 0–2, item 5 moves to slot 4, and slots 3 and 5 are rerolled. The peddler brings a new item after his last one was bought and the hero has been down again, or when the hero reaches an even level. Level changes apply when someone in town is next spoken to.
 - **Uniques:** shops never stock uniques, and stocking does not touch `uniquesFound`.
-- **Saving:** shop stock is saved with the character, so reloading never rerolls it [OURS; D1 single player rerolls on reload, Q19].
+- **Saving [USER Q19]:** the smith's basic and premium stock and the peddler's item are saved with the character. The witch's and healer's random items are not: loading a character rerolls them, as in D1 single player. Their fixed (unlimited) items never change.
 
 **Interaction and UI**
 - **NPC figures:** each stands at a fixed spot in town with a name label, on the hero model rig with its own clothing and a slow idle. The smith stands by an anvil and forge at a market stall, the witch at a stall with a cauldron, the healer by the well, and the sage by a lectern near the stash.
@@ -1326,13 +1330,25 @@ D1's town has four shopkeepers, plus Wirt. They sell, buy and identify; Griswold
 - **Bought items** go to the backpack (potions and scrolls to the belt first, by the usual pickup rules).
 - **AUTO never trades** [USER, §14]: trading is a player decision. The healer's free heal still applies whenever the player walks up.
 
-**Open questions**
+**Decisions [USER]:** Q17 original names with roles; Q18 the peddler is included; Q19 reloading rerolls the witch's and healer's random items, as in D1 single player (the smith's and peddler's stock is saved).
 
-| # | Question | Options | Recommendation |
-|---|---|---|---|
-| Q17 | NPC names | (a) Role names ("the smith") with an original personal name each (e.g. "Halvard the Smith").<br>(b) D1's names (Griswold, Adria, Pepin, Cain, Wirt). | (a): avoids leaning on D1's characters while keeping the roles recognisable. |
-| Q18 | The peddler (Wirt) | (a) Include: one pricey premium item, 50 gold to look.<br>(b) Leave out. | (a): cheap to build on the smith's premium logic, and gives late gold a use. |
-| Q19 | Rerolling shops by reloading | (a) Stock is saved; no rerolls.<br>(b) As D1 single player: reloading rerolls the witch's and healer's random items. | (a): no save-scumming, and AUTO-free runs stay honest. |
+**As implemented in Phase 12** [OURS unless noted]
+- **Names:** Halvard the Smith, Morwen the Witch, Aldric the Healer, Tobias the Sage, Pip the Peddler. Their names float over them within 5 m.
+- **Places:**
+  - **Smith:** north of the red market stall, with an anvil on a stump and a stone forge.
+  - **Witch:** south of the green stall, with a bubbling cauldron.
+  - **Healer:** beside the well.
+  - **Sage:** with a lectern and open book, west of the stash.
+  - **Peddler:** with his crates, near the abbey street.
+- **Figures:** a simple standing rig in role clothing (apron and hammer; pointed hat and staff; white robe, red sash and satchel; long beard and staff; hood and backpack). They breathe and sway, and turn their heads toward the hero within 6 m. Their tiles block movement.
+- **Trigger:** walking within 1.5 m (player-driven only) opens them, once until the hero steps away, like the stash.
+- **Keys:** with a shop open, Left from the backpack's first column enters the shop list, Up/Down move, Enter buys, and Right returns. Tab switches the smith between BASIC and PREMIUM.
+- **Panels:** closing the shop or the inventory closes both and saves.
+- **Healer:** restores life (not mana) and clears poison on every visit where life is below full. Black Death's lost life is not restored (D1).
+- **Sage:** with nothing unidentified carried, he only says so. He needs 100 gold to begin, and identify mode ends when the gold runs out or nothing unidentified is left.
+- **Peddler:** shows `"I HAVE SOMETHING SPECIAL. 50 GOLD JUST TO LOOK."` until paid. The fee holds until the item changes.
+- **Selling:** sold items' gold is added at once; selling is refused for kinds the merchant does not buy. Nobody buys potions or elixirs (D1).
+- **Saves from Phase 11 or earlier:** they have no shop stock; continuing one stocks the shops fresh.
 
 ---
 
@@ -1371,7 +1387,7 @@ Each phase ships playable and is verified in the browser before the next starts.
 | 9 | **Mini-bosses** | §9 | Depths 5, 10, 15, and 20 have the right boss, mechanics, and guaranteed drops. |
 | 10 | **Persistence and polish** | §12.2 (character slots, level deltas), §8.4, settings (damage numbers) | Reloading mid-level continues with the same layout, ground items, and gear. Several characters can be saved side by side. |
 | 11 | **Town** | §13, §13.1 | Death respawns the hero in town. The stash stores items across sessions. Items dropped in town stay there. |
-| 12 | **Merchants and the sage** | §13.2 | Each merchant sells and buys its kinds at D1 prices; selling pays ¼. Stock follows `deepest`/clvl and restocks on returning from the dungeon. The sage identifies for 100 gold. The healer heals for free. Stock survives a reload. AUTO never trades. |
+| 12 | **Merchants and the sage** | §13.2 | Each merchant sells and buys its kinds at D1 prices; selling pays ¼. Stock follows `deepest`/clvl and restocks on returning from the dungeon. The sage identifies for 100 gold. The healer heals for free. The smith's and peddler's stock survives a reload; the witch's and healer's random items reroll. AUTO never trades. |
 
 ---
 

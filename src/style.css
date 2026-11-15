@@ -146,3 +146,28 @@ html,body{margin:0;height:100%;overflow:hidden;background:#05060a}
 #stashPanel .desc .q-magic{color:#7aa8ff}
 #stashPanel .desc .q-unique{color:#e0b040}
 .groundLabel.place{color:#a8c8ff}
+
+/* shops (SPEC §13.2): left side, like the stash */
+#shopPanel{width:330px;max-height:calc(100vh - 150px);display:flex;flex-direction:column}
+#shopPanel .tabs{display:flex;gap:6px;align-items:center;margin:6px 0 2px}
+#shopPanel .tabs button,#shopPanel .veil button{font:inherit;font-size:8px;color:#ead6ae;background:#1e1612;border:2px solid #5a4a3a;padding:4px 8px;cursor:pointer}
+#shopPanel .tabs button.on{color:#ffe08a;border-color:#e0b040}
+#shopPanel .tabs .hint{font-size:7px;opacity:.5}
+#shopPanel .rows{flex:1;min-height:120px;overflow-y:auto;margin:6px 0;background:#0e0a08;box-shadow:0 0 0 2px #3a2a1e}
+#shopPanel .row{display:flex;align-items:center;gap:8px;padding:3px 6px;cursor:pointer;border:1px solid transparent}
+#shopPanel .row:hover{background:#21170f}
+#shopPanel .row.cur{border-color:#7aa8ff}
+#shopPanel .row .ic{width:30px;height:30px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:none}
+#shopPanel .row .ic img{image-rendering:pixelated;max-width:30px;max-height:30px}
+#shopPanel .row .nm{flex:1;font-size:8px;line-height:1.5;color:#ead6ae}
+#shopPanel .row .pr{font-size:8px;color:#ffe08a;white-space:nowrap}
+#shopPanel .row .pr.red{color:#ff6a5a}
+#shopPanel .row .pr.full{color:#8a7a6a}
+#shopPanel .q-magic{color:#7aa8ff!important}
+#shopPanel .q-unique{color:#e0b040!important}
+#shopPanel .veil{flex:1;display:flex;flex-direction:column;gap:12px;align-items:center;justify-content:center;text-align:center;font-size:8px;line-height:1.8;padding:16px;color:#cbb894}
+#shopPanel .desc{min-height:66px;padding:6px 8px;background:rgba(0,0,0,.4);box-shadow:inset 0 0 0 1px #3a2a1e;font-size:8px;line-height:1.7}
+#shopPanel .desc .name{color:#fff2d0;font-size:9px}
+#shopPanel .desc .red{color:#ff6a5a}
+#shopPanel .desc .blue{color:#7aa8ff}
+#shopPanel .desc .hint{font-size:7px;opacity:.55}

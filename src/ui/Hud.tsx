@@ -20,6 +20,7 @@ import { titleOpen } from '../game/title';
 import { TitleScreen } from './TitleScreen';
 import { GameMenu } from './GameMenu';
 import { StashPanel } from './StashPanel';
+import { ShopPanel } from './ShopPanel';
 import { DamageNumbers } from './DamageNumbers';
 
 function Pix({ img, scale = 3, style }: { img: PixImage; scale?: number; style?: Record<string, string> }) {
@@ -181,6 +182,7 @@ export function Hud() {
       {isOpen('book') && <SpellbookPanel />}
       {isOpen('menu') && <GameMenu />}
       {isOpen('stash') && <StashPanel />}
+      {isOpen('shop') && <ShopPanel />}
       {openPanels.value.length > 0 && <div id="paused" class="px">PAUSED</div>}
       <Fade />
       <SoundPrompt />

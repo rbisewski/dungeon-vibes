@@ -8,7 +8,10 @@ import { learnReq, MAX_SLVL, scrollReq, spellEffectText } from '../rules/spells'
 import { spellLevel } from '../actors/spells';
 import { carried, fitsSlot, isTwoHanded, isUnidentified, itemAc, itemAt, itemName, itemSize, meetsReq, quality, PACK_H, PACK_W, type EquipSlot, type Item } from '../rules/inventory';
 import { POTIONS } from '../rules/potions';
-import { clickEquip, clickPack, closePanel, cursor, dropHeld, held, identifying, invVersion, sparkle, unequip, usePackItem } from './actions';
+import { clickEquip, clickPack, closePanel, cursor, dropHeld, held, identifying, invVersion, shopFor, sparkle, unequip, usePackItem } from './actions';
+import { NPCS } from '../game/shops';
+import { sellPrice } from '../rules/prices';
+import { buys } from '../rules/shops';
 import { panelStyle } from './pixel/frame';
 
 /** One backpack cell in CSS px (28 px art + 1 px separator). */
@@ -35,19 +38,26 @@ export function Icon({ it, dim }: { it: Item; dim?: boolean }) {
 }
 
 /** Description lines for the hovered or held item (D1 description box). */
-export function describe(it: Item): { text: string; cls?: string }[] {
+/**
+ * Description box lines. The closing hint says how to use a carried item; with a shop open it says what selling it
+ * fetches instead, and for a shop's own wares (`forSale`) how to buy.
+ */
+export function describe(it: Item, forSale = false): { text: string; cls?: string }[] {
   const lines: { text: string; cls?: string }[] = [{ text: itemName(it).toUpperCase(), cls: `name q-${quality(it)}` }];
+  let use: string;
   if (it.kind === 'potion') {
     const p = POTIONS[it.potion];
     const what = [p.life !== 'none' && (p.life === 'full' ? 'ALL LIFE' : 'SOME LIFE'), p.mana !== 'none' && (p.mana === 'full' ? 'ALL MANA' : 'SOME MANA')].filter(Boolean).join(' AND ');
-    lines.push({ text: `RESTORES ${what}` }, { text: 'RIGHT-CLICK OR X TO DRINK', cls: 'hint' });
+    lines.push({ text: `RESTORES ${what}` });
+    use = 'DRINK';
   } else if (it.kind === 'elixir') {
-    lines.push({ text: `+1 ${{ str: 'STRENGTH', int: 'INTELLIGENCE', dex: 'DEXTERITY', vit: 'VITALITY' }[it.attr]} PERMANENTLY` }, { text: 'RIGHT-CLICK OR X TO DRINK', cls: 'hint' });
+    lines.push({ text: `+1 ${{ str: 'STRENGTH', int: 'INTELLIGENCE', dex: 'DEXTERITY', vit: 'VITALITY' }[it.attr]} PERMANENTLY` });
+    use = 'DRINK';
   } else if (it.kind === 'scroll') {
     const need = scrollReq(it.spell), h = G.hero;
     lines.push({ text: spellEffectText(it.spell, { cls: h.stats.cls, clvl: h.stats.clvl, slvl: spellLevel(h, it.spell), int: h.d.attr.int }) });
     if (need) lines.push({ text: `REQUIRES ${need} INT`, cls: attrs().int >= need ? undefined : 'red' });
-    lines.push({ text: 'RIGHT-CLICK OR X TO READ', cls: 'hint' });
+    use = 'READ';
   } else if (it.kind === 'book') {
     // D1: a book shows the requirement for the level the hero would learn next.
     const known = G.hero.spells[it.spell] ?? 0, n = known + 1;
@@ -56,7 +66,7 @@ export function describe(it: Item): { text: string; cls?: string }[] {
       lines.push({ text: known ? `RAISES TO SPELL LEVEL ${n}` : 'TEACHES THE SPELL' });
       lines.push({ text: `REQUIRES ${learnReq(it.spell, n)} INT`, cls: attrs().int >= learnReq(it.spell, n) ? undefined : 'red' });
     }
-    lines.push({ text: 'RIGHT-CLICK OR X TO READ', cls: 'hint' });
+    use = 'READ';
   } else {
     const b = base(it.base);
     if (b.kind === 'weapon') lines.push({ text: `DAMAGE: ${b.dmg[0]}-${b.dmg[1]}` }, { text: b.twoHanded ? 'TWO-HANDED' : 'ONE-HANDED' });
@@ -65,8 +75,13 @@ export function describe(it: Item): { text: string; cls?: string }[] {
     else for (const p of it.props) lines.push({ text: propText(p), cls: 'blue' });
     const req = (['str', 'dex', 'int'] as const).filter(a => b.req[a]);
     if (req.length) lines.push({ text: 'REQUIRES ' + req.map(a => `${b.req[a]} ${a.toUpperCase()}`).join(', '), cls: meetsReq(it, attrs()) ? undefined : 'red' });
-    lines.push({ text: 'RIGHT-CLICK OR X TO EQUIP', cls: 'hint' });
+    use = 'EQUIP';
   }
+  const m = shopFor.value;
+  if (forSale) lines.push({ text: 'CLICK OR ENTER TO BUY', cls: 'hint' });
+  else if (!m) lines.push({ text: `RIGHT-CLICK OR X TO ${use}`, cls: 'hint' });
+  else if (buys(m, it)) lines.push({ text: `SELLS FOR ${sellPrice(it)} GOLD - RIGHT-CLICK OR X`, cls: 'hint' });
+  else lines.push({ text: `${NPCS[m].role.toUpperCase()} WILL NOT BUY THIS`, cls: 'red' });
   return lines;
 }
 

@@ -1,6 +1,8 @@
 import type * as THREE from 'three';
 import type { FamilyId, MonsterRoll } from '../rules/monsters';
 import type { BossId } from '../rules/bosses';
+import type { NpcId } from './shops';
+import type { NpcParts } from '../actors/models/npc';
 import type { EliteMod } from '../rules/elites';
 import type { CharState, Derived } from '../rules/stats';
 import type { Progress } from '../rules/xp';
@@ -94,6 +96,8 @@ export interface Level extends Layout {
   exits: Exit[];
   /** The town's stash chest; null in the dungeon. */
   stash: { x: number; z: number } | null;
+  /** Townsfolk (SPEC §13.2); empty in the dungeon. */
+  npcs: { id: NpcId; x: number; z: number; parts: NpcParts }[];
   /** The stairs room's locked door; null in town. */
   lockedDoor: Door | null;
   flameMesh: THREE.InstancedMesh | null;

@@ -1,4 +1,5 @@
-import { openPanel } from '../ui/actions';
+import { openNpc, openPanel } from '../ui/actions';
+import type { NpcId } from '../game/shops';
 import { glowSprite } from '../render/geometry';
 import type * as THREE from 'three';
 import { damageMonster, loseLife, missMonster, openChest, unlockDoor } from './combat';
@@ -71,8 +72,8 @@ function heroHitCheck(): void {
   }
   if (any) { G.hitstop = crit ? .11 : .055; addShake(crit ? .4 : .22); }
 }
-/** The hero stood by the stash last step. */
-let atStash = false;
+/** What the hero stood by last step: the stash, someone in town, or nothing. */
+let atTrade: 'stash' | NpcId | null = null;
 
 export function updateHero(dt: number): void {
   const h = G.hero;
@@ -159,10 +160,11 @@ export function updateHero(dt: number): void {
   h.body.rotation.x = h.flinch > 0 ? -.35 * (h.flinch / .28) : damp(h.body.rotation.x, attacking ? .12 : 0, 10, dt);
   // interactions
   for (const c of G.L.chests) if (!c.open && Math.hypot(c.x - h.x, c.z - h.z) < 1.5) openChest(c);
-  // The stash opens when the player walks into it (never in AUTO); it opens again only after stepping away.
-  const st = G.L.stash, nearStash = !!st && Math.hypot(st.x - h.x, st.z - h.z) < 1.9;
-  if (nearStash && !atStash && manual) openPanel('stash');
-  atStash = nearStash;
+  // The stash and the townsfolk open when the player walks into them (never in AUTO); again only after stepping away.
+  const st = G.L.stash, npc = G.L.npcs.find(n => Math.hypot(n.x - h.x, n.z - h.z) < 1.5);
+  const near = st && Math.hypot(st.x - h.x, st.z - h.z) < 1.9 ? 'stash' : npc?.id ?? null;
+  if (near && near !== atTrade && manual) { if (near === 'stash') openPanel('stash'); else openNpc(near); }
+  atTrade = near;
   const ld = G.L.lockedDoor;
   if (G.L.locked && h.key && ld && Math.hypot(ld.x - h.x, ld.z - h.z) < 2.2) unlockDoor();
   // Exits (SPEC §11, §13): stepping onto stairs, a town entrance or a portal leaves the level. With a grave pile still

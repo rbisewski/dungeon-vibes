@@ -88,7 +88,7 @@ function newLevel(lay: Layout, depth: number, lockedDoor: Door | null, group: TH
     disposeGeo: [], disposeInst: [], disposeMat: [], locked: !!lockedDoor, fieldT: 0, killsHere: 0, killedGen: new Set(),
     startIdx: lay.startRoom.cy * lay.W + lay.startRoom.cx,
     stairs: { tx: sr.cx, tz: sr.cy, x: sr.cx * T, z: sr.cy * T },
-    exits: [], stash: null,
+    exits: [], stash: null, npcs: [],
     lockedDoor,
     flameMesh: null,
   };

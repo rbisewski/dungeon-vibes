@@ -8,11 +8,13 @@ import { PI, R, rr } from '../core/math';
 import { G } from '../game/state';
 import type { Exit, Layout, Room } from '../game/types';
 import { S } from '../render/buckets';
-import { gBox, gCyl, gPlane, glowSprite, mesh } from '../render/geometry';
+import { gBox, gCone, gCyl, gPlane, glowSprite, mesh } from '../render/geometry';
 import { MAT, grateMat } from '../render/materials';
 import { T } from './consts';
 import { propBarrel, propBrazier, propCrate, propStairs, wallFace } from './props';
 import { buildAbbey, buildFence, buildHouses, buildTownGround, buildTrees, lampPost } from './townScenery';
+import { animateNpc, buildNpc } from '../actors/models/npc';
+import type { NpcId } from '../game/shops';
 
 const W = 30, H = 26;
 /** Courtyard floor (tiles). */
@@ -123,6 +125,7 @@ export function dressTown(): void {
   stall(9, 14, 0xa04030); stall(21, 16.5, 0x3a6a40);
   well();
   stashChest();
+  townsfolk();
   if (G.portal) {
     const x = PORTAL.tx * T, z = PORTAL.tz * T;
     L.exits.push({ kind: 'portal', to: G.portal.depth, tx: PORTAL.tx, tz: PORTAL.tz, x, z, r: .7, open: true, o: portalObject(x, z) });
@@ -151,7 +154,40 @@ function buildGreenery(): void {
 /** Builds the town's ground (called instead of the dungeon floor). */
 export function buildTownTerrain(): void { buildTownGround(YARD, pathTiles()); }
 
-/** Spins portal rings (called from the world update). */
-export function spinPortals(dt: number): void {
+/** Where the townsfolk stand (tiles) and which way they face (SPEC §13.2). */
+const NPC_SPOTS: Record<NpcId, { tx: number; tz: number; ry: number }> = {
+  smith: { tx: 9, tz: 11.6, ry: PI * .25 },
+  witch: { tx: 21, tz: 18.6, ry: -PI * .75 },
+  healer: { tx: 17.2, tz: 11.2, ry: PI * .8 },
+  sage: { tx: 11.5, tz: 19.6, ry: PI * .35 },
+  peddler: { tx: 20, tz: 8.6, ry: PI * .9 },
+};
+
+/** The townsfolk and their workplaces: anvil and forge, cauldron, lectern, the peddler's crates. */
+function townsfolk(): void {
+  for (const id of Object.keys(NPC_SPOTS) as NpcId[]) {
+    const s = NPC_SPOTS[id], x = s.tx * T, z = s.tz * T, parts = buildNpc(id);
+    parts.root.position.set(x, 0, z); parts.root.rotation.y = s.ry;
+    G.L.group.add(parts.root);
+    G.L.npcs.push({ id, x, z, parts });
+    blockProp(Math.round(s.tx), Math.round(s.tz), .45);
+  }
+  const at = (tx: number, tz: number) => [tx * T, tz * T] as const;
+  // the smith's anvil (on a stump) and forge
+  { const [x, z] = at(10.4, 11.2); S('wood', gCyl(.3, .34, .5, 8), x, .25, z); S('iron', gBox(.7, .22, .3), x, .62, z); S('iron', gBox(.3, .16, .24), x, .45, z); S('iron', gCone(.12, .3, 6), x + .45, .62, z, 0, 0, -PI / 2); }
+  { const [x, z] = at(7.6, 11); S('stone', gBox(1.1, .8, 1.1), x, .4, z); S('coal', gBox(.9, .06, .9), x, .82, z); G.L.flames.push({ x, y: .85, z, s: 1.4, seed: R() }); G.L.lights.push({ x, y: 1.4, z, base: 20, cold: false, seed: R() * 100, d: 0 }); }
+  // the witch's cauldron
+  { const [x, z] = at(19.8, 19.3); S('iron', gCyl(.48, .38, .6, 12), x, .4, z); S('iron', gCyl(.5, .5, .05, 12), x, .7, z); propBrazier(x, z, .35);
+    const brew = new THREE.MeshBasicMaterial({ color: 0x5aff6a }); G.L.disposeMat.push(brew);
+    mesh(gCyl(.42, .42, .02, 12), brew, x, .72, z, G.L.group, false); G.L.lights.push({ x, y: 1.2, z, base: 10, cold: true, seed: R() * 100, pulse: true, d: 0 }); }
+  // the sage's lectern with an open book
+  { const [x, z] = at(11.5, 20.5); S('wood', gBox(.12, 1, .12), x, .5, z); S('wood', gBox(.6, .06, .45), x, 1.02, z, 0, -.35); S('bone', gBox(.5, .03, .36), x, 1.07, z - .02, 0, -.35); }
+  // the peddler's crates
+  { const [x, z] = at(21, 8.2); propCrate(x, z, .6); propCrate(x + .2, z + .1, .4); }
+}
+
+/** Spins portal rings and animates the townsfolk (called from the world update). */
+export function updateTown(dt: number): void {
   for (const e of G.L.exits) if (e.o) e.o.rotation.y += dt * 1.6;
+  for (const n of G.L.npcs) animateNpc(n.parts, G.now, G.hero.x, G.hero.z);
 }
