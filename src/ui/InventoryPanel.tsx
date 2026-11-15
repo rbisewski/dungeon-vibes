@@ -34,7 +34,7 @@ export const attrs = () => G.hero.d.attr;
 
 export function Icon({ it, dim }: { it: Item; dim?: boolean }) {
   const ic = itemIcon(it);
-  return <img src={ic.src} width={ic.w * 2} height={ic.h * 2} style={dim ? { opacity: .3, filter: 'grayscale(1)' } : undefined} alt="" draggable={false} />;
+  return <img src={ic.src} width={ic.w} height={ic.h} style={dim ? { opacity: .3, filter: 'grayscale(1)' } : undefined} alt="" draggable={false} />;
 }
 
 /** Description lines for the hovered or held item (D1 description box). */

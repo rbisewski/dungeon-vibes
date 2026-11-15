@@ -53,10 +53,13 @@ function itemSprite(it: Item): THREE.Sprite {
   const icon = itemIcon(it);
   let mat = spriteMats.get(icon.canvas);
   if (!mat) {
+    // Icons have far more pixels than a sprite covers on screen: mipmaps keep them from shimmering, and the lower
+    // alpha cutoff keeps thin blades and staves from breaking up in the smaller mip levels.
     const tex = new THREE.CanvasTexture(icon.canvas);
-    tex.magFilter = tex.minFilter = THREE.NearestFilter;
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.colorSpace = THREE.SRGBColorSpace;
-    mat = new THREE.SpriteMaterial({ map: tex, color: 0xd8d0c8, transparent: true, alphaTest: .5 });
+    mat = new THREE.SpriteMaterial({ map: tex, color: 0xd8d0c8, transparent: true, alphaTest: .3 });
     spriteMats.set(icon.canvas, mat);
   }
   const s = new THREE.Sprite(mat);

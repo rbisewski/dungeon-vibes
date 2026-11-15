@@ -36,7 +36,7 @@ export function SpellbookPanel() {
         onMouseEnter={() => { hoverSpell.value = id; setSel(i); }}
         onMouseLeave={() => { if (hoverSpell.value === id) hoverSpell.value = null; }}
       >
-        <img src={ic.src} width={ic.w * 2} height={ic.h * 2} alt="" draggable={false} />
+        <img src={ic.src} width={ic.w} height={ic.h} alt="" draggable={false} />
         <div class="spellText">
           <div class="spellName">
             {SPELLS[id].name.toUpperCase()}

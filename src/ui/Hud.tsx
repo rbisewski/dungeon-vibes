@@ -68,7 +68,7 @@ function Belt() {
           onMouseDown={e => { if (e.button === 0) beltClick(i, 'left'); }}
           onContextMenu={e => { e.preventDefault(); beltClick(i, 'right'); }}
         >
-          {it && <Pix img={itemIcon(it)} scale={2} />}
+          {it && <Pix img={itemIcon(it)} scale={1} />}
           <span class="key">{i + 1}</span>
         </div>
       ))}
@@ -83,7 +83,7 @@ function ReadiedSpell() {
   return (
     <div id="readied" class={'px' + (hud.readyOk.value ? '' : ' low') + (hud.manaShield.value ? ' shield' : '')} onMouseDown={() => openPanel('book')}
       title={id ? `${SPELLS[id].name} - Q to cast, B for the spellbook` : 'No spell readied - B for the spellbook'}>
-      {ic ? <img src={ic.src} width={ic.w * 3} height={ic.h * 3} alt="" draggable={false} /> : <span>B</span>}
+      {ic ? <img src={ic.src} width={ic.w * 2} height={ic.h * 2} alt="" draggable={false} /> : <span>B</span>}
       <span class="key">Q</span>
     </div>
   );
@@ -94,7 +94,7 @@ function SkillButton() {
   const id = hud.skill.value, ic = skillIcon(id), cd = hud.skillCd.value;
   return (
     <div id="skillBtn" class={'px' + (cd > 0 ? ' cooling' : '')} onMouseDown={() => useSkill()} title={`${SKILLS[id].name} (R): ${SKILLS[id].desc}`}>
-      <img src={ic.src} width={ic.w * 3} height={ic.h * 3} alt="" draggable={false} />
+      <img src={ic.src} width={ic.w * 2} height={ic.h * 2} alt="" draggable={false} />
       {cd > 0 && <div class="sweep" style={{ background: `conic-gradient(rgba(0,0,0,.72) ${(cd * 360).toFixed(1)}deg, transparent 0)` }} />}
       <span class="key">R</span>
     </div>

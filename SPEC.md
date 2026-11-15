@@ -1068,22 +1068,24 @@ Mini-bosses appear on depths 5, 10, 15, 20, … This replaces the current `depth
 
 ### 10.3 Pixel-art icons
 
-- Icons are drawn on a **14 px grid per cell** and rendered at scale 2, so each cell is 28 px.
-- They are authored as ASCII rows for the existing `pixCanvas(rows, scale)`.
-- `PAL` gains colours for steel (light and dark), leather (light and dark), wood, gems (ruby, sapphire, emerald), glass highlight, potion liquids (red, blue, purple), parchment, and book leather (one cover colour per spell school):
-  - fire: red
-  - lightning: blue
-  - magic: purple
-  - holy: white
-  - utility: green
-- **Item icons**
-  - Every base item has one icon.
-  - Magic items reuse the base icon, as in D1.
-  - Uniques add a 1 px gold rim [OURS].
-- **Books:** a 28×28 tome tinted by spell school, with the spell rune embossed on the cover.
-- **Scrolls:** a rolled parchment with a wax seal in the school colour.
-- **Spell icons:** 14×14 glyphs used in the spellbook, as the readied-spell indicator, and on the book covers.
-- Icons are cached once at startup and shared by inventory cells (`toDataURL`) and ground sprites (`CanvasTexture`, `NearestFilter`).
+**As reworked after Phase 12 [USER: "more pixels and more detail"; style choices OURS]**
+- **Size:** icons are painted at **28 px per inventory cell**, twice the old 14 px. They are shown at one CSS pixel per art pixel, so items keep their size on screen with four times the pixels. The readied spell and skill buttons grew from 46 to 60 px, to show their glyphs at 2×.
+- **Painter** (`src/art/painter.ts`): shapes (rods, balls, domes, bevelled polygons) are filled from a material's six-tone colour ramp. Each pixel's tone comes from lighting the shape's surface normal from the upper left, with a specular highlight on metal, glass and gems. Shadows lean cool and highlights warm. Tones are whole steps, never blended, so the result stays crisp pixel art.
+- **Outlines:** every icon gets a 1 px outline tinted toward the material it borders, instead of flat black. Overlapping parts draw a dark seam where they meet, so they read as separate pieces.
+- **Detail:**
+  - Weapons: edges, fullers and two diagonal glints on blades, wood grain on hafts, spiral leather wraps on grips, rivets, recurved bow limbs with a string.
+  - Armour: chain, ring, scale and splint patterns, quilting, laces, belts with buckles, pauldrons, skirt lames, and a helm crest and visor slits.
+  - Shields: planks, rims, rivets, bosses; the kite shield has a heraldic cross and the gothic shield is fluted.
+  - Jewelry: faceted gems in gold settings.
+  - Potions: round or conical glass with a meniscus and bubbles; full potions have gold stoppers. Elixirs are caged vials.
+  - Spell glyphs: drawn as glowing effects (flames, bolts, swirls) on a 28 px canvas.
+  - Books: tooled gilt borders, spine bands, a clasp and the glyph on the cover. Scrolls: tied and sealed in the school colour.
+- **Unchanged:**
+  - Every base has its own icon, and magic items reuse it, as in D1.
+  - Uniques get a gold outline [OURS].
+  - School colours: fire red, lightning blue, magic purple, holy white, utility green.
+- **Caching:** icons are painted once at startup (uniques on first use). They are shared by the inventory, stash, shops, belt and spellbook (`toDataURL`) and by ground sprites.
+- **Ground sprites** are now mipmapped with an alpha cutoff of 0.3, because the larger icons cover only about 10 screen pixels per cell on the floor and would shimmer with nearest filtering.
 
 ### 10.4 Ground items
 
