@@ -6,13 +6,13 @@ import * as THREE from 'three';
 import { PI } from '../../core/math';
 import { makeFlames } from '../../render/flames';
 import { GEO, gBox, gCone, gCyl, gSph, glowSprite, mesh } from '../../render/geometry';
-import { MAT, trailMat } from '../../render/materials';
+import { MAT, rimLit, trailMat } from '../../render/materials';
 import { scene } from '../../render/renderer';
 import type { HeroParts } from '../../game/types';
 import type { ClassId, WeaponKind } from '../../rules/classes';
 
 const std = (color: number, roughness: number, metalness = 0, side: THREE.Side = THREE.FrontSide) =>
-  new THREE.MeshStandardMaterial({ color, roughness, metalness, side });
+  rimLit(new THREE.MeshStandardMaterial({ color, roughness, metalness, side }));
 
 /** Per-class colours: hood/cloak, tunic, chest piece (plate, leather jerkin or robe). */
 const LOOK: Record<ClassId, { cloak: number; tunic: number; armor: [number, number, number] }> = {

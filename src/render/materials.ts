@@ -39,11 +39,28 @@ vFade = 0.0;
   mat.customProgramCacheKey = () => 'fade' + maxFade;
 }
 
+/**
+ * Rim light for characters: a cool edge glow where the surface turns away from the camera, scaled by the light
+ * already falling on it, so figures stand out from the floor without glowing in the dark.
+ */
+export function rimLit<T extends THREE.MeshStandardMaterial>(mat: T): T {
+  mat.onBeforeCompile = sh => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `{
+  float rim = 1.0 - saturate(dot(normal, geometryViewDir)); rim *= rim*rim;
+  float lit = dot(reflectedLight.directDiffuse + reflectedLight.indirectDiffuse, vec3(0.3333));
+  outgoingLight += vec3(0.62, 0.78, 1.0)*rim*(0.05 + lit*1.6); }
+#include <opaque_fragment>`);
+  };
+  mat.customProgramCacheKey = () => 'rim';
+  return mat;
+}
+
 export const MAT = {
   wallSide: new THREE.MeshStandardMaterial({ map: TEX.wall, bumpMap: TEX.wall, bumpScale: 2.2, roughness: .94 }),
   wallTop: new THREE.MeshStandardMaterial({ map: TEX.wall, color: 0x6a645c, roughness: 1 }),
   pillar: new THREE.MeshStandardMaterial({ map: TEX.wall, bumpMap: TEX.wall, bumpScale: 2, roughness: .94, color: 0xc4bcb0 }),
-  floor: new THREE.MeshStandardMaterial({ map: TEX.floor, bumpMap: TEX.floor, bumpScale: 1.6, roughness: .9, vertexColors: true }),
+  // damp patches (roughness map) catch the torchlight
+  floor: new THREE.MeshStandardMaterial({ map: TEX.floor, bumpMap: TEX.floor, bumpScale: 1.6, roughness: 1, roughnessMap: TEX.floorRough, metalness: .05, vertexColors: true }),
   stone: new THREE.MeshStandardMaterial({ map: TEX.wall, bumpMap: TEX.wall, bumpScale: 1.5, roughness: .95, color: 0xaaa296 }),
   wood: new THREE.MeshStandardMaterial({ map: TEX.wood, bumpMap: TEX.wood, bumpScale: 1, roughness: .85 }),
   iron: new THREE.MeshStandardMaterial({ color: 0x45454c, roughness: .5, metalness: .55 }),
@@ -64,9 +81,10 @@ export const MAT = {
   plaster: new THREE.MeshStandardMaterial({ map: TEX.plaster, roughness: .95 }),
   beam: new THREE.MeshStandardMaterial({ map: TEX.wood, color: 0x6a5040, roughness: .9 }),
   roof: new THREE.MeshStandardMaterial({ map: TEX.roof, roughness: .95, side: THREE.DoubleSide }),
-  windowLit: new THREE.MeshStandardMaterial({ color: 0x3a2008, emissive: 0xffa040, emissiveIntensity: 1.2, roughness: .6 }),
+  windowLit: new THREE.MeshStandardMaterial({ color: 0x3a2008, emissive: 0xffa040, emissiveIntensity: 2.4, roughness: .6 }),
   foliage: new THREE.MeshStandardMaterial({ color: 0x3a6a3e, roughness: 1, flatShading: true }),
   bark: new THREE.MeshStandardMaterial({ color: 0x5a4430, roughness: 1 }),
+  tuft: new THREE.MeshStandardMaterial({ color: 0x6a9a4a, emissive: 0x070d05, roughness: 1, flatShading: true }),
 };
 /** Ground-potion glass per type: red healing, blue mana, purple rejuvenation. */
 const potionGlass = (color: number, emissive: number) => new THREE.MeshStandardMaterial({ color, emissive, roughness: .25 });

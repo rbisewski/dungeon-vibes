@@ -103,6 +103,21 @@ function texBanner() {
   g.beginPath(); g.moveTo(0, 128); for (let x = 0; x <= 64; x += 8) g.lineTo(x, 112 + (x / 8 % 2 ? 14 : 0) - rr(0, 5)); g.lineTo(64, 128); g.closePath(); g.fill();
   return c;
 }
+/**
+ * Floor roughness (read from the green channel): mostly dry, rough stone with smoother damp patches and wet seams
+ * between flagstones.
+ */
+function texFloorRough() {
+  const S = 256, c = mkC(S, S), g = c.getContext('2d')!;
+  g.fillStyle = 'rgb(240,240,240)'; g.fillRect(0, 0, S, S);
+  for (let i = 0; i < 34; i++) {
+    const x = R() * S, y = R() * S, r = rr(10, 34), gr = g.createRadialGradient(x, y, 1, x, y, r), v = ri(120, 180);
+    gr.addColorStop(0, `rgba(${v},${v},${v},.9)`); gr.addColorStop(1, `rgba(${v},${v},${v},0)`);
+    g.fillStyle = gr; g.beginPath(); g.ellipse(x, y, r, r * rr(.5, 1), R() * PI, 0, TAU); g.fill();
+  }
+  speckle(g, S, S, 2500, .2);
+  return c;
+}
 /** Night grass: dark green with blades, clover tufts and bare earth patches (the town, SPEC §13). */
 function texGrass() {
   const S = 256, c = mkC(S, S), g = c.getContext('2d')!;
@@ -142,5 +157,5 @@ export const WALL_CANVAS = texWall();
 export const TEX = {
   wall: ctex(WALL_CANVAS), floor: ctex(texFloor()), wood: ctex(texWood()), web: ctex(texWeb(), true, false),
   rune: ctex(texRune(), true, false), grate: ctex(texGrate(), true, false), glow: ctex(texGlow(), true, false), banner: ctex(texBanner(), true, false),
-  grass: ctex(texGrass()), plaster: ctex(texPlaster()), roof: ctex(texRoof()),
+  grass: ctex(texGrass()), plaster: ctex(texPlaster()), roof: ctex(texRoof()), floorRough: ctex(texFloorRough(), false),
 };

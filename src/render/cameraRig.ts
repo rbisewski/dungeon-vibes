@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { damp, rr } from '../core/math';
 import { G } from '../game/state';
-import { CAM_OFF, camera, cutU } from './renderer';
+import { CAM_OFF, aimKeyLight, camera, cutU } from './renderer';
 import { postMat } from './post';
 
 /** Point on the floor the camera looks at. */
@@ -20,6 +20,7 @@ export function updateCamera(dt: number, snap: boolean): void {
   camera.position.set(camTarget.x + CAM_OFF.x + rr(-sh, sh), CAM_OFF.y + rr(-sh, sh), camTarget.z + CAM_OFF.z + rr(-sh, sh));
   camera.lookAt(camTarget.x, 0, camTarget.z);
   camera.updateMatrixWorld();
+  aimKeyLight(camTarget.x, camTarget.z);
   cutU.uPlayer.value.set(hero.x, 0, hero.z);
   _proj.set(hero.x, 0.8, hero.z).project(camera);
   postMat.uniforms.uFocusY.value = _proj.y * 0.5 + 0.5;

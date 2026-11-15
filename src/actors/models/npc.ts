@@ -7,6 +7,7 @@ import { PI, R, clamp, wrapA } from '../../core/math';
 import { G } from '../../game/state';
 import type { NpcId } from '../../game/shops';
 import { gBox, gCone, gCyl, gSph, mesh } from '../../render/geometry';
+import { rimLit } from '../../render/materials';
 
 export interface NpcParts { root: THREE.Group; body: THREE.Group; head: THREE.Group; armR: THREE.Group; armL: THREE.Group; phase: number }
 
@@ -22,7 +23,7 @@ const LOOK: Record<NpcId, Look> = {
 export function buildNpc(id: NpcId): NpcParts {
   const L = LOOK[id];
   const std = (color: number, roughness = .9, metalness = 0) => {
-    const m = new THREE.MeshStandardMaterial({ color, roughness, metalness });
+    const m = rimLit(new THREE.MeshStandardMaterial({ color, roughness, metalness }));
     G.L.disposeMat.push(m);
     return m;
   };

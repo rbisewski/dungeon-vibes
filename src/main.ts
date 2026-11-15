@@ -11,7 +11,10 @@ import { spawnMonster } from './actors/monsters';
 import { simulate, startLoop } from './game/loop';
 import { openTitle } from './game/title';
 import { saveGame } from './game/save';
-import { renderer } from './render/renderer';
+import { camera, renderer } from './render/renderer';
+import { camTarget } from './render/cameraRig';
+import { POST, postMat } from './render/post';
+import { circleBlocked, clearLine } from './world/nav';
 
 render(h(Hud, null), document.getElementById('ui')!);
 
@@ -27,4 +30,4 @@ addEventListener('pagehide', saveGame);
 addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveGame(); });
 
 // Dev-only handle for inspecting live state from the browser console.
-if (import.meta.env.DEV) Object.assign(window, { G, renderer, simulate, buildLevel, spawnMonster });
+if (import.meta.env.DEV) Object.assign(window, { G, renderer, simulate, buildLevel, spawnMonster, camTarget, camera, postMat, POST, nav: { circleBlocked, clearLine } });

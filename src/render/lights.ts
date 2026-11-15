@@ -2,11 +2,13 @@ import * as THREE from 'three';
 import { R, TAU, clamp, rr, vnoise } from '../core/math';
 import { G } from '../game/state';
 import { DUST_N, dust, fxAdd } from './particles';
-import { coldPool, heroFill, torchLight, warmPool } from './renderer';
+import { WARM_SHADOWS, coldPool, heroFill, torchLight, warmPool } from './renderer';
 import type { LightSrc } from '../game/types';
 
 const _flamePos = new THREE.Vector3();
 const _srcSort: LightSrc[] = [];
+/** Which shadow-casting warm light refreshes its shadow map this frame. */
+let shadowTurn = 0;
 /** Hero torch flicker, pooled light assignment, embers and dust-mote lighting. */
 export function updateLights(dt: number): void {
   const h = G.hero;
@@ -20,9 +22,10 @@ export function updateLights(dt: number): void {
   for (const s of G.L.lights) { s.d = (s.x - h.x) ** 2 + (s.z - h.z) ** 2; _srcSort.push(s); }
   _srcSort.sort((a, b) => a.d - b.d);
   let wi = 0, ci = 0;
+  const turn = shadowTurn++ % WARM_SHADOWS;
   for (const s of _srcSort) {
     const fade = clamp((24 - Math.sqrt(s.d)) / 6, 0, 1);
-    if (!s.cold && wi < warmPool.length) { const l = warmPool[wi++]; l.position.set(s.x, s.y, s.z); l.intensity = s.base * fade * (.82 + .1 * Math.sin(G.now * 12 + s.seed) + .08 * Math.sin(G.now * 23.3 + s.seed * 2)); }
+    if (!s.cold && wi < warmPool.length) { const l = warmPool[wi]; if (wi === turn) l.shadow.needsUpdate = true; wi++; l.position.set(s.x, s.y, s.z); l.intensity = s.base * fade * (.82 + .1 * Math.sin(G.now * 12 + s.seed) + .08 * Math.sin(G.now * 23.3 + s.seed * 2)); }
     else if (s.cold && ci < coldPool.length) { const l = coldPool[ci++]; l.position.set(s.x, s.y, s.z); l.intensity = s.base * fade * (s.pulse ? .7 + .3 * Math.sin(G.now * 1.7) : 1); }
   }
   for (; wi < warmPool.length; wi++) warmPool[wi].intensity = 0;

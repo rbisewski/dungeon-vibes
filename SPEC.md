@@ -1119,6 +1119,25 @@ Mini-bosses appear on depths 5, 10, 15, 20, … This replaces the current `depth
 - A shield mesh is shown when a shield is equipped.
 - The `trailMat` colour follows the weapon's quality: blue for magic, gold for unique.
 
+### 10.6 Rendering [USER: "significantly improve the graphics"; choices OURS]
+
+The look stays the same in kind: low-poly meshes drawn at half resolution, dithered to 30 levels, with the DOM HUD on top. Within that, the picture gained light, depth and atmosphere.
+
+- **Pipeline:** scene (half-res, HDR, with depth) → bloom and scatter pyramids → ambient occlusion multiplied into the scene → one post pass (depth of field, mist, bloom, tonemap, grade, vignette, dither) → upscale.
+- **Bloom:** pixels brighter than 2.0 (scene-linear, before exposure) glow, with a soft knee, blurred at 1/2, 1/4 and 1/8 of the scene. Flames, embers, spells, runes, portals, glows and lit windows pass the threshold; lit stone does not.
+- **Ambient occlusion:** computed from the depth buffer (14 samples within 0.9 m, strength 1.6), blurred, and multiplied in. Occluded areas keep a little cold light. Glows are taken before it, so they are not dimmed.
+- **Ground mist:** thickest at the floor, drifting slowly, and lit only by a wide blur of the scene around it. It glows near torches and stays black in the dark. Density 0.7 in the dungeon, 0.3 in town.
+- **Shadows:**
+  - The hero's torch casts shadows, as before.
+  - The three warm lights nearest the hero (wall torches, braziers, lanterns) now cast shadows too, from 512-pixel cube maps refreshed in turn, one per frame.
+  - The cold key light casts shadows from a 2048-pixel map covering 48 m around the camera: moon shadows from houses, trees and posts in town, and a darker floor behind walls in the dungeon. Its centre moves in whole texels so edges do not crawl.
+- **Characters:** hero, monsters and townsfolk get a cool rim light on edges turned away from the camera, scaled by the light already on them, so they stand out without glowing in the dark.
+- **Floors:** a roughness map gives flagstones and cobbles damp patches that catch torchlight.
+- **Depth of field:** kept, but weaker; the sharp band around the hero is about twice as tall.
+- **Town:** grass tufts (about 1 900), fireflies around the hero, and brighter windows.
+- **Tuning:** the values above live in `POST` (`render/post.ts`).
+- **Cost:** 60 fps held at 2560×1440 on the development machine (Radeon RX 7600), in town and in a boss room. There is no low-quality setting yet.
+
 ---
 
 ## 11. Death [USER]

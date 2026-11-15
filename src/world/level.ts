@@ -14,6 +14,7 @@ import { camTarget } from '../render/cameraRig';
 import { makeFlames } from '../render/flames';
 import { fxAdd, fxNorm } from '../render/particles';
 import { ambient, scene, setOutdoor } from '../render/renderer';
+import { POST } from '../render/post';
 import { toast } from '../ui/store';
 import { T } from './consts';
 import { decorate } from './decorate';
@@ -104,6 +105,7 @@ function generateTown(): void {
   buildTownTerrain(); mergeBuckets();
   L.flameMesh = makeFlames(L.flames); L.group.add(L.flameMesh);
   setOutdoor(true);
+  POST.mist = .3;
   ambient.intensity = 2.6;
   G.hero.key = false;
   placeHero();
@@ -146,6 +148,7 @@ function generate(depth: number): void {
   buildFloor(tint); buildWalls(tint); mergeBuckets();
   L.flameMesh = makeFlames(L.flames); L.group.add(L.flameMesh);
   setOutdoor(false);
+  POST.mist = .7;
   ambient.intensity = Math.max(1.6, 2.2 - depth * .03);
   G.hero.key = false;
   placeHero();

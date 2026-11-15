@@ -152,6 +152,20 @@ export function buildTrees(spots: { x: number; z: number; s: number }[]): void {
   G.L.disposeGeo.push(trunk, crown);
 }
 
+/** Grass tufts (three thin blades each), instanced; they catch the light and break up the flat ground. */
+export function buildTufts(spots: { x: number; z: number }[]): void {
+  const blade = (a: number, lean: number): THREE.BufferGeometry =>
+    new THREE.ConeGeometry(.045, .34, 3).translate(0, .17, 0).rotateZ(lean).rotateY(a).toNonIndexed();
+  const geo = mergeGeometries([blade(0, .35), blade(2.1, -.3), blade(4.2, .22)]);
+  const im = new THREE.InstancedMesh(geo, MAT.tuft, spots.length), c = new THREE.Color();
+  spots.forEach((p, i) => {
+    const s = rr(.7, 1.5);
+    _m4.compose(_v3.set(p.x, 0, p.z), _q.setFromEuler(_e.set(0, R() * TAU, 0)), _s3.set(s, s * rr(.8, 1.4), s)); im.setMatrixAt(i, _m4);
+    const v = rr(.6, 1.15); c.setRGB(v * rr(.8, 1.1), v, v * rr(.6, 1)); im.setColorAt(i, c);
+  });
+  im.receiveShadow = true; G.L.group.add(im); G.L.disposeInst.push(im); G.L.disposeGeo.push(geo);
+}
+
 /** An iron lantern post with a warm flame. */
 export function lampPost(x: number, z: number): void {
   S('iron', gCyl(.06, .08, 2.4, 6), x, 1.2, z);

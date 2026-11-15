@@ -1,3 +1,4 @@
+import { rimLit } from '../render/materials';
 import * as THREE from 'three';
 import { buildBat, buildEggSac, buildSpider } from './models/beasts';
 import { buildRat } from './models/rat';
@@ -110,6 +111,7 @@ export function spawnMonster(type: MonsterType, x: number, z: number, opts: Spaw
     const tint = new THREE.Color(TIER_TINT[type][roll.tier]);
     for (const mt of m.mats) if (mt instanceof THREE.MeshStandardMaterial) mt.color.multiply(tint);
   }
+  for (const mt of m.mats) if (mt instanceof THREE.MeshStandardMaterial) rimLit(mt);
   if (type === 'spider') m.root.scale.setScalar(1 + .12 * roll.tier);
   if (type === 'broodmother') m.root.scale.setScalar(2.3);
   if (small) m.root.scale.multiplyScalar(.6);

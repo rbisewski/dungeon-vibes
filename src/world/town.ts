@@ -4,7 +4,7 @@
  * well (respawn point) and the portal spot stand on the square. No monsters, no traps.
  */
 import * as THREE from 'three';
-import { PI, R, rr } from '../core/math';
+import { PI, R, TAU, rr } from '../core/math';
 import { G } from '../game/state';
 import type { Exit, Layout, Room } from '../game/types';
 import { S } from '../render/buckets';
@@ -12,7 +12,8 @@ import { gBox, gCone, gCyl, gPlane, glowSprite, mesh } from '../render/geometry'
 import { MAT, grateMat } from '../render/materials';
 import { T } from './consts';
 import { propBarrel, propBrazier, propCrate, propStairs, wallFace } from './props';
-import { buildAbbey, buildFence, buildHouses, buildTownGround, buildTrees, lampPost } from './townScenery';
+import { buildAbbey, buildFence, buildHouses, buildTownGround, buildTrees, buildTufts, lampPost } from './townScenery';
+import { fxAdd } from '../render/particles';
 import { animateNpc, buildNpc } from '../actors/models/npc';
 import type { NpcId } from '../game/shops';
 
@@ -149,6 +150,16 @@ function buildGreenery(): void {
   }
   for (const [tx, tz] of [[4, 5], [25, 5], [4, 14], [25, 14], [10, 21], [20, 21]]) { spots.push({ x: tx * T, z: tz * T, s: rr(.75, .95) }); blockProp(tx, tz, .45); }
   buildTrees(spots);
+  // tufts on the grass inside the palisade and a little beyond it, never on the cobbles or under a house
+  const paths = pathTiles(), tufts: { x: number; z: number }[] = [];
+  for (let k = 0; k < 2600; k++) {
+    const x = rr(-4, W * T + 2), z = rr(2, H * T + 4), tx = Math.round(x / T), tz = Math.round(z / T);
+    const inMap = tx >= 0 && tz >= 0 && tx < W && tz < H;
+    if (inMap && (paths.has(tz * W + tx) || G.L.tiles[tz * W + tx] === 6 || HOUSES.some(b => tx >= b.x && tx < b.x + b.w && tz >= b.y && tz < b.y + b.h))) continue;
+    if (tz < YARD.y) continue;
+    tufts.push({ x, z });
+  }
+  buildTufts(tufts);
 }
 
 /** Builds the town's ground (called instead of the dungeon floor). */
@@ -190,4 +201,9 @@ function townsfolk(): void {
 export function updateTown(dt: number): void {
   for (const e of G.L.exits) if (e.o) e.o.rotation.y += dt * 1.6;
   for (const n of G.L.npcs) animateNpc(n.parts, G.now, G.hero.x, G.hero.z);
+  // fireflies drift over the grass around the hero
+  if (G.depth === 0 && R() < dt * 5) {
+    const h = G.hero, a = R() * TAU, r = rr(3, 13);
+    fxAdd.spawn(h.x + Math.cos(a) * r, rr(.3, 1.6), h.z + Math.sin(a) * r, rr(-.25, .25), rr(-.05, .12), rr(-.25, .25), rr(2.5, 5), 1.5, 2.2, .5, rr(.035, .055), 0, .2, 3);
+  }
 }
