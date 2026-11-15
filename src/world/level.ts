@@ -13,7 +13,7 @@ import { mergeBuckets, resetBuckets } from '../render/buckets';
 import { camTarget } from '../render/cameraRig';
 import { makeFlames } from '../render/flames';
 import { fxAdd, fxNorm } from '../render/particles';
-import { ambient, scene } from '../render/renderer';
+import { ambient, scene, setOutdoor } from '../render/renderer';
 import { toast } from '../ui/store';
 import { T } from './consts';
 import { decorate } from './decorate';
@@ -21,7 +21,7 @@ import { buildFloor, buildWalls, type Tint } from './floorWalls';
 import { generateLayout } from './layout';
 import { circleBlocked, computeField, isStairs, navOK } from './nav';
 import { makeDoor } from './objects';
-import { dressTown, portalObject, townLayout } from './town';
+import { buildTownTerrain, dressTown, portalObject, townLayout } from './town';
 import { propUpStairs } from './props';
 
 const levelRoot = new THREE.Group();
@@ -78,7 +78,6 @@ export function buildLevel(depth: number): void {
 
 /** The town is the same on every run: its props draw from a fixed seed. */
 const TOWN_SEED = 0x70a1;
-const TOWN_TINT: Tint = { r: 1.05, g: 1, b: .94 };
 
 function newLevel(lay: Layout, depth: number, lockedDoor: Door | null, group: THREE.Group): Level {
   const sr = lay.stairsRoom;
@@ -102,9 +101,10 @@ function generateTown(): void {
   resetBuckets();
   const L = newLevel(townLayout(), 0, null, new THREE.Group());
   dressTown();
-  buildFloor(TOWN_TINT); buildWalls(TOWN_TINT); mergeBuckets();
+  buildTownTerrain(); mergeBuckets();
   L.flameMesh = makeFlames(L.flames); L.group.add(L.flameMesh);
-  ambient.intensity = 3.2;
+  setOutdoor(true);
+  ambient.intensity = 2.6;
   G.hero.key = false;
   placeHero();
 }
@@ -145,6 +145,7 @@ function generate(depth: number): void {
   if (G.portal?.depth === depth) addPortalExit(G.portal.x, G.portal.z, 0);
   buildFloor(tint); buildWalls(tint); mergeBuckets();
   L.flameMesh = makeFlames(L.flames); L.group.add(L.flameMesh);
+  setOutdoor(false);
   ambient.intensity = Math.max(1.6, 2.2 - depth * .03);
   G.hero.key = false;
   placeHero();

@@ -1,17 +1,18 @@
 /**
- * The town (SPEC §13): depth 0, a fixed walled square, the same on every run. Entrances to the dungeon line the north
- * wall; the stash, the well (respawn point) and the portal spot stand in the courtyard. No monsters, no traps.
+ * The town (SPEC §13): depth 0, an open square under the night sky, the same on every run. A palisade rings it on
+ * three sides; the ruined abbey closes the north, with the dungeon entrances as stairwells at its foot. The stash, the
+ * well (respawn point) and the portal spot stand on the square. No monsters, no traps.
  */
 import * as THREE from 'three';
-import { PI, R } from '../core/math';
+import { PI, R, rr } from '../core/math';
 import { G } from '../game/state';
 import type { Exit, Layout, Room } from '../game/types';
 import { S } from '../render/buckets';
 import { gBox, gCyl, gPlane, glowSprite, mesh } from '../render/geometry';
 import { MAT, grateMat } from '../render/materials';
 import { T } from './consts';
-import { addMoon } from './decorate';
 import { propBarrel, propBrazier, propCrate, propStairs, wallFace } from './props';
+import { buildAbbey, buildFence, buildHouses, buildTownGround, buildTrees, lampPost } from './townScenery';
 
 const W = 30, H = 26;
 /** Courtyard floor (tiles). */
@@ -105,16 +106,18 @@ export function dressTown(): void {
     L.exits.push(e);
     if (d === 1) L.stairs = { tx, tz, x, z };
   });
-  // braziers between entrances, torches and banners on the walls
-  for (const tx of [8.5, 14.5, 20.5]) propBrazier(tx * T, 5 * T, 1.1);
-  for (let tx = 5; tx <= 25; tx += 5) wallFace(tx * T, (YARD.y + YARD.h) * T - 1, 0, -1, 'torch');
-  for (const tz of [6, 14, 20]) { wallFace(YARD.x * T - 1, tz * T, 1, 0, 'torch'); wallFace((YARD.x + YARD.w) * T - 1, tz * T, -1, 0, 'torch'); }
+  // the abbey façade with archways over the stairwells, banners and torches on it; braziers between the entrances
+  buildAbbey(YARD.x - 1, YARD.x + YARD.w, YARD.y - 1, ENTRANCE_X);
   for (const tx of [5, 25]) wallFace(tx * T, YARD.y * T - 1, 0, 1, 'banner');
-  for (const b of HOUSES) {
-    wallFace((b.x + 1) * T, (b.y + b.h) * T - 1, 0, 1, 'banner');
-    propBarrel((b.x + b.w) * T + .4, b.y * T + .3); propCrate((b.x + b.w) * T + .5, (b.y + b.h - 1) * T, .7);
-  }
-  for (const [tx, tz] of [[9, 10], [21, 18], [9, 18], [21, 10]]) addMoon(tx * T, tz * T);
+  for (const tx of [8.5, 20.5]) wallFace(tx * T, YARD.y * T - 1, 0, 1, 'torch');
+  for (const tx of [8.5, 14.5, 20.5]) propBrazier(tx * T, 5 * T, 1.1);
+  // a palisade on the other three sides
+  const x0 = YARD.x * T - 1, x1 = (YARD.x + YARD.w) * T - 1, z0 = YARD.y * T - 1, z1 = (YARD.y + YARD.h) * T - 1;
+  buildFence([{ x0, z0, x1: x0, z1 }, { x0: x1, z0, x1, z1 }, { x0, z0: z1, x1, z1 }]);
+  buildHouses(HOUSES, { x: WELL.tx * T, z: WELL.tz * T });
+  for (const b of HOUSES) { const side = b.x < WELL.tx ? 1 : -1, ex = (side > 0 ? b.x + b.w : b.x - 1) * T; propBarrel(ex, b.y * T + .3); propCrate(ex, (b.y + b.h - 1) * T, .7); }
+  buildGreenery();
+  for (const [tx, tz] of [[12.5, 8], [17.5, 8], [12.5, 18], [17.5, 18], [9, 16.5], [21, 11.5]]) lampPost(tx * T, tz * T);
   // warm light where people gather: around the well, by the stash, at the portal spot
   for (const [tx, tz] of [[13, 12], [17, 14], [13.5, 20.5], [16.5, 20.5], [22.5, 13]]) { propBrazier(tx * T, tz * T, .9); blockProp(Math.round(tx), Math.round(tz), .35); }
   stall(9, 14, 0xa04030); stall(21, 16.5, 0x3a6a40);
@@ -125,6 +128,28 @@ export function dressTown(): void {
     L.exits.push({ kind: 'portal', to: G.portal.depth, tx: PORTAL.tx, tz: PORTAL.tz, x, z, r: .7, open: true, o: portalObject(x, z) });
   }
 }
+
+/** Cobbled paths: the street before the abbey, the north–south avenue, the cross street, and the stash square. */
+function pathTiles(): Set<number> {
+  const set = new Set<number>(), add = (x0: number, z0: number, x1: number, z1: number) => { for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) set.add(z * W + x); };
+  add(6, 4, 23, 5); add(14, 4, 16, 22); add(7, 13, 23, 15); add(12, 19, 18, 22);
+  return set;
+}
+
+/** Pines outside the palisade (deterministic), and a few on the square's grass corners. */
+function buildGreenery(): void {
+  const spots: { x: number; z: number; s: number }[] = [];
+  const outside = (x: number, z: number) => x < (YARD.x - 1.5) * T || x > (YARD.x + YARD.w + .5) * T || z > (YARD.y + YARD.h + .5) * T;
+  for (let k = 0; k < 400 && spots.length < 70; k++) {
+    const x = rr(-14, W * T + 12), z = rr(0, H * T + 14);
+    if (outside(x, z) && !spots.some(s => Math.hypot(s.x - x, s.z - z) < 2.2)) spots.push({ x, z, s: rr(.8, 1.35) });
+  }
+  for (const [tx, tz] of [[4, 5], [25, 5], [4, 14], [25, 14], [10, 21], [20, 21]]) { spots.push({ x: tx * T, z: tz * T, s: rr(.75, .95) }); blockProp(tx, tz, .45); }
+  buildTrees(spots);
+}
+
+/** Builds the town's ground (called instead of the dungeon floor). */
+export function buildTownTerrain(): void { buildTownGround(YARD, pathTiles()); }
 
 /** Spins portal rings (called from the world update). */
 export function spinPortals(dt: number): void {

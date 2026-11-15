@@ -23,6 +23,14 @@ const coldKey = new THREE.DirectionalLight(0x7a92c8, 1.5);
 coldKey.position.set(-5, 10, 2);
 scene.add(ambient, coldKey);
 
+/** Outdoors (the town): a stronger, bluer moon and a night-sky background; indoors: the dungeon's cold key. */
+export function setOutdoor(on: boolean): void {
+  coldKey.intensity = on ? 3.4 : 1.5;
+  coldKey.color.setHex(on ? 0x8aa4e0 : 0x7a92c8);
+  ambient.color.setHex(on ? 0x5a6c98 : 0x56688a);
+  (scene.background as THREE.Color).setHex(on ? 0x0a1020 : 0x05060a);
+}
+
 export const torchLight = new THREE.PointLight(0xff9440, 30, 21, 1.45);
 torchLight.castShadow = true;
 torchLight.shadow.mapSize.set(1024, 1024);

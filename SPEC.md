@@ -1260,7 +1260,15 @@ Saved to `localStorage['dv.save.v3']`. There are up to 6 character slots:
 **Save (§12.2):** each character adds `deepest`, `portal` (depth and position), and `stash` (grid and gold). The town's delta is `levels[0]`.
 
 **As implemented in Phase 11** [OURS unless noted]
-- **Town map:** 30×26 tiles, with a 24×20 courtyard and four 3×3 house blocks. Six entrances along the north wall lead to depths 1, 5, 10, 15, 20 and 25; deeper shortcuts are not offered. The courtyard has a well with the respawn point just south of it, five braziers, two closed market stalls (where merchants will stand), banners, torches and four moonlight shafts. Ambient light is 3.2, against 1.6–2.2 in the dungeon. Its props draw from a fixed seed. The HUD shows `TOWN`.
+- **Town map:** 30×26 tiles: a 24×20 square, four 3×3 house blocks, six entrances along the north for depths 1, 5, 10, 15, 20 and 25 (no deeper shortcuts). The square holds the well with the respawn point just south of it, the stash, five braziers, two closed market stalls (where merchants will stand) and six lantern posts. Its props draw from a fixed seed. The HUD shows `TOWN`.
+- **Outdoor look (after Phase 11) [OURS]:** the town is drawn as open ground under the night sky, not as a dungeon chamber.
+  - **Ground:** grass with cobbled streets (before the abbey, a north–south avenue, a cross street and the stash square), stretching 9 tiles past the map so the square sits in open land.
+  - **North:** the ruined abbey façade, two rows of tall stone with archways and buttresses, with the dungeon stairwells at its foot.
+  - **Other sides:** a palisade of sharpened stakes; about 70 pines beyond it and two inside.
+  - **Houses:** timber-framed with plaster, shingled gable roofs, lit windows (each with a warm light) and doors facing the well.
+  - **Light:** a brighter, bluer moon (key light 3.4 against 1.5) with a night-blue background.
+  - **Fading:** houses and trees fade with a screen-door dither when the hero walks behind them, instead of squashing like dungeon walls.
+  - **Removed:** the ceiling-grate moonbeams and the side-wall torches.
 - **Exits** are one system on every level: down-stairs, up-stairs, town entrances and portals. Stepping on one (the player) leaves at once. AUTO only uses the exit it is heading for. With a grave pile on the level, the first step warns (`STEP ON AGAIN TO LEAVE`). Leaving by the down-stairs still restores a fifth of max life. Labels name exits within 5 m (`DEPTH 5`, `DEPTH 10 - SEALED`, `UP TO TOWN`, `PORTAL TO DEPTH 3`), and the stash.
 - **Up-stairs:** a new tile (7). The hero can walk on it, monsters cannot, and the floor is drawn. It sits on an edge cell of the start room with a wall behind it, away from the room's openings and the start landing. It is drawn as four steps rising into a dark archway.
 - **The key belongs to its level:** whenever a level is rebuilt with its key chest open and its door still locked, the hero holds the key. Leaving through a portal and returning keeps it, and saves no longer store it.
@@ -1280,6 +1288,51 @@ Saved to `localStorage['dv.save.v3']`. There are up to 6 character slots:
 - Unidentified items keep that state inside the stash.
 - **Persistence:** the stash is saved with the character (§12.2). It survives death, because only carried items drop.
 - **The stash belongs to one character [USER Q9].** Each character has their own stash, so items cannot be passed between characters through it.
+
+### 13.2 Merchants and the sage (Phase 12, draft)
+
+D1's town has four shopkeepers, plus Wirt. They sell, buy and identify; Griswold also repairs and Adria recharges, but those need durability and charges, which we don't have.
+
+| D1 NPC | Ours [Q17] | Sells | Buys | Service |
+|---|---|---|---|---|
+| Griswold (blacksmith) | **The smith** | basic (normal) and premium (magic) weapons, armor, shields, helms, jewelry | weapons, armor, shields, helms, jewelry | — (repair: no durability) |
+| Adria (witch) | **The witch** | unlimited mana potions, Full Mana, Scrolls of Town Portal, **Scrolls of Identify** [OURS, per §13 hooks]; 7–14 random books, scrolls and staves | books, scrolls, staves | — (recharge: no charges) |
+| Pepin (healer) | **The healer** | unlimited Healing and Full Healing potions, Rejuvenation; 7–14 random potions | nothing | heals the hero to full for free on each visit |
+| Cain (elder) | **The sage** | nothing | nothing | identifies any item for **100 gold** |
+| Wirt (peddler) | **The peddler [Q18]** | one premium item at 150 % price; 50 gold to look | nothing | — |
+
+**Prices (D1, Jarulf §3.1–3.6)**
+- **Potions:** Healing 50, Full Healing 150, Mana 50, Full Mana 150, Rejuvenation 120, Full Rejuvenation 600. Elixirs are never sold (they stay dungeon finds).
+- **Scrolls and books:** the D1 table, e.g. Identify scroll 100; Town Portal scroll 200, book 3 000; Firebolt book 1 000; Healing scroll 50, book 1 000; Lightning scroll 150, book 3 000; Fireball scroll 300, book 8 000; Mana Shield scroll 1 200, book 16 000; Chain Lightning scroll 750, book 11 000. Our Identify book has no D1 price: **[OURS] 5 000**.
+- **Base items:** the D1 price column of each base (e.g. Dagger 60, Buckler 30, Short Bow 100, Rags 5, Quilted Armor 200). Rings and amulets have no normal version, so only magic prices apply.
+- **Magic items:** D1's formula `C = Bp + Bs + Qp + Qs + I·(Mp + Ms)`, where `I` is the base price and each affix contributes its base effect `B`, its quality share `Q = (roll position) · R`, and a multiplier `M`. Every affix in our table gets D1's `B`, `R`, `M` data, matched by its D1 name; affixes we invented get values interpolated from the nearest D1 affix [OURS].
+- **Uniques [OURS]:** priced by the same formula, summing their properties as if they were affixes, ×1.5. They are never sold by merchants, only bought from the player.
+- **Unidentified magic and unique items** are priced at their base item's price (D1). Identify first to sell high.
+- **Selling:** merchants pay **¼ of the price** (D1), rounded down, at least 1. Gold has no cap (our gold is a counter, not inventory cells).
+
+**Stock**
+- **Item level:** basic stock (smith's basic, witch, healer) uses `ilvl = max(1, deepest)`, capped at 16 like D1's single-player table. The smith's premium items use `ilvl = clvl − 1 … clvl + 2`, capped at 30 (D1).
+- **Basic stock:** 10–16 normal items at the smith [OURS count; D1 does not state a fixed number in our sources], 7–14 random items at the witch and healer (D1).
+- **Premium stock:** 6 magic items at the smith (D1 Diablo, not Hellfire's 15).
+- **Restocking:** basic stock and the witch's and healer's random items renew each time the hero arrives in town from the dungeon (D1). Premium stock replaces a bought item at once, and replaces half its items when the hero gains a level (D1: "some of them").
+- **Uniques:** shops never stock uniques, and stocking does not touch `uniquesFound`.
+- **Saving:** shop stock is saved with the character, so reloading never rerolls it [OURS; D1 single player rerolls on reload, Q19].
+
+**Interaction and UI**
+- **NPC figures:** each stands at a fixed spot in town with a name label, on the hero model rig with its own clothing and a slow idle. The smith stands by an anvil and forge at a market stall, the witch at a stall with a cauldron, the healer by the well, and the sage by a lectern near the stash.
+- **Opening a shop:** walking into an NPC (player-driven movement only, like the stash) opens the **shop panel** on the left and the inventory on the right, pausing the game. The sage opens the inventory in identify mode, paying 100 gold per item, and keeps it open for more.
+- **Shop panel:** a list of rows (icon, name in quality colour, price). The price is red when the hero can't afford it, or grey with `NO ROOM` when it wouldn't fit. Hovering shows the usual description box. Click or Enter buys; arrow keys move.
+- **Selling:** with a shop open, right-click or X on a backpack item sells it to a merchant who buys that kind. The description box shows `SELLS FOR n GOLD` or `THE SMITH WILL NOT BUY THIS`. Equipped items must be unequipped first (D1).
+- **Bought items** go to the backpack (potions and scrolls to the belt first, by the usual pickup rules).
+- **AUTO never trades** [USER, §14]: trading is a player decision. The healer's free heal still applies whenever the player walks up.
+
+**Open questions**
+
+| # | Question | Options | Recommendation |
+|---|---|---|---|
+| Q17 | NPC names | (a) Role names ("the smith") with an original personal name each (e.g. "Halvard the Smith").<br>(b) D1's names (Griswold, Adria, Pepin, Cain, Wirt). | (a): avoids leaning on D1's characters while keeping the roles recognisable. |
+| Q18 | The peddler (Wirt) | (a) Include: one pricey premium item, 50 gold to look.<br>(b) Leave out. | (a): cheap to build on the smith's premium logic, and gives late gold a use. |
+| Q19 | Rerolling shops by reloading | (a) Stock is saved; no rerolls.<br>(b) As D1 single player: reloading rerolls the witch's and healer's random items. | (a): no save-scumming, and AUTO-free runs stay honest. |
 
 ---
 
@@ -1318,6 +1371,7 @@ Each phase ships playable and is verified in the browser before the next starts.
 | 9 | **Mini-bosses** | §9 | Depths 5, 10, 15, and 20 have the right boss, mechanics, and guaranteed drops. |
 | 10 | **Persistence and polish** | §12.2 (character slots, level deltas), §8.4, settings (damage numbers) | Reloading mid-level continues with the same layout, ground items, and gear. Several characters can be saved side by side. |
 | 11 | **Town** | §13, §13.1 | Death respawns the hero in town. The stash stores items across sessions. Items dropped in town stay there. |
+| 12 | **Merchants and the sage** | §13.2 | Each merchant sells and buys its kinds at D1 prices; selling pays ¼. Stock follows `deepest`/clvl and restocks on returning from the dungeon. The sage identifies for 100 gold. The healer heals for free. Stock survives a reload. AUTO never trades. |
 
 ---
 

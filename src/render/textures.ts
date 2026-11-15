@@ -103,9 +103,44 @@ function texBanner() {
   g.beginPath(); g.moveTo(0, 128); for (let x = 0; x <= 64; x += 8) g.lineTo(x, 112 + (x / 8 % 2 ? 14 : 0) - rr(0, 5)); g.lineTo(64, 128); g.closePath(); g.fill();
   return c;
 }
+/** Night grass: dark green with blades, clover tufts and bare earth patches (the town, SPEC §13). */
+function texGrass() {
+  const S = 256, c = mkC(S, S), g = c.getContext('2d')!;
+  g.fillStyle = '#1c2a16'; g.fillRect(0, 0, S, S);
+  for (let i = 0; i < 14; i++) { g.fillStyle = `rgba(${ri(40, 60)},${ri(34, 44)},${ri(22, 30)},${rr(.25, .5)})`; g.beginPath(); g.ellipse(R() * S, R() * S, rr(10, 30), rr(6, 18), R() * PI, 0, TAU); g.fill(); }
+  for (let i = 0; i < 5200; i++) {
+    const x = R() * S, y = R() * S, h = rr(2, 6);
+    g.strokeStyle = `rgba(${ri(36, 70)},${ri(66, 110)},${ri(28, 46)},${rr(.4, .9)})`; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + rr(-1.5, 1.5), y - h); g.stroke();
+  }
+  speckle(g, S, S, 1600, .12);
+  return c;
+}
+/** Lime plaster with stains, for house walls between timber beams. */
+function texPlaster() {
+  const S = 128, c = mkC(S, S), g = c.getContext('2d')!;
+  g.fillStyle = '#8a8070'; g.fillRect(0, 0, S, S);
+  for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(${ri(60, 90)},${ri(55, 80)},${ri(45, 65)},${rr(.08, .2)})`; g.beginPath(); g.ellipse(R() * S, R() * S, rr(6, 20), rr(4, 14), 0, 0, TAU); g.fill(); }
+  speckle(g, S, S, 2600, .14);
+  return c;
+}
+/** Rows of overlapping wooden shingles for roofs. */
+function texRoof() {
+  const S = 128, c = mkC(S, S), g = c.getContext('2d')!;
+  g.fillStyle = '#20140e'; g.fillRect(0, 0, S, S);
+  const rh = 16;
+  for (let r = 0; r < S / rh; r++) for (let x = (r % 2) * 8 - 8; x < S; x += 16) {
+    const v = ri(48, 74); g.fillStyle = `rgb(${v},${v * .62 | 0},${v * .45 | 0})`;
+    g.fillRect(x + 1, r * rh + 1, 14, rh - 3);
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(x + 1, r * rh + rh - 4, 14, 2);
+  }
+  speckle(g, S, S, 900, .15);
+  return c;
+}
 /** The stone wall canvas, also used as the UI panel background. */
 export const WALL_CANVAS = texWall();
 export const TEX = {
   wall: ctex(WALL_CANVAS), floor: ctex(texFloor()), wood: ctex(texWood()), web: ctex(texWeb(), true, false),
-  rune: ctex(texRune(), true, false), grate: ctex(texGrate(), true, false), glow: ctex(texGlow(), true, false), banner: ctex(texBanner(), true, false)
+  rune: ctex(texRune(), true, false), grate: ctex(texGrate(), true, false), glow: ctex(texGlow(), true, false), banner: ctex(texBanner(), true, false),
+  grass: ctex(texGrass()), plaster: ctex(texPlaster()), roof: ctex(texRoof()),
 };

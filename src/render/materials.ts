@@ -17,6 +17,28 @@ function applyCut(mat: THREE.Material, factor: number): void {
   };
   mat.customProgramCacheKey = () => 'cut' + factor;
 }
+/**
+ * Like `applyCut`, but instead of squashing the instance it fades it out with a screen-door dither (whole pixels
+ * dropped in a pattern), so trees and houses stay recognisable while the hero walks behind them.
+ */
+function applyFade(mat: THREE.Material, maxFade: number): void {
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.uPlayer = cutU.uPlayer;
+    sh.vertexShader = 'uniform vec3 uPlayer;\nvarying float vFade;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+vFade = 0.0;
+#ifdef USE_INSTANCING
+{ vec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
+  float s = (ip.x - uPlayer.x) + (ip.z - uPlayer.z);
+  vFade = smoothstep(-0.6, 1.8, s) * (1.0 - smoothstep(9.0, 13.0, length(ip.xz - uPlayer.xz))); }
+#endif`);
+    sh.fragmentShader = 'varying float vFade;\n' + sh.fragmentShader.replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+{ vec2 c = mod(floor(gl_FragCoord.xy), 4.0);
+  float b = mod(c.x * 2.0 + c.y * 3.0, 4.0) / 4.0 + mod(c.y, 2.0) * 0.125;
+  if (b < vFade * ${maxFade.toFixed(3)}) discard; }`);
+  };
+  mat.customProgramCacheKey = () => 'fade' + maxFade;
+}
+
 export const MAT = {
   wallSide: new THREE.MeshStandardMaterial({ map: TEX.wall, bumpMap: TEX.wall, bumpScale: 2.2, roughness: .94 }),
   wallTop: new THREE.MeshStandardMaterial({ map: TEX.wall, color: 0x6a645c, roughness: 1 }),
@@ -36,13 +58,23 @@ export const MAT = {
   puddle: new THREE.MeshStandardMaterial({ color: 0x1c232c, roughness: .07, metalness: .5, transparent: true, opacity: .62, depthWrite: false }),
   goo: new THREE.MeshStandardMaterial({ color: 0x2c5a1c, roughness: .2, transparent: true, opacity: .8, depthWrite: false }),
   blood: new THREE.MeshStandardMaterial({ color: 0x3a0606, roughness: .15, metalness: .3, transparent: true, opacity: .85, depthWrite: false }),
-  flesh: new THREE.MeshStandardMaterial({ color: 0x7a4a40, roughness: .8 })
+  flesh: new THREE.MeshStandardMaterial({ color: 0x7a4a40, roughness: .8 }),
+  // the town (SPEC §13)
+  grass: new THREE.MeshStandardMaterial({ map: TEX.grass, bumpMap: TEX.grass, bumpScale: .8, roughness: 1, vertexColors: true }),
+  plaster: new THREE.MeshStandardMaterial({ map: TEX.plaster, roughness: .95 }),
+  beam: new THREE.MeshStandardMaterial({ map: TEX.wood, color: 0x6a5040, roughness: .9 }),
+  roof: new THREE.MeshStandardMaterial({ map: TEX.roof, roughness: .95, side: THREE.DoubleSide }),
+  windowLit: new THREE.MeshStandardMaterial({ color: 0x3a2008, emissive: 0xffa040, emissiveIntensity: 1.2, roughness: .6 }),
+  foliage: new THREE.MeshStandardMaterial({ color: 0x3a6a3e, roughness: 1, flatShading: true }),
+  bark: new THREE.MeshStandardMaterial({ color: 0x5a4430, roughness: 1 }),
 };
 /** Ground-potion glass per type: red healing, blue mana, purple rejuvenation. */
 const potionGlass = (color: number, emissive: number) => new THREE.MeshStandardMaterial({ color, emissive, roughness: .25 });
 const RED = potionGlass(0xa01828, 0x400008), BLUE = potionGlass(0x2040c0, 0x081040), PURPLE = potionGlass(0x8a30b0, 0x2a0840);
 export const POTION_MAT: Record<PotionId, THREE.Material> = { heal: RED, fullHeal: RED, mana: BLUE, fullMana: BLUE, rejuv: PURPLE, fullRejuv: PURPLE };
 applyCut(MAT.wallSide, .16); applyCut(MAT.wallTop, .16); applyCut(MAT.pillar, .2);
+// houses and trees are instanced: they fade (dithered) when the hero walks behind them
+for (const m of [MAT.plaster, MAT.beam, MAT.roof, MAT.windowLit, MAT.foliage, MAT.bark]) applyFade(m, .8);
 MAT.banner.onBeforeCompile = sh => {
   sh.uniforms.uTime = GU.uTime;
   sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
