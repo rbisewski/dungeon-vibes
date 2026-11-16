@@ -32,6 +32,9 @@ export const invVersion = signal(0);
 export type Cursor =
   | { area: 'pack'; x: number; y: number } | { area: 'stash'; x: number; y: number } | { area: 'shop'; i: number } | { area: 'equip'; slot: EquipSlot };
 export const cursor = signal<Cursor>({ area: 'pack', x: 0, y: 0 });
+/** Whether the keyboard cursor is drawn: only once the arrow keys are used, until the mouse moves again. */
+export const keyNav = signal(false);
+addEventListener('pointermove', () => { if (keyNav.value) keyNav.value = false; });
 
 /** Where the Scroll of Identify being read sits; while set, inventory clicks choose the item to identify. */
 export type ScrollSource = { belt: number } | { pack: Item };
@@ -463,7 +466,7 @@ addEventListener('keydown', e => {
     return;
   }
   const arrows: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
-  if (arrows[e.code]) { e.preventDefault(); moveCursor(...arrows[e.code]); return; }
+  if (arrows[e.code]) { e.preventDefault(); keyNav.value = true; moveCursor(...arrows[e.code]); return; }
   const c = cursor.value;
   if (e.code === 'Tab' && shopFor.value === 'smith') { e.preventDefault(); smithPremium.value = !smithPremium.value; if (c.area === 'shop') cursor.value = { area: 'shop', i: 0 }; return; }
   if (e.code === 'Enter') {

@@ -3,7 +3,7 @@ import { G } from '../game/state';
 import { NPCS, type Offer } from '../game/shops';
 import { itemName, quality, storeTarget } from '../rules/inventory';
 import { PEDDLER_LOOK } from '../rules/shops';
-import { buyOffer, closePanel, cursor, invVersion, payPeddler, shopFor, shopOffers, smithPremium } from './actions';
+import { buyOffer, closePanel, cursor, keyNav, invVersion, payPeddler, shopFor, shopOffers, smithPremium } from './actions';
 import { Desc, describe, Icon } from './InventoryPanel';
 import { Panel } from './Panel';
 
@@ -42,7 +42,7 @@ export function ShopPanel() {
           {list.map((o, i) => {
             const fits = !!storeTarget(h.inv, o.item), afford = h.gold >= o.price;
             return (
-              <div key={o.item.uid} class={'row' + (sel === o ? ' cur' : '')} onMouseEnter={() => setHover(o)}
+              <div key={o.item.uid} class={'row' + (keyNav.value && sel === o ? ' cur' : '')} onMouseEnter={() => setHover(o)}
                 onMouseDown={e => { if (e.button === 0) { cursor.value = { area: 'shop', i }; buyOffer(o); } }}>
                 <div class="ic"><Icon it={o.item} /></div>
                 <span class={`nm q-${quality(o.item)}`}>{itemName(o.item).toUpperCase()}</span>

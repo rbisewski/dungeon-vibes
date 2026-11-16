@@ -8,7 +8,7 @@ import { learnReq, MAX_SLVL, scrollReq, spellEffectText } from '../rules/spells'
 import { spellLevel } from '../actors/spells';
 import { carried, fitsSlot, isTwoHanded, isUnidentified, itemAc, itemAt, itemName, itemSize, meetsReq, quality, PACK_H, PACK_W, type EquipSlot, type Item } from '../rules/inventory';
 import { POTIONS } from '../rules/potions';
-import { clickEquip, clickPack, closePanel, cursor, dropHeld, held, identifying, invVersion, shopFor, sparkle, unequip, usePackItem } from './actions';
+import { clickEquip, clickPack, closePanel, cursor, keyNav, dropHeld, held, identifying, invVersion, shopFor, sparkle, unequip, usePackItem } from './actions';
 import { NPCS } from '../game/shops';
 import { sellPrice } from '../rules/prices';
 import { buys } from '../rules/shops';
@@ -132,7 +132,7 @@ export function InventoryPanel() {
         {SLOTS.map(s => {
           const d = DOLL[s], it = inv.equip[s];
           const ghost = s === 'shield' && !it && isTwoHanded(inv.equip.weapon) ? inv.equip.weapon : null;
-          const sel = cur.area === 'equip' && cur.slot === s;
+          const sel = keyNav.value && cur.area === 'equip' && cur.slot === s;
           return (
             <div
               key={s}
@@ -151,7 +151,7 @@ export function InventoryPanel() {
 
       <div class="grid" style={{ width: PACK_W * CELL - 1, height: PACK_H * CELL - 1 }}
         onMouseDown={packDown} onContextMenu={packMenu} onMouseMove={packMove} onMouseLeave={() => setHover(null)}>
-        {cur.area === 'pack' && <div class="cursor" style={box(cur.x, cur.y, 1, 1)} />}
+        {keyNav.value && cur.area === 'pack' && <div class="cursor" style={box(cur.x, cur.y, 1, 1)} />}
         {inv.pack.items.map(p => {
           const s = itemSize(p.item);
           return (

@@ -1250,6 +1250,7 @@ The look stays the same in kind: low-poly meshes drawn at half resolution, dithe
     - Below the boxes: text actions (CONTINUE / NEW HERO / DELETE, or OK / START / BACK), then a footer with the keys.
     - Class select also takes Up and Down.
   - **Esc menu:** RESUME, DAMAGE NUMBERS, SOUND, SAVE AND QUIT, with sigils on the selected entry, and the controls.
+- **Keyboard cursor:** the blue cursor in the inventory, stash and shop list shows only after an arrow key is pressed, and hides again when the mouse moves.
 - **Also restyled:** the boss bar (a plaque above the control bar), the toast (carved capitals), the sound prompt (a plaque), ground labels (a thin gold edge), and PAUSED (carved capitals, hidden while the menu is open).
 
 ---
