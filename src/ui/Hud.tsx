@@ -4,7 +4,7 @@ import { drawOrb, LIFE_ORB, MANA_ORB, ORB_PX, type OrbColors } from './pixel/orb
 import { ICON } from './icons';
 import { itemIcon } from '../art/itemIcons';
 import { itemName } from '../rules/inventory';
-import { beltClick, invVersion, openPanel } from './actions';
+import { beltClick, invVersion, openPanel, togglePanel } from './actions';
 import { CharacterPanel } from './CharacterPanel';
 import { fade, hud, isOpen, openPanels, soundOn, toastOn, toastSub, toastText } from './store';
 import { InventoryPanel } from './InventoryPanel';
@@ -27,31 +27,46 @@ function Pix({ img, scale = 3, style }: { img: PixImage; scale?: number; style?:
   return <img src={img.src} width={img.w * scale} height={img.h * scale} style={style} alt="" />;
 }
 
-/** Life or mana globe; redraws only when the visible fill level changes. */
+/** Life or mana globe in its socket; redraws only when the visible fill level changes. */
 function Orb({ id, label, cur, max, colors }: { id: string; label: string; cur: number; max: number; colors: OrbColors }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const frac = max > 0 ? Math.max(0, Math.min(1, cur / max)) : 0;
   const level = Math.round(frac * ORB_PX);
   useEffect(() => { const g = ref.current?.getContext('2d'); if (g) drawOrb(g, level / ORB_PX, colors); }, [level, colors]);
   return (
-    <div id={id} class="orb px">
+    <div id={id} class="socket">
       <canvas ref={ref} width={ORB_PX} height={ORB_PX} />
       <div class="orbText">{label} {cur}/{max}</div>
     </div>
   );
 }
 
-function Orbs() {
+/**
+ * The control bar (D1's control panel, SPEC §10.8): panel buttons, the life orb, belt and experience, skill and
+ * readied spell, the mana orb, more panel buttons. A badge on CHAR marks unspent points.
+ */
+function ControlBar() {
   return (
-    <>
+    <div id="bar" class="px frame">
+      <div class="btns">
+        <button class="btn" onClick={() => togglePanel('char')} title="Character (C)">
+          CHAR{hud.unspent.value > 0 && <span class="badge" title="Level up! Points to spend">+</span>}
+        </button>
+        <button class="btn" onClick={() => togglePanel('menu')} title="Menu and controls (Esc)">MENU</button>
+      </div>
       <Orb id="lifeOrb" label="LIFE" cur={hud.life.value} max={hud.maxLife.value} colors={LIFE_ORB} />
-      <Orb id="manaOrb" label="MANA" cur={hud.mana.value} max={hud.maxMana.value} colors={MANA_ORB} />
-      <ReadiedSpell />
+      <div class="mid">
+        <Belt />
+        <XpBar />
+      </div>
       <SkillButton />
-      {hud.unspent.value > 0 && !openPanels.value.length && (
-        <button id="lvlUp" class="px" onClick={() => openPanel('char')} title="Level up! Spend points (C)">+</button>
-      )}
-    </>
+      <ReadiedSpell />
+      <Orb id="manaOrb" label="MANA" cur={hud.mana.value} max={hud.maxMana.value} colors={MANA_ORB} />
+      <div class="btns">
+        <button class="btn" onClick={() => togglePanel('inv')} title="Inventory (I)">INV</button>
+        <button class="btn" onClick={() => togglePanel('book')} title="Spellbook (B)">SPELLS</button>
+      </div>
+    </div>
   );
 }
 
@@ -59,11 +74,11 @@ function Orbs() {
 function Belt() {
   void invVersion.value; // paused inventory edits refresh the belt immediately
   return (
-    <div id="belt" class="px">
+    <div id="belt">
       {hud.belt.value.map((it, i) => (
         <div
           key={i}
-          class="slot"
+          class="slot well"
           title={it ? `${itemName(it)} - right-click or ${i + 1} to ${it.kind === 'scroll' ? 'read' : 'drink'}` : `Belt slot ${i + 1}`}
           onMouseDown={e => { if (e.button === 0) beltClick(i, 'left'); }}
           onContextMenu={e => { e.preventDefault(); beltClick(i, 'right'); }}
@@ -81,7 +96,7 @@ function ReadiedSpell() {
   const id = hud.readied.value;
   const ic = id ? spellIcon(id) : null;
   return (
-    <div id="readied" class={'px' + (hud.readyOk.value ? '' : ' low') + (hud.manaShield.value ? ' shield' : '')} onMouseDown={() => openPanel('book')}
+    <div id="readied" class={'action well' + (hud.readyOk.value ? '' : ' low') + (hud.manaShield.value ? ' shield' : '')} onMouseDown={() => openPanel('book')}
       title={id ? `${SPELLS[id].name} - Q to cast, B for the spellbook` : 'No spell readied - B for the spellbook'}>
       {ic ? <img src={ic.src} width={ic.w * 2} height={ic.h * 2} alt="" draggable={false} /> : <span>B</span>}
       <span class="key">Q</span>
@@ -93,7 +108,7 @@ function ReadiedSpell() {
 function SkillButton() {
   const id = hud.skill.value, ic = skillIcon(id), cd = hud.skillCd.value;
   return (
-    <div id="skillBtn" class={'px' + (cd > 0 ? ' cooling' : '')} onMouseDown={() => useSkill()} title={`${SKILLS[id].name} (R): ${SKILLS[id].desc}`}>
+    <div id="skillBtn" class={'action well' + (cd > 0 ? ' cooling' : '')} onMouseDown={() => useSkill()} title={`${SKILLS[id].name} (R): ${SKILLS[id].desc}`}>
       <img src={ic.src} width={ic.w * 2} height={ic.h * 2} alt="" draggable={false} />
       {cd > 0 && <div class="sweep" style={{ background: `conic-gradient(rgba(0,0,0,.72) ${(cd * 360).toFixed(1)}deg, transparent 0)` }} />}
       <span class="key">R</span>
@@ -103,31 +118,30 @@ function SkillButton() {
 
 function XpBar() {
   return (
-    <div id="xp" class="px" title="Experience">
+    <div id="xp" title="Experience">
       <span>LV {hud.clvl}</span>
-      <div class="bar"><div style={{ width: `${(100 * hud.xpFrac.value).toFixed(1)}%` }} /></div>
+      <div class="bar well"><div style={{ width: `${(100 * hud.xpFrac.value).toFixed(1)}%` }} /></div>
     </div>
   );
 }
 
 function Stats() {
   return (
-    <div id="hud" class="px">
-      <div class="row"><Pix img={ICON.gold} /><span>{hud.gold}</span></div>
-      <div class="row"><Pix img={ICON.slain} /><span>{hud.slain}</span></div>
-      <div class="row">
-        <Pix img={ICON.depth} /><span>{hud.depth.value ? `DEPTH ${hud.depth.value}` : 'TOWN'}</span>
-        {hud.key.value && <Pix img={ICON.key} style={{ marginLeft: '10px' }} />}
-      </div>
+    <div id="stats" class="px plaque">
+      <span class="it" title="Gold"><Pix img={ICON.gold} />{hud.gold}</span>
+      <span class="it" title="Monsters slain"><Pix img={ICON.slain} />{hud.slain}</span>
+      <span class="it" title="Where you are"><Pix img={ICON.depth} />{hud.depth.value ? `DEPTH ${hud.depth.value}` : 'TOWN'}</span>
+      {hud.key.value && <span class="it" title="Key"><Pix img={ICON.key} /></span>}
     </div>
   );
 }
 
+/** Who is playing (AUTO when left alone), and where the controls are; the full list lives in the menu (Esc). */
 function Mode() {
   return (
-    <div id="mode" class="px">
-      <div>{hud.manual.value ? 'YOU' : 'AUTO'}</div>
-      <div class="sub">WASD/ARROWS MOVE<br />SPACE ATTACK<br />1-8 POTIONS<br />C CHARACTER<br />I INVENTORY<br />B SPELLS · Q CAST<br />R SKILL<br />E PICK UP · ALT ITEMS</div>
+    <div id="mode" class="px plaque">
+      <span>{hud.manual.value ? 'YOU' : 'AUTO'}</span>
+      <span class="sub">ESC MENU</span>
     </div>
   );
 }
@@ -143,9 +157,9 @@ function Toast() {
 
 function BossBar() {
   return (
-    <div id="boss" class="px" style={{ opacity: hud.bossVisible.value ? 1 : 0 }}>
-      <div>{hud.bossName.value.toUpperCase()}</div>
-      <div class="bar"><div id="bossfill" style={{ width: `${100 * hud.bossFrac.value}%` }} /></div>
+    <div id="boss" class="px plaque" style={{ opacity: hud.bossVisible.value ? 1 : 0 }}>
+      <div class="name disp">{hud.bossName.value}</div>
+      <div class="bar well"><div id="bossfill" style={{ width: `${100 * hud.bossFrac.value}%` }} /></div>
     </div>
   );
 }
@@ -157,7 +171,7 @@ function Fade() {
 function SoundPrompt() {
   const on = soundOn.value;
   return (
-    <div id="snd" class={'px' + (on ? ' off' : '')} title="Enable sound">
+    <div id="snd" class={'px plaque' + (on ? ' off' : '')} title="Enable sound">
       <Pix img={ICON.sound} scale={2} /><span>CLICK FOR SOUND</span>
     </div>
   );
@@ -174,16 +188,14 @@ export function Hud() {
       <Mode />
       <Toast />
       <BossBar />
-      <Belt />
-      <XpBar />
-      <Orbs />
+      <ControlBar />
       {isOpen('char') && <CharacterPanel />}
       {isOpen('inv') && <InventoryPanel />}
       {isOpen('book') && <SpellbookPanel />}
       {isOpen('menu') && <GameMenu />}
       {isOpen('stash') && <StashPanel />}
       {isOpen('shop') && <ShopPanel />}
-      {openPanels.value.length > 0 && <div id="paused" class="px">PAUSED</div>}
+      {openPanels.value.length > 0 && !isOpen('menu') && <div id="paused" class="disp">PAUSED</div>}
       <Fade />
       <SoundPrompt />
     </>

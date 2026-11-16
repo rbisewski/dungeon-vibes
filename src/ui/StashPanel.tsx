@@ -3,8 +3,8 @@ import type { JSX } from 'preact';
 import { G, STASH_H, STASH_W } from '../game/state';
 import { itemAt, itemSize, meetsReq, type Item } from '../rules/inventory';
 import { clickStash, closePanel, cursor, depositGold, held, invVersion, stashToPack, withdrawGold } from './actions';
-import { attrs, CELL, describe, Icon } from './InventoryPanel';
-import { panelStyle } from './pixel/frame';
+import { attrs, CELL, Desc, describe, Icon } from './InventoryPanel';
+import { Panel } from './Panel';
 
 /**
  * The stash (SPEC §13.1): a 10×10 grid on the left, the inventory on the right. Click to pick up or place (with
@@ -22,15 +22,14 @@ export function StashPanel() {
   const shown = hover && g.items.some(p => p.item === hover) ? hover : null;
 
   return (
-    <div id="stashPanel" class="px panel" style={panelStyle}>
-      <div class="panelHead">
-        <span>STASH</span>
-        <button class="close" onClick={() => closePanel('stash')} title="Close (Esc)">X</button>
-      </div>
-      <div class="goldRow">
-        <span>GOLD {G.stash.gold}</span>
-        <button onClick={depositGold} disabled={!G.hero.gold}>DEPOSIT</button>
-        <button onClick={withdrawGold} disabled={!G.stash.gold}>WITHDRAW</button>
+    <Panel id="stashPanel" side="left" title="STASH" close={() => closePanel('stash')} closeKeys="Esc"
+      foot="CLICK MOVES · RIGHT-CLICK OR X SENDS ACROSS · ARROWS + ENTER · ESC CLOSE">
+      <div class="goldLine">
+        <span class="label">GOLD</span>
+        <span class="val well">{G.stash.gold}</span>
+        <span style={{ flex: 1 }} />
+        <button class="btn sm" onClick={depositGold} disabled={!G.hero.gold}>DEPOSIT</button>
+        <button class="btn sm" onClick={withdrawGold} disabled={!G.stash.gold}>WITHDRAW</button>
       </div>
       <div class="grid" style={{ width: STASH_W * CELL - 1, height: STASH_H * CELL - 1 }}
         onMouseDown={e => { if (e.button === 0) { const [x, y] = cellOf(e); clickStash(x, y); } }}
@@ -47,9 +46,7 @@ export function StashPanel() {
           );
         })}
       </div>
-      <div class="desc">
-        {shown ? describe(shown).map((l, i) => <div key={i} class={l.cls}>{l.text}</div>) : <div class="hint">CLICK TO MOVE. RIGHT-CLICK OR X SENDS AN ITEM ACROSS. ARROWS + ENTER. ESC CLOSES.</div>}
-      </div>
-    </div>
+      <Desc lines={shown ? describe(shown) : null} empty="HOVER AN ITEM TO SEE IT" />
+    </Panel>
   );
 }

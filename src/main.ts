@@ -1,4 +1,6 @@
 import '@fontsource/press-start-2p/400.css';
+import '@fontsource/cinzel/700.css';
+import '@fontsource/cinzel-decorative/700.css';
 import './style.css';
 import { render, h } from 'preact';
 import { Hud } from './ui/Hud';

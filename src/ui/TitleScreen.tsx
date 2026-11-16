@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { hasFreeSlot, MAX_CHARACTERS } from '../game/save';
 import { titleChars, titleContinue, titleDelete, titleNew } from '../game/title';
 import { CLASS } from '../rules/classes';
-import { panelStyle } from './pixel/frame';
+import { Field } from './Panel';
 
 /**
  * Title screen (SPEC §12.2). Up/Down choose a character; Enter continues, N starts a new character, Delete asks
@@ -39,28 +39,45 @@ export function TitleScreen() {
   }, []);
 
   return (
-    <div id="title" class="px">
-      <div class="title">DUNGEON VIBES</div>
-      <div class="panel titleCard" style={panelStyle}>
-        <div class="charList">
-          {chars.map((c, i) => (
-            <div key={c.id} class={'charRow' + (c === cur ? ' on' : '')} onClick={() => setSel(i)} onDblClick={() => titleContinue(c.id)}>
-              <span class="nm">{c.name}</span>
-              <span>LEVEL {c.clvl} {CLASS[c.cls].name.toUpperCase()}</span>
-              <span>DEPTH {c.depth}</span>
+    <div id="title" class="px screen">
+      <div class="logo">DUNGEON VIBES</div>
+      <div class="logoSub">Select hero</div>
+      <div class="panel frame dialog">
+        <div class="cols">
+          <div class="box well">
+            <div class="boxHead">{cur ? cur.name : 'NO HERO'}</div>
+            {cur && <>
+              <Field label="CLASS">{CLASS[cur.cls].name.toUpperCase()}</Field>
+              <Field label="LEVEL">{cur.clvl}</Field>
+              <Field label="DEPTH">{cur.depth ? `DEPTH ${cur.depth}` : 'TOWN'}</Field>
+            </>}
+          </div>
+          <div class="box well">
+            <div class="boxHead">HEROES</div>
+            <div class="heroList">
+              {chars.map((c, i) => (
+                <button key={c.id} class={'mItem' + (c === cur ? ' on' : '')} onClick={() => setSel(i)} onDblClick={() => titleContinue(c.id)}>
+                  {c.name}<span class="meta">LEVEL {c.clvl} {CLASS[c.cls].name.toUpperCase()}</span>
+                </button>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
         {confirm && cur ? (
-          <div class="confirm">DELETE {cur.name}? THIS CANNOT BE UNDONE. Y / N</div>
+          <div class="confirm">DELETE {cur.name}? THIS CANNOT BE UNDONE.
+            <div class="actions">
+              <button class="mItem sm" onClick={() => { titleDelete(cur.id); setSel(0); setConfirm(false); }}>YES</button>
+              <button class="mItem sm" onClick={() => setConfirm(false)}>NO</button>
+            </div>
+          </div>
         ) : (
-          <div class="titleBtns">
-            <button onClick={() => cur && titleContinue(cur.id)}>CONTINUE</button>
-            <button disabled={!canNew} title={canNew ? '' : `${MAX_CHARACTERS} characters at most`} onClick={titleNew}>NEW CHARACTER</button>
-            <button onClick={() => cur && setConfirm(true)}>DELETE</button>
+          <div class="actions">
+            <button class="mItem sm" onClick={() => cur && titleContinue(cur.id)}>CONTINUE</button>
+            <button class="mItem sm" disabled={!canNew} title={canNew ? '' : `${MAX_CHARACTERS} characters at most`} onClick={titleNew}>NEW HERO</button>
+            <button class="mItem sm" onClick={() => cur && setConfirm(true)}>DELETE</button>
           </div>
         )}
-        <div class="hint">UP / DOWN CHOOSE - ENTER CONTINUE - N NEW - DEL DELETE</div>
+        <div class="panelFoot">UP / DOWN CHOOSE · ENTER CONTINUE · N NEW HERO · DEL DELETE{confirm ? ' · Y / N' : ''}</div>
       </div>
     </div>
   );

@@ -4,8 +4,8 @@ import { NPCS, type Offer } from '../game/shops';
 import { itemName, quality, storeTarget } from '../rules/inventory';
 import { PEDDLER_LOOK } from '../rules/shops';
 import { buyOffer, closePanel, cursor, invVersion, payPeddler, shopFor, shopOffers, smithPremium } from './actions';
-import { describe, Icon } from './InventoryPanel';
-import { panelStyle } from './pixel/frame';
+import { Desc, describe, Icon } from './InventoryPanel';
+import { Panel } from './Panel';
 
 /**
  * A merchant's shop (SPEC §13.2), beside the inventory. Rows show the item, its name and price; red prices are out
@@ -22,27 +22,23 @@ export function ShopPanel() {
   const veiled = m === 'peddler' && !G.shops.peddler.seen && list.length > 0;
 
   return (
-    <div id="shopPanel" class="px panel" style={panelStyle}>
-      <div class="panelHead">
-        <span>{NPCS[m].name.toUpperCase()}</span>
-        <button class="close" onClick={() => closePanel('shop')} title="Close (Esc)">X</button>
-      </div>
+    <Panel id="shopPanel" side="left" title={NPCS[m].name.toUpperCase()} close={() => closePanel('shop')} closeKeys="Esc"
+      foot={<>CLICK OR ENTER BUYS · RIGHT-CLICK OR X SELLS YOURS{m === 'smith' && <> · TAB WARES</>} · ESC CLOSE</>}>
       {m === 'smith' && (
         <div class="tabs">
-          <button class={smithPremium.value ? '' : 'on'} onClick={() => { smithPremium.value = false; }}>BASIC</button>
-          <button class={smithPremium.value ? 'on' : ''} onClick={() => { smithPremium.value = true; }}>PREMIUM</button>
-          <span class="hint">TAB</span>
+          <button class={'btn sm' + (smithPremium.value ? '' : ' on')} onClick={() => { smithPremium.value = false; }}>BASIC</button>
+          <button class={'btn sm' + (smithPremium.value ? ' on' : '')} onClick={() => { smithPremium.value = true; }}>PREMIUM</button>
         </div>
       )}
       {veiled ? (
-        <div class="veil">
+        <div class="veil well">
           <div>"I HAVE SOMETHING SPECIAL. {PEDDLER_LOOK} GOLD JUST TO LOOK."</div>
-          <button disabled={h.gold < PEDDLER_LOOK} onClick={payPeddler}>PAY {PEDDLER_LOOK} GOLD</button>
+          <button class="btn" disabled={h.gold < PEDDLER_LOOK} onClick={payPeddler}>PAY {PEDDLER_LOOK} GOLD</button>
         </div>
       ) : !list.length ? (
-        <div class="veil">{m === 'peddler' ? '"NOTHING MORE TODAY. COME BACK AFTER YOUR NEXT TRIP DOWN."' : 'NOTHING FOR SALE'}</div>
+        <div class="veil well">{m === 'peddler' ? '"NOTHING MORE TODAY. COME BACK AFTER YOUR NEXT TRIP DOWN."' : 'NOTHING FOR SALE'}</div>
       ) : (
-        <div class="rows" onMouseLeave={() => setHover(null)}>
+        <div class="rows well" onMouseLeave={() => setHover(null)}>
           {list.map((o, i) => {
             const fits = !!storeTarget(h.inv, o.item), afford = h.gold >= o.price;
             return (
@@ -56,11 +52,7 @@ export function ShopPanel() {
           })}
         </div>
       )}
-      <div class="desc">
-        {shown && !veiled
-          ? describe(shown.item, true).map((l, i) => <div key={i} class={l.cls}>{l.text}</div>)
-          : <div class="hint">CLICK OR ENTER BUYS. RIGHT-CLICK OR X ON YOUR ITEMS SELLS. ESC CLOSES.</div>}
-      </div>
-    </div>
+      <Desc lines={shown && !veiled ? describe(shown.item, true) : null} empty="HOVER A WARE TO SEE IT" />
+    </Panel>
   );
 }

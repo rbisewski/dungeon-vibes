@@ -5,11 +5,11 @@ import { openTitle } from '../game/title';
 import { CLASS, CLASS_BLURB, CLASS_IDS } from '../rules/classes';
 import { SKILLS, CLASS_SKILL } from '../rules/skills';
 import { derive } from '../rules/stats';
-import { panelStyle } from './pixel/frame';
+import { Field } from './Panel';
 
 const MAX_NAME = 12;
 
-/** Class select and name entry (SPEC §3.1). Arrow keys choose, Enter confirms; Esc on the name step goes back. */
+/** Class select and name entry (SPEC §3.1, §10.8). Arrow keys choose, Enter confirms; Esc goes back. */
 export function ClassSelect() {
   const step = menuStep.value, cls = menuClass.value, def = CLASS[cls];
   const [name, setName] = useState('');
@@ -19,8 +19,8 @@ export function ClassSelect() {
     if (step !== 'class') return;
     const onKey = (e: KeyboardEvent) => {
       const i = CLASS_IDS.indexOf(menuClass.value);
-      if (e.code === 'ArrowLeft' || e.code === 'KeyA') { e.preventDefault(); chooseClass(CLASS_IDS[(i + 2) % 3]); }
-      else if (e.code === 'ArrowRight' || e.code === 'KeyD') { e.preventDefault(); chooseClass(CLASS_IDS[(i + 1) % 3]); }
+      if (['ArrowLeft', 'KeyA', 'ArrowUp', 'KeyW'].includes(e.code)) { e.preventDefault(); chooseClass(CLASS_IDS[(i + 2) % 3]); }
+      else if (['ArrowRight', 'KeyD', 'ArrowDown', 'KeyS'].includes(e.code)) { e.preventDefault(); chooseClass(CLASS_IDS[(i + 1) % 3]); }
       else if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); menuStep.value = 'name'; }
       else if (e.code === 'Escape' && listCharacters().length) { e.preventDefault(); closeClassSelect(); openTitle(); }
     };
@@ -34,44 +34,61 @@ export function ClassSelect() {
   const d = derive({ cls, clvl: 1, base: def.base });
   const start = () => startRun((name.trim() || def.name).toUpperCase());
 
+  const back = () => { if (step === 'name') menuStep.value = 'class'; else { closeClassSelect(); openTitle(); } };
+  const canBack = step === 'name' || listCharacters().length > 0;
   return (
-    <div id="classSelect" class="px">
-      <div class="title">DUNGEON VIBES</div>
-      <div class="classTabs">
-        {CLASS_IDS.map(c => (
-          <button key={c} class={c === cls ? 'on' : ''} onClick={() => { chooseClass(c); menuStep.value = 'class'; }}>{CLASS[c].name.toUpperCase()}</button>
-        ))}
-      </div>
-      <div class="panel classCard" style={panelStyle}>
-        <div class="blurb">{CLASS_BLURB[cls]}</div>
-        <div class="attrs4">
-          <span>STR <b>{def.base.str}</b></span><span>INT <b>{def.base.int}</b></span>
-          <span>DEX <b>{def.base.dex}</b></span><span>VIT <b>{def.base.vit}</b></span>
-        </div>
-        <div class="attrs4">
-          <span>LIFE <b>{d.maxLife}</b></span><span>MANA <b>{d.maxMana}</b></span>
-          <span>SKILL <b>{SKILLS[CLASS_SKILL[cls]].name.toUpperCase()}</b></span>
-        </div>
-        {step === 'class' ? (
-          <div class="hint">LEFT / RIGHT CHOOSE - ENTER SELECT{listCharacters().length ? ' - ESC BACK' : ''}</div>
-        ) : (
-          <div class="nameRow">
-            <span>NAME</span>
-            <input
-              ref={input}
-              value={name}
-              maxLength={MAX_NAME}
-              placeholder={def.name.toUpperCase()}
-              onInput={e => setName((e.currentTarget as HTMLInputElement).value.toUpperCase().replace(/[^A-Z0-9 '-]/g, ''))}
-              onKeyDown={e => {
-                e.stopPropagation();
-                if (e.key === 'Enter') start();
-                if (e.key === 'Escape') menuStep.value = 'class';
-              }}
-            />
-            <button onClick={start}>START</button>
+    <div id="classSelect" class="px screen">
+      <div class="logo">DUNGEON VIBES</div>
+      <div class="logoSub">New hero</div>
+      <div class="panel frame dialog">
+        <div class="cols">
+          <div class="box well">
+            <div class="boxHead">CHOOSE CLASS</div>
+            <div class="menuList">
+              {CLASS_IDS.map(c => (
+                <button key={c} class={'mItem' + (c === cls ? ' on' : '')} onClick={() => { chooseClass(c); menuStep.value = 'class'; }}>{CLASS[c].name}</button>
+              ))}
+            </div>
+            <div class="blurb dim">{CLASS_BLURB[cls]}</div>
           </div>
-        )}
+          <div class="box well">
+            <div class="boxHead">{def.name.toUpperCase()}</div>
+            <div class="stats2">
+              <Field label="STRENGTH">{def.base.str}</Field>
+              <Field label="LIFE">{d.maxLife}</Field>
+              <Field label="INTELLIGENCE">{def.base.int}</Field>
+              <Field label="MANA">{d.maxMana}</Field>
+              <Field label="DEXTERITY">{def.base.dex}</Field>
+              <Field label="VITALITY">{def.base.vit}</Field>
+            </div>
+            <Field label="SKILL">{SKILLS[CLASS_SKILL[cls]].name.toUpperCase()}</Field>
+            {step === 'name' && (
+              <div class="field">
+                <span class="label">NAME</span>
+                <input
+                  ref={input}
+                  class="well"
+                  value={name}
+                  maxLength={MAX_NAME}
+                  placeholder={def.name.toUpperCase()}
+                  onInput={e => setName((e.currentTarget as HTMLInputElement).value.toUpperCase().replace(/[^A-Z0-9 '-]/g, ''))}
+                  onKeyDown={e => {
+                    e.stopPropagation();
+                    if (e.key === 'Enter') start();
+                    if (e.key === 'Escape') menuStep.value = 'class';
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+        <div class="actions">
+          <button class="mItem sm" onClick={() => (step === 'name' ? start() : (menuStep.value = 'name'))}>{step === 'name' ? 'START' : 'OK'}</button>
+          {canBack && <button class="mItem sm" onClick={back}>BACK</button>}
+        </div>
+        <div class="panelFoot">
+          {step === 'class' ? <>UP / DOWN CHOOSE · ENTER OK{listCharacters().length ? ' · ESC BACK' : ''}</> : <>TYPE A NAME · ENTER START · ESC BACK</>}
+        </div>
       </div>
     </div>
   );

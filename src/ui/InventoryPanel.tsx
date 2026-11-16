@@ -12,7 +12,7 @@ import { clickEquip, clickPack, closePanel, cursor, dropHeld, held, identifying,
 import { NPCS } from '../game/shops';
 import { sellPrice } from '../rules/prices';
 import { buys } from '../rules/shops';
-import { panelStyle } from './pixel/frame';
+import { Field, Panel } from './Panel';
 
 /** One backpack cell in CSS px (28 px art + 1 px separator). */
 export const CELL = 29;
@@ -85,6 +85,16 @@ export function describe(it: Item, forSale = false): { text: string; cls?: strin
   return lines;
 }
 
+/** The description well under a grid: the item's lines, or a prompt when nothing is hovered. */
+export function Desc({ lines, empty, extra }: { lines: { text: string; cls?: string }[] | null; empty: string; extra?: string }) {
+  return (
+    <div class="desc well">
+      {lines ? lines.map((l, i) => <div key={i} class={l.cls}>{l.text}</div>) : <div class="empty">{empty}</div>}
+      {extra && <div class="hint">{extra}</div>}
+    </div>
+  );
+}
+
 /** D1 inventory: paper doll, 10×4 backpack and a description box. Pauses the game. */
 export function InventoryPanel() {
   void invVersion.value; // re-render on every inventory change
@@ -116,13 +126,8 @@ export function InventoryPanel() {
   const box = (x: number, y: number, w: number, hh: number): JSX.CSSProperties => ({ left: x * CELL, top: y * CELL, width: w * CELL - 1, height: hh * CELL - 1 });
 
   return (
-    <div id="invPanel" class={'px panel' + (identifying.value ? ' identifying' : '')} style={panelStyle}>
-      <div class="panelHead">
-        <span>{identifying.value ? 'IDENTIFY' : 'INVENTORY'}</span>
-        <span>GOLD {G.hero.gold}</span>
-        <button class="close" onClick={() => closePanel('inv')} title="Close (I / Esc)">X</button>
-      </div>
-
+    <Panel id="invPanel" side="right" cls={identifying.value ? 'identifying' : ''} title={identifying.value ? 'IDENTIFY' : 'INVENTORY'}
+      close={() => closePanel('inv')} closeKeys="I / Esc" foot="I / ESC CLOSE · ARROWS + ENTER MOVE · X USE · G DROP">
       <div class="doll" style={{ width: PACK_W * CELL - 1, height: 6 * CELL - 1 }}>
         {SLOTS.map(s => {
           const d = DOLL[s], it = inv.equip[s];
@@ -131,7 +136,7 @@ export function InventoryPanel() {
           return (
             <div
               key={s}
-              class={'slot' + (it && !G.hero.gearOk.has(it.uid) ? ' bad' : '') + (fitsHeld(s) ? ' ok' : '') + (sel ? ' cur' : '') + mark(it)}
+              class={'slot well' + (it && !G.hero.gearOk.has(it.uid) ? ' bad' : '') + (fitsHeld(s) ? ' ok' : '') + (sel ? ' cur' : '') + mark(it)}
               style={box(d.x, d.y, d.w, d.h)}
               onMouseDown={e => { if (e.button === 0) clickEquip(s); }}
               onContextMenu={e => { e.preventDefault(); unequip(s); }}
@@ -157,16 +162,14 @@ export function InventoryPanel() {
         })}
       </div>
 
-      <div class="desc">
-        {shown ? describe(shown).map((l, i) => <div key={i} class={l.cls}>{l.text}</div>) : <div class="hint">HOVER AN ITEM. I / ESC CLOSE. ARROWS + ENTER MOVE, X USE, G DROP.</div>}
-        {h && shown !== h && <div class="hint">HOLDING {itemName(h).toUpperCase()}</div>}
-      </div>
+      <Field label="GOLD" cls="goldLine">{G.hero.gold}</Field>
+      <Desc lines={shown ? describe(shown) : null} empty="HOVER AN ITEM TO SEE IT" extra={h && shown !== h ? `HOLDING ${itemName(h).toUpperCase()}` : undefined} />
 
       {h && (
         <div class="heldItem" style={{ left: mouse.x, top: mouse.y }}>
           <Icon it={h} />
         </div>
       )}
-    </div>
+    </Panel>
   );
 }

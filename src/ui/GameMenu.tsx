@@ -1,17 +1,41 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
+import type { ComponentChildren } from 'preact';
 import { setSetting, settings } from '../game/settings';
 import { quitToTitle } from '../game/title';
 import { closePanels } from './actions';
-import { panelStyle } from './pixel/frame';
+import './pixel/frame';
 
-/** Esc menu (D1's game menu): resume, settings, save and quit to the title screen. Up/Down and Enter, Esc closes. */
+/** The key reference, shown only here (SPEC §10.8): the HUD keeps the screen clear. */
+const CONTROLS: readonly (readonly [string, string] | string)[] = [
+  'IN THE DUNGEON',
+  ['WASD', 'MOVE (THE HERO PLAYS ITSELF WHEN LEFT ALONE)'],
+  ['SPACE', 'ATTACK'],
+  ['Q', 'CAST THE READIED SPELL'],
+  ['R', 'CLASS SKILL'],
+  ['1-8', 'USE A BELT ITEM'],
+  ['F5-F8', 'CAST A HOTKEYED SPELL'],
+  ['E', 'PICK UP'],
+  ['ALT', 'SHOW ITEMS ON THE GROUND'],
+  'PANELS',
+  ['C', 'CHARACTER'],
+  ['I', 'INVENTORY'],
+  ['B', 'SPELLBOOK'],
+  ['ESC', 'MENU, OR CLOSE PANELS'],
+  'IN THE INVENTORY',
+  ['ARROWS', 'MOVE THE CURSOR'],
+  ['ENTER', 'PICK UP OR PLACE'],
+  ['X', 'USE, EQUIP, OR SELL'],
+  ['G', 'DROP THE HELD ITEM'],
+];
+
+/** Esc menu (D1's game menu): resume, settings, save and quit; and the controls. Up/Down and Enter, Esc closes. */
 export function GameMenu() {
   const s = settings.value;
-  const items: { label: string; act: () => void }[] = [
+  const items: { label: string; state?: ComponentChildren; act: () => void }[] = [
     { label: 'RESUME', act: closePanels },
-    { label: `DAMAGE NUMBERS: ${s.damageNumbers ? 'ON' : 'OFF'}`, act: () => setSetting('damageNumbers', !settings.value.damageNumbers) },
-    { label: `SOUND: ${s.sound ? 'ON' : 'OFF'}`, act: () => setSetting('sound', !settings.value.sound) },
-    { label: 'SAVE AND QUIT TO TITLE', act: quitToTitle },
+    { label: 'DAMAGE NUMBERS', state: s.damageNumbers ? 'ON' : 'OFF', act: () => setSetting('damageNumbers', !settings.value.damageNumbers) },
+    { label: 'SOUND', state: s.sound ? 'ON' : 'OFF', act: () => setSetting('sound', !settings.value.sound) },
+    { label: 'SAVE AND QUIT', act: quitToTitle },
   ];
   const [sel, setSelState] = useState(0);
   // The key handler reads the selection through a ref: effects (and so a re-registered handler) only run after the
@@ -32,10 +56,24 @@ export function GameMenu() {
   }, []);
 
   return (
-    <div id="gameMenu" class="panel px" style={panelStyle}>
-      {items.map((it, i) => (
-        <button key={it.label} class={i === sel ? 'on' : ''} onMouseEnter={() => setSel(() => i)} onClick={it.act}>{it.label}</button>
-      ))}
+    <div id="gameMenu" class="px panel frame center">
+      <div class="panelHead"><span class="title">MENU</span></div>
+      <div class="cols">
+        <div class="menuList">
+          {items.map((it, i) => (
+            <button key={it.label} class={'mItem' + (i === sel ? ' on' : '')} onMouseEnter={() => setSel(() => i)} onClick={it.act}>
+              {it.label}{it.state && <> <span class="state">{it.state}</span></>}
+            </button>
+          ))}
+        </div>
+        <div class="sep" />
+        <div class="controls">
+          {CONTROLS.map(c => typeof c === 'string'
+            ? <span key={c} class="h label">{c}</span>
+            : [<span key={c[0]} class="kbd well">{c[0]}</span>, <span key={c[0] + 'a'}>{c[1]}</span>])}
+        </div>
+      </div>
+      <div class="panelFoot">UP / DOWN CHOOSE · ENTER SELECT · ESC RESUME</div>
     </div>
   );
 }

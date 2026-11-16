@@ -32,7 +32,7 @@ Unless noted, numbers are D1 v1.09 single-player values from Jarulf's Guide.
 
 **Level-up**
 - Life and mana are fully restored.
-- A level-up button appears. Points are spent on the character screen.
+- A level-up badge appears (since the UI rework, §10.8, on the control bar's CHAR button). Points are spent on the character screen.
 
 **Formulas**
 
@@ -1211,6 +1211,46 @@ The look stays the same in kind: low-poly meshes drawn at half resolution, dithe
   |---|---|---|
   | Depth 1 | 1 900 → 1 870 | 521 k → 475 k |
   | Town | 460 → 810 | 445 k → 824 k |
+
+### 10.8 UI style and layout [USER: "make the UI panels consistent and aligned, improve the menus, hide the key list unless the menu is open, a style that reflects a dungeon explorer"; choices OURS]
+
+**As reworked after Phase 12**, after Diablo 1's interface:
+- D1's side panels fill fixed halves of the screen and are framed in gold on stone.
+- Values sit in recessed boxes, and labels are in a carved capital face (Exocet).
+- Menus mark the selected entry with a pentagram on each side.
+- A stone control panel holds the orbs, belt and panel buttons.
+
+- **Shared parts:**
+  - **Chrome** (`ui/pixel/frame.ts`, published as CSS variables): a pixel-art gold frame with a diamond-chain band top and bottom and corner studs; dark cracked flagstones as the fill; a red sigil for selected menu entries; the paper doll's silhouette.
+  - **Styles** (`style.css`): `.frame` (panels, dialogs, control bar), `.plaque` (the same frame at half scale, for small HUD boxes), `.well` (a recessed box with a gold edge), `.btn` (a carved stone button), `.mItem` (a menu entry), `.field`/`.val` (a label and its value well), `.rule` (a gold separator).
+  - **Components:** `Panel` and `Field` (`ui/Panel.tsx`), and `Desc` for item descriptions.
+- **Type:**
+  - Cinzel (bundled) for titles, labels, buttons and menu entries.
+  - Cinzel Decorative for the flame-gradient logo.
+  - The pixel font stays for numbers, item names and running text.
+- **Side panels:**
+  - Every side panel has the same size: 360 px wide and up to 600 px tall, from 12 px below the top edge.
+  - Left column: character, spellbook, stash and shops. Right column: inventory.
+  - Each has a title plaque with a close button, a body, and its key hints in a fixed-height footer, so footer rules line up across the two columns.
+  - Description wells sit at the bottom of their panel, so the inventory's lines up with the stash's or shop's.
+- **Character panel:** class, level, experience and next level in wells; then attributes with base, now and the + buttons; then the points to spend; then combat stats in two columns. [OURS] Critical is always listed (0% for classes without it), so the grid stays fixed.
+- **Control bar** (D1's control panel), at the bottom centre, left to right:
+  - CHAR (with the level-up badge) and MENU buttons;
+  - the life orb in a gold socket;
+  - the belt above the experience bar;
+  - the class skill and the readied spell;
+  - the mana orb;
+  - INV and SPELLS buttons.
+- **Top of the screen:** a plaque with gold, kills and depth (and the key) at the top left. At the top right, a plaque with AUTO or YOU and "ESC MENU".
+- **Key reference:** [USER] it is shown only in the Esc menu, beside the menu entries, grouped as dungeon, panels and inventory.
+- **Menus:**
+  - Title screen and class select: the logo over the town, then one framed dialog with two boxes.
+    - **Title screen:** the chosen hero's details, and the list of heroes.
+    - **Class select:** the class list and blurb, and the class's attributes, life, mana and skill. The name entry joins the second box on the second step.
+    - Below the boxes: text actions (CONTINUE / NEW HERO / DELETE, or OK / START / BACK), then a footer with the keys.
+    - Class select also takes Up and Down.
+  - **Esc menu:** RESUME, DAMAGE NUMBERS, SOUND, SAVE AND QUIT, with sigils on the selected entry, and the controls.
+- **Also restyled:** the boss bar (a plaque above the control bar), the toast (carved capitals), the sound prompt (a plaque), ground labels (a thin gold edge), and PAUSED (carved capitals, hidden while the menu is open).
 
 ---
 

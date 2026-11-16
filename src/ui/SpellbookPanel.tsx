@@ -4,7 +4,7 @@ import { heroManaCost, spellLevel } from '../actors/spells';
 import { G } from '../game/state';
 import { SPELL_IDS, SPELLS, spellEffectText, type SpellId } from '../rules/spells';
 import { closePanel, hoverSpell, invVersion, readySpell } from './actions';
-import { panelStyle } from './pixel/frame';
+import { Field, Panel } from './Panel';
 import { isOpen } from './store';
 
 /** D1-style spellbook: learned spells with level, mana and effect; click or Enter readies, F5–F8 assigns. Pauses the game. */
@@ -31,7 +31,7 @@ export function SpellbookPanel() {
     return (
       <div
         key={id}
-        class={'spell' + (h.readied === id ? ' ready' : '') + (i === sel ? ' sel' : '')}
+        class={'spell well' + (h.readied === id ? ' ready' : '') + (i === sel ? ' sel' : '')}
         onMouseDown={() => readySpell(id)}
         onMouseEnter={() => { hoverSpell.value = id; setSel(i); }}
         onMouseLeave={() => { if (hoverSpell.value === id) hoverSpell.value = null; }}
@@ -50,14 +50,13 @@ export function SpellbookPanel() {
   };
 
   return (
-    <div id="bookPanel" class="px panel" style={panelStyle}>
-      <div class="panelHead">
-        <span>SPELLBOOK</span>
-        <span>MANA {Math.round(h.mana)}/{h.d.maxMana}</span>
-        <button class="close" onClick={() => closePanel('book')} title="Close (B / Esc)">X</button>
-      </div>
-      {known.length ? known.map(row) : <div class="dim">NO SPELLS YET. READ A SPELLBOOK: RIGHT-CLICK IT IN THE INVENTORY (I).</div>}
-      <div class="hint">CLICK OR ENTER: READY FOR Q. HOVER + F5-F8: HOTKEY. B / ESC CLOSE.</div>
-    </div>
+    <Panel id="bookPanel" side="left" title="SPELLBOOK" close={() => closePanel('book')} closeKeys="B / Esc"
+      foot="CLICK OR ENTER READIES FOR Q · HOVER + F5-F8 SETS A HOTKEY · B / ESC CLOSE">
+      <Field label="MANA">{Math.round(h.mana)}/{h.d.maxMana}</Field>
+      <div class="rule" />
+      {known.length
+        ? <div class="spells">{known.map(row)}</div>
+        : <div class="empty">NO SPELLS YET.<br />READ A SPELLBOOK: RIGHT-CLICK IT<br />IN THE INVENTORY (I).</div>}
+    </Panel>
   );
 }
