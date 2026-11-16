@@ -225,7 +225,8 @@ function petrify(m: Monster, slvl: number): void {
   if (m.boss) { SFX.fizzle(); toast('IMMUNE'); return; }
   if (!m.stoneCols) {
     m.stoneCols = m.flashMats.map(mt => mt.color.clone());
-    for (const mt of m.flashMats) mt.color.setHex(0x8a8884);
+    // stone is plain grey: the baked vertex colours are switched off until the curse ends
+    for (const mt of m.flashMats) { mt.color.setHex(0x8a8884); if (mt.vertexColors) { mt.vertexColors = false; mt.needsUpdate = true; mt.userData.vc = true; } }
   }
   m.stoneT = stoneTime(slvl);
   m.state = 'idle';
@@ -235,7 +236,7 @@ function petrify(m: Monster, slvl: number): void {
 /** Restores a monster's colours when Stone Curse ends. */
 export function unpetrify(m: Monster): void {
   if (!m.stoneCols) return;
-  m.flashMats.forEach((mt, i) => mt.color.copy(m.stoneCols![i]));
+  m.flashMats.forEach((mt, i) => { mt.color.copy(m.stoneCols![i]); if (mt.userData.vc) { mt.vertexColors = true; mt.needsUpdate = true; delete mt.userData.vc; } });
   m.stoneCols = null;
 }
 

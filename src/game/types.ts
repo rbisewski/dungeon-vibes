@@ -2,6 +2,7 @@ import type * as THREE from 'three';
 import type { FamilyId, MonsterRoll } from '../rules/monsters';
 import type { BossId } from '../rules/bosses';
 import type { NpcId } from './shops';
+import type { Skin } from '../actors/models/kit';
 import type { NpcParts } from '../actors/models/npc';
 import type { EliteMod } from '../rules/elites';
 import type { CharState, Derived } from '../rules/stats';
@@ -113,7 +114,7 @@ interface ModelBase {
 }
 export interface SkeletonParts extends ModelBase {
   legs: { hip: THREE.Group; knee: THREE.Group }[];
-  torso: THREE.Group; head: THREE.Group; jaw: THREE.Mesh;
+  torso: THREE.Group; head: THREE.Group; jaw: THREE.Group;
   armR: THREE.Group; elR: THREE.Group; armL: THREE.Group; weapon: THREE.Group;
 }
 export interface RatParts extends ModelBase { head: THREE.Group; legs: THREE.Group[]; tail: THREE.Group[] }
@@ -128,7 +129,8 @@ export interface HeroParts {
   root: THREE.Group; body: THREE.Group; legs: THREE.Group[]; torso: THREE.Group; cloak: THREE.Group; head: THREE.Group;
   shR: THREE.Group; armR: THREE.Group; sword: THREE.Group; shL: THREE.Group; armL: THREE.Group; torch: THREE.Group;
   flameAnchor: THREE.Object3D; trail: THREE.Mesh;
-  M: Record<string, THREE.MeshStandardMaterial>;
+  /** The hero's materials (see the modelling kit); `flashMats` is its live material list. */
+  skin: Skin;
   flashMats: THREE.MeshStandardMaterial[];
 }
 

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { GU, cutU } from './renderer';
+import { GU, cutU, renderer } from './renderer';
+import { mkC } from './canvas';
 import { TEX } from './textures';
 import type { PotionId } from '../rules/potions';
 import flameFrag from './shaders/flame.frag.glsl?raw';
@@ -119,3 +120,27 @@ export const trailMat = new THREE.ShaderMaterial({
   fragmentShader: `uniform float uA, uCur; varying vec2 vP; void main(){ float a=atan(vP.y,vP.x); float d=mod(uCur-a+3.14159265,6.2831853)-3.14159265; float k=(d>=0.0&&d<1.5)?pow(1.0-d/1.5,1.6):0.0; float r=length(vP); float rad=smoothstep(0.35,0.9,r)*smoothstep(1.45,1.2,r); gl_FragColor=vec4(vec3(1.0,0.85,0.6)*k*rad*uA*1.6,1.0); }`,
   transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide
 });
+
+let envTex: THREE.Texture | null = null;
+/**
+ * A small prefiltered environment for character metals: dark stone all round, a band of warm torchlight at eye
+ * height with a few hot spots, a faint cold sky above. Built on first use.
+ */
+export function pmrem(): THREE.Texture {
+  if (envTex) return envTex;
+  const W = 128, H = 64, c = mkC(W, H), g = c.getContext('2d')!;
+  const sky = g.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, '#1c2433'); sky.addColorStop(.38, '#2a2420'); sky.addColorStop(.5, '#7a4422'); sky.addColorStop(.62, '#1e140e'); sky.addColorStop(1, '#0a0705');
+  g.fillStyle = sky; g.fillRect(0, 0, W, H);
+  for (const [x, y, r, a] of [[14, 28, 9, .9], [52, 30, 7, .7], [88, 27, 10, 1], [116, 31, 6, .6]]) {
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, `rgba(255,190,110,${a})`); gr.addColorStop(1, 'rgba(255,140,60,0)');
+    g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.mapping = THREE.EquirectangularReflectionMapping; t.colorSpace = THREE.SRGBColorSpace;
+  const gen = new THREE.PMREMGenerator(renderer);
+  envTex = gen.fromEquirectangular(t).texture;
+  gen.dispose(); t.dispose();
+  return envTex;
+}

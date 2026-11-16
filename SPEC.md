@@ -1121,6 +1121,35 @@ Mini-bosses appear on depths 5, 10, 15, 20, … This replaces the current `depth
 - A shield mesh is shown when a shield is equipped.
 - The `trailMat` colour follows the weapon's quality: blue for magic, gold for unique.
 
+**As reworked after Phase 12 [USER: "more detailed and higher quality" models; design OURS]**
+- **Modelling kit** (`src/actors/models/kit.ts`): models are built from shaped pieces instead of boxes and spheres: tapered limbs with rounded ends, lathed bodies, tapered tubes, bevelled boxes, extruded blades and plates, and flat membranes. Each piece bakes its colour and a cheap occlusion (darker toward its base) into vertex colours.
+- **One mesh per surface:** each joint's pieces are merged per surface kind (roughness and metalness in coarse steps, sidedness, emissive, reflections). The merged geometry is cached per model and shared by every instance.
+  - Materials are white per model instance and tinted by the vertex colours, so tier tints, hit flashes and the Ember Lich's ward still act on the whole model.
+  - Stone Curse switches vertex colours off while it lasts, so a stoned monster is plain grey.
+- **Detail scales with size:** a piece's segment count scales with its radius, and boxes too small to show rounding are plain.
+- **Cost:** draw calls are on par with the old models (a crowd of 80 monsters: 2 530 vs 2 230 per frame; the Brood Mother's room: 1 690 vs 1 800). Models are 1 100 (bat) to 8 000 (hero) triangles; a skeleton is about 5 400.
+- **Reflections:** metal, gems, shells and wet surfaces reflect a small procedural environment (dark stone, a warm band of torchlight, a faint cold sky).
+- **Rigs unchanged:** every rig keeps its joints and pivots, so all animations are unchanged. The humanoid jaw is now a group; the zombie's head sits forward on a hunched neck.
+- **Heroes:**
+  - Shared by all classes: a shaped torso, belt and buckle, boots, a cloak with folds and a clasp, faces with nose, ears and brows, and hands.
+  - **Warrior:** breastplate with a ridge, layered pauldrons, faulds, gorget, greaves, a nasal helm with cheek guards, and a red tabard with a gold border.
+  - **Thief:** laced leather jerkin, chest strap, pouches, a dagger at the hip, wrapped shins, a hood with a mask, and a quiver with fletched arrows.
+  - **Mage:** robe to the floor with gold hem and trim, sash, mantle, flared sleeves, beard, and a tall bent hat with band and buckle.
+  - **Weapons:** a sword with fuller and curved guard, a crescent axe, a flanged mace, a staff with a clawed crystal head, and a bow with tapered limbs.
+- **Monsters:**
+  - **Undead:** skeletons have a pelvis, spine, rib cage, sternum, clavicles, shoulder blades, a skull with sockets, cheekbones and teeth, a jaw, and fingers. The skeleton carries a loincloth, a notched rusty sword and a round shield; the archer a hood, bow and quiver.
+  - **Bone Warden:** breastplate, spiked pauldrons, a horned helm, a fauld skirt and a great axe.
+  - **Ember Lich:** robe with gold trim and rubies, a hood, a gold crown, and a staff with a skull in gold claws.
+  - **Zombie:** hunched and green, with a torn shirt, a gash showing ribs, and sparse hair.
+  - **Fallen:** horns, long ears, a hooked nose, claws, a barbed tail, a loincloth and a spear.
+  - **Gorger:** a belly with stitches, a leather apron soaked in blood, meat hooks and chains on the belt, boots, and a cleaver.
+  - **Rat:** bristled spine, snout with whiskers and teeth, pink ears, paws with claws, and a ringed tail.
+  - **Slime:** lumpy, glossy, sagging goo with drips, bubbles and a swallowed skull and coins inside.
+  - **Bat:** membrane wings stretched between finger bones, big ears and fangs.
+  - **Spiders:** jointed, banded and bristled legs, fangs, palps, an eye cluster, and a marked abdomen with spinnerets; the Brood Mother's markings form a red hourglass.
+  - **Egg sac:** lumpy and translucent, with veins on its surface, hatchlings showing through, and web strands.
+- **Not reworked:** the townsfolk keep their Phase 12 models.
+
 ### 10.6 Rendering [USER: "significantly improve the graphics"; choices OURS]
 
 The look stays the same in kind: low-poly meshes drawn at half resolution, dithered to 30 levels, with the DOM HUD on top. Within that, the picture gained light, depth and atmosphere.
