@@ -8,7 +8,7 @@ import { learnReq, MAX_SLVL, scrollReq, spellEffectText } from '../rules/spells'
 import { spellLevel } from '../actors/spells';
 import { carried, fitsSlot, isTwoHanded, isUnidentified, itemAc, itemAt, itemName, itemSize, meetsReq, quality, PACK_H, PACK_W, type EquipSlot, type Item } from '../rules/inventory';
 import { POTIONS } from '../rules/potions';
-import { clickEquip, clickPack, closePanel, cursor, keyNav, dropHeld, held, identifying, invVersion, shopFor, sparkle, unequip, usePackItem } from './actions';
+import { clickEquip, clickPack, closePanel, dropHeld, held, identifying, invVersion, shopFor, sparkle, unequip, usePackItem } from './actions';
 import { NPCS } from '../game/shops';
 import { sellPrice } from '../rules/prices';
 import { buys } from '../rules/shops';
@@ -78,9 +78,9 @@ export function describe(it: Item, forSale = false): { text: string; cls?: strin
     use = 'EQUIP';
   }
   const m = shopFor.value;
-  if (forSale) lines.push({ text: 'CLICK OR ENTER TO BUY', cls: 'hint' });
-  else if (!m) lines.push({ text: `RIGHT-CLICK OR X TO ${use}`, cls: 'hint' });
-  else if (buys(m, it)) lines.push({ text: `SELLS FOR ${sellPrice(it)} GOLD - RIGHT-CLICK OR X`, cls: 'hint' });
+  if (forSale) lines.push({ text: 'CLICK TO BUY', cls: 'hint' });
+  else if (!m) lines.push({ text: `RIGHT-CLICK TO ${use}`, cls: 'hint' });
+  else if (buys(m, it)) lines.push({ text: `SELLS FOR ${sellPrice(it)} GOLD - RIGHT-CLICK`, cls: 'hint' });
   else lines.push({ text: `${NPCS[m].role.toUpperCase()} WILL NOT BUY THIS`, cls: 'red' });
   return lines;
 }
@@ -98,7 +98,7 @@ export function Desc({ lines, empty, extra }: { lines: { text: string; cls?: str
 /** D1 inventory: paper doll, 10×4 backpack and a description box. Pauses the game. */
 export function InventoryPanel() {
   void invVersion.value; // re-render on every inventory change
-  const inv = G.hero.inv, h = held.value, cur = cursor.value;
+  const inv = G.hero.inv, h = held.value;
   const [hover, setHover] = useState<Item | null>(null);
   const [mouse, setMouse] = useState({ x: -100, y: -100 });
 
@@ -127,16 +127,15 @@ export function InventoryPanel() {
 
   return (
     <Panel id="invPanel" side="right" cls={identifying.value ? 'identifying' : ''} title={identifying.value ? 'IDENTIFY' : 'INVENTORY'}
-      close={() => closePanel('inv')} closeKeys="I / Esc" foot="I / ESC CLOSE · ARROWS + ENTER MOVE · X USE · G DROP">
+      close={() => closePanel('inv')} closeKeys="I / Esc" foot="I / ESC CLOSE · RIGHT-CLICK USES · G DROPS THE HELD ITEM">
       <div class="doll" style={{ width: PACK_W * CELL - 1, height: 6 * CELL - 1 }}>
         {SLOTS.map(s => {
           const d = DOLL[s], it = inv.equip[s];
           const ghost = s === 'shield' && !it && isTwoHanded(inv.equip.weapon) ? inv.equip.weapon : null;
-          const sel = keyNav.value && cur.area === 'equip' && cur.slot === s;
           return (
             <div
               key={s}
-              class={'slot well' + (it && !G.hero.gearOk.has(it.uid) ? ' bad' : '') + (fitsHeld(s) ? ' ok' : '') + (sel ? ' cur' : '') + mark(it)}
+              class={'slot well' + (it && !G.hero.gearOk.has(it.uid) ? ' bad' : '') + (fitsHeld(s) ? ' ok' : '') + mark(it)}
               style={box(d.x, d.y, d.w, d.h)}
               onMouseDown={e => { if (e.button === 0) clickEquip(s); }}
               onContextMenu={e => { e.preventDefault(); unequip(s); }}
@@ -151,7 +150,6 @@ export function InventoryPanel() {
 
       <div class="grid" style={{ width: PACK_W * CELL - 1, height: PACK_H * CELL - 1 }}
         onMouseDown={packDown} onContextMenu={packMenu} onMouseMove={packMove} onMouseLeave={() => setHover(null)}>
-        {keyNav.value && cur.area === 'pack' && <div class="cursor" style={box(cur.x, cur.y, 1, 1)} />}
         {inv.pack.items.map(p => {
           const s = itemSize(p.item);
           return (

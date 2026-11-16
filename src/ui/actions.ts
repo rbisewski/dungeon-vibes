@@ -6,13 +6,13 @@ import { signal } from '@preact/signals';
 import { drinkElixir, drinkPotion, recompute, spendHeroPoint } from '../actors/heroStats';
 import { SFX } from '../audio/sfx';
 import { queueBelt, resetInput } from '../core/input';
-import { G, STASH_H, STASH_W } from '../game/state';
+import { G } from '../game/state';
 import { saveGame } from '../game/save';
 import { base } from '../rules/bases';
 import type { Attr } from '../rules/classes';
 import {
   addItem, beltable, carried, equipFromPack, equipInto, findSpot, fitsSlot, isTwoHanded, isUnidentified, itemAt, itemName,
-  itemSize, meetsReq, placeAt, putInGrid, removeFromGrid, storeTarget, takeFromBelt, unequipToPack, PACK_W, PACK_H, type EquipSlot, type Grid, type Item,
+  itemSize, meetsReq, placeAt, putInGrid, removeFromGrid, storeTarget, takeFromBelt, unequipToPack, type EquipSlot, type Grid, type Item,
 } from '../rules/inventory';
 import { pickupNearest, spawnItem } from '../world/groundItems';
 import { heroManaCost, startCast } from '../actors/spells';
@@ -27,14 +27,6 @@ import { syncHud, syncSheet } from './syncHud';
 export const held = signal<Item | null>(null);
 /** Bumped after every inventory change so panels re-read the (mutable) inventory. */
 export const invVersion = signal(0);
-
-/** Keyboard cursor in the inventory: a backpack, stash or shop-list position, or an equipment slot. */
-export type Cursor =
-  | { area: 'pack'; x: number; y: number } | { area: 'stash'; x: number; y: number } | { area: 'shop'; i: number } | { area: 'equip'; slot: EquipSlot };
-export const cursor = signal<Cursor>({ area: 'pack', x: 0, y: 0 });
-/** Whether the keyboard cursor is drawn: only once the arrow keys are used, until the mouse moves again. */
-export const keyNav = signal(false);
-addEventListener('pointermove', () => { if (keyNav.value) keyNav.value = false; });
 
 /** Where the Scroll of Identify being read sits; while set, inventory clicks choose the item to identify. */
 export type ScrollSource = { belt: number } | { pack: Item };
@@ -104,7 +96,6 @@ export function closePanels(): void {
 
 /** Closing the stash or a shop saves the character (SPEC §12.2). */
 function tradeClosed(): void {
-  if (cursor.value.area === 'stash' || cursor.value.area === 'shop') cursor.value = { area: 'pack', x: 0, y: 0 };
   shopFor.value = null;
   saveGame();
 }
@@ -407,50 +398,6 @@ export const shopOffers = (): Offer[] => (shopFor.value ? offers(shopFor.value, 
 
 /* ---------- keyboard ---------- */
 
-/** Equipment slots in on-screen order for arrow-key cycling. */
-const EQUIP_NAV: readonly EquipSlot[] = ['weapon', 'ring1', 'head', 'body', 'amulet', 'ring2', 'shield'];
-
-function moveCursor(dx: number, dy: number): void {
-  const c = cursor.value;
-  // with the stash open, the stash grid sits left of the backpack
-  if (c.area === 'stash') {
-    if (c.x + dx >= STASH_W) { cursor.value = { area: 'pack', x: 0, y: Math.min(PACK_H - 1, c.y) }; return; }
-    cursor.value = { area: 'stash', x: Math.max(0, c.x + dx), y: Math.max(0, Math.min(STASH_H - 1, c.y + dy)) };
-    return;
-  }
-  if (c.area === 'pack' && c.x + dx < 0 && isOpen('stash')) { cursor.value = { area: 'stash', x: STASH_W - 1, y: c.y }; return; }
-  // with a shop open, its list sits left of the backpack
-  if (c.area === 'shop') {
-    const n = shopOffers().length;
-    if (dx > 0) { cursor.value = { area: 'pack', x: 0, y: Math.min(PACK_H - 1, c.i) }; return; }
-    cursor.value = { area: 'shop', i: Math.max(0, Math.min(n - 1, c.i + dy)) };
-    return;
-  }
-  if (c.area === 'pack' && c.x + dx < 0 && isOpen('shop')) { cursor.value = { area: 'shop', i: c.y }; return; }
-  if (c.area === 'pack') {
-    const ny = c.y + dy;
-    if (ny < 0) { cursor.value = { area: 'equip', slot: c.x < 3 ? 'weapon' : c.x > 6 ? 'shield' : 'body' }; return; }
-    cursor.value = { area: 'pack', x: Math.max(0, Math.min(PACK_W - 1, c.x + dx)), y: Math.min(PACK_H - 1, ny) };
-  } else {
-    if (dy > 0) { cursor.value = { area: 'pack', x: c.slot === 'shield' ? 8 : c.slot === 'weapon' ? 0 : 4, y: 0 }; return; }
-    const i = EQUIP_NAV.indexOf(c.slot), n = EQUIP_NAV.length, step = dx || -1;
-    cursor.value = { area: 'equip', slot: EQUIP_NAV[(i + step + n) % n] };
-  }
-}
-
-function cursorItem(): Item | null {
-  const c = cursor.value, inv = G.hero.inv;
-  if (c.area === 'shop') return shopOffers()[c.i]?.item ?? null;
-  return c.area === 'equip' ? inv.equip[c.slot] : itemAt(c.area === 'pack' ? inv.pack : G.stash.grid, c.x, c.y)?.item ?? null;
-}
-
-/** Enter in the shop list: buy the selected offer (the peddler first wants his fee). */
-function shopEnter(i: number): void {
-  if (shopFor.value === 'peddler' && !G.shops.peddler.seen) { payPeddler(); return; }
-  const o = shopOffers()[i];
-  if (o) buyOffer(o);
-}
-
 addEventListener('keydown', e => {
   if (G.inMenu) return;
   if (e.code === 'KeyC') { e.preventDefault(); togglePanel('char'); return; }
@@ -465,24 +412,8 @@ addEventListener('keydown', e => {
     if (e.code === 'KeyE' && !G.paused) { e.preventDefault(); pickupNearest(); }
     return;
   }
-  const arrows: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
-  if (arrows[e.code]) { e.preventDefault(); keyNav.value = true; moveCursor(...arrows[e.code]); return; }
-  const c = cursor.value;
-  if (e.code === 'Tab' && shopFor.value === 'smith') { e.preventDefault(); smithPremium.value = !smithPremium.value; if (c.area === 'shop') cursor.value = { area: 'shop', i: 0 }; return; }
-  if (e.code === 'Enter') {
-    e.preventDefault();
-    if (c.area === 'equip') clickEquip(c.slot);
-    else if (c.area === 'pack') clickPack(c.x, c.y);
-    else if (c.area === 'stash') clickStash(c.x, c.y);
-    else shopEnter(c.i);
-  } else if (e.code === 'KeyX') {
-    e.preventDefault();
-    const it = cursorItem();
-    if (!it || c.area === 'shop') return;
-    if (c.area === 'equip') unequip(c.slot);
-    else if (c.area === 'pack') usePackItem(it);
-    else stashToPack(it);
-  } else if (e.code === 'KeyG') { e.preventDefault(); dropHeld(); }
+  if (e.code === 'Tab' && shopFor.value === 'smith') { e.preventDefault(); smithPremium.value = !smithPremium.value; return; }
+  if (e.code === 'KeyG') { e.preventDefault(); dropHeld(); }
   else if (/^Digit[1-8]$/.test(e.code)) { e.preventDefault(); clickBelt(+e.code.slice(5) - 1); }
 });
 

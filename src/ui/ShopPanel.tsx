@@ -3,7 +3,7 @@ import { G } from '../game/state';
 import { NPCS, type Offer } from '../game/shops';
 import { itemName, quality, storeTarget } from '../rules/inventory';
 import { PEDDLER_LOOK } from '../rules/shops';
-import { buyOffer, closePanel, cursor, keyNav, invVersion, payPeddler, shopFor, shopOffers, smithPremium } from './actions';
+import { buyOffer, closePanel, invVersion, payPeddler, shopFor, shopOffers, smithPremium } from './actions';
 import { Desc, describe, Icon } from './InventoryPanel';
 import { Panel } from './Panel';
 
@@ -13,17 +13,16 @@ import { Panel } from './Panel';
  */
 export function ShopPanel() {
   void invVersion.value;
-  const m = shopFor.value, cur = cursor.value;
+  const m = shopFor.value;
   const [hover, setHover] = useState<Offer | null>(null);
   if (!m) return null;
   const list = shopOffers(), h = G.hero;
-  const sel = cur.area === 'shop' ? list[cur.i] ?? null : null;
-  const shown = (hover && list.find(o => o.item === hover.item)) ?? sel;
+  const shown = hover && list.find(o => o.item === hover.item);
   const veiled = m === 'peddler' && !G.shops.peddler.seen && list.length > 0;
 
   return (
     <Panel id="shopPanel" side="left" title={NPCS[m].name.toUpperCase()} close={() => closePanel('shop')} closeKeys="Esc"
-      foot={<>CLICK OR ENTER BUYS · RIGHT-CLICK OR X SELLS YOURS{m === 'smith' && <> · TAB WARES</>} · ESC CLOSE</>}>
+      foot={<>CLICK BUYS · RIGHT-CLICK YOUR ITEMS TO SELL{m === 'smith' && <> · TAB WARES</>} · ESC CLOSE</>}>
       {m === 'smith' && (
         <div class="tabs">
           <button class={'btn sm' + (smithPremium.value ? '' : ' on')} onClick={() => { smithPremium.value = false; }}>BASIC</button>
@@ -39,11 +38,11 @@ export function ShopPanel() {
         <div class="veil well">{m === 'peddler' ? '"NOTHING MORE TODAY. COME BACK AFTER YOUR NEXT TRIP DOWN."' : 'NOTHING FOR SALE'}</div>
       ) : (
         <div class="rows well" onMouseLeave={() => setHover(null)}>
-          {list.map((o, i) => {
+          {list.map(o => {
             const fits = !!storeTarget(h.inv, o.item), afford = h.gold >= o.price;
             return (
-              <div key={o.item.uid} class={'row' + (keyNav.value && sel === o ? ' cur' : '')} onMouseEnter={() => setHover(o)}
-                onMouseDown={e => { if (e.button === 0) { cursor.value = { area: 'shop', i }; buyOffer(o); } }}>
+              <div key={o.item.uid} class="row" onMouseEnter={() => setHover(o)}
+                onMouseDown={e => { if (e.button === 0) buyOffer(o); }}>
                 <div class="ic"><Icon it={o.item} /></div>
                 <span class={`nm q-${quality(o.item)}`}>{itemName(o.item).toUpperCase()}</span>
                 <span class={'pr' + (afford ? '' : ' red') + (fits ? '' : ' full')}>{fits ? o.price : 'NO ROOM'}</span>

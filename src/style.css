@@ -81,11 +81,9 @@ img{image-rendering:pixelated}
 .grid{position:relative;flex:none;align-self:center;cursor:pointer;background-color:var(--well);
   background-image:linear-gradient(#241d16 1px,transparent 1px),linear-gradient(90deg,#241d16 1px,transparent 1px);background-size:29px 29px;
   box-shadow:0 0 0 1px #5e4416,0 0 0 2px #000}
-.grid .item,.grid .cursor,.doll .slot{position:absolute;display:flex;align-items:center;justify-content:center}
+.grid .item,.doll .slot{position:absolute;display:flex;align-items:center;justify-content:center}
 .grid .item{pointer-events:none;background:rgba(90,70,40,.2)}
 .bad{background:rgba(170,30,30,.4)!important}
-.cursor,.cur{box-shadow:inset 0 0 0 2px var(--blue)!important}
-.cursor{pointer-events:none}
 
 /* ---------- character ---------- */
 #charPanel .ident{display:grid;grid-template-columns:1fr 1fr;gap:6px}
@@ -130,7 +128,6 @@ img{image-rendering:pixelated}
 #shopPanel .rows{flex:1;min-height:120px;overflow-y:auto;padding:3px}
 #shopPanel .row{display:flex;align-items:center;gap:8px;padding:3px 6px;cursor:pointer;border:1px solid transparent}
 #shopPanel .row:hover{background:#1c150f}
-#shopPanel .row.cur{border-color:var(--blue);box-shadow:none!important}
 #shopPanel .row .ic{width:28px;height:28px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:none}
 #shopPanel .row .ic img{max-width:28px;max-height:28px;object-fit:contain}
 #shopPanel .row .nm{flex:1;font-size:7px;line-height:1.6}

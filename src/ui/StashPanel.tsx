@@ -2,7 +2,7 @@ import { useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import { G, STASH_H, STASH_W } from '../game/state';
 import { itemAt, itemSize, meetsReq, type Item } from '../rules/inventory';
-import { clickStash, closePanel, cursor, keyNav, depositGold, held, invVersion, stashToPack, withdrawGold } from './actions';
+import { clickStash, closePanel, depositGold, held, invVersion, stashToPack, withdrawGold } from './actions';
 import { attrs, CELL, Desc, describe, Icon } from './InventoryPanel';
 import { Panel } from './Panel';
 
@@ -12,7 +12,7 @@ import { Panel } from './Panel';
  */
 export function StashPanel() {
   void invVersion.value;
-  const g = G.stash.grid, cur = cursor.value;
+  const g = G.stash.grid;
   const [hover, setHover] = useState<Item | null>(null);
   const cellOf = (e: MouseEvent): [number, number] => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -23,7 +23,7 @@ export function StashPanel() {
 
   return (
     <Panel id="stashPanel" side="left" title="STASH" close={() => closePanel('stash')} closeKeys="Esc"
-      foot="CLICK MOVES · RIGHT-CLICK OR X SENDS ACROSS · ARROWS + ENTER · ESC CLOSE">
+      foot="CLICK MOVES · RIGHT-CLICK SENDS AN ITEM ACROSS · ESC CLOSE">
       <div class="goldLine">
         <span class="label">GOLD</span>
         <span class="val well">{G.stash.gold}</span>
@@ -36,7 +36,6 @@ export function StashPanel() {
         onContextMenu={e => { e.preventDefault(); const [x, y] = cellOf(e); const p = itemAt(g, x, y); if (p && !held.value) stashToPack(p.item); }}
         onMouseMove={e => { const [x, y] = cellOf(e); setHover(itemAt(g, x, y)?.item ?? null); }}
         onMouseLeave={() => setHover(null)}>
-        {keyNav.value && cur.area === 'stash' && <div class="cursor" style={box(cur.x, cur.y, 1, 1)} />}
         {g.items.map(p => {
           const s = itemSize(p.item);
           return (

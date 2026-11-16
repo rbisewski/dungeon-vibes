@@ -506,7 +506,7 @@ Mana regenerates [OURS] at **`1.5 % maxMana/s`** for every class (`MANA_REGEN` i
 - **Bookshelves [OURS, D1 bookcase]:** a new room prop. One appears per level with 35 % chance. Walking into it drops one book at `ilvl = 2·depth`.
 
 **Reading a book**
-- Right-click it in the backpack, or press `X` on the inventory cursor.
+- Right-click it in the backpack.
 - If `Int ≥ req(spell, known_slvl + 1)`:
   - Learn the spell, or raise its slvl by 1.
   - Restore mana equal to the spell's initial mana cost.
@@ -757,7 +757,7 @@ Notes:
   - Their name shows only the base name, e.g. *Short Sword*, in blue (magic) or gold (unique).
   - The tooltip shows `NOT IDENTIFIED` plus the base stats and requirements.
   - Their properties **do apply** when equipped, as in D1, but are hidden in the tooltip and the character screen (§3.4). The character screen still shows the real life and mana pools, so the numbers there never exceed their shown maximum.
-  - **Reading a scroll** (belt key, belt right-click, or right-click / `X` in the backpack) opens the inventory with every unidentified item highlighted; clicking one identifies it and uses up the scroll. `Esc` cancels without using the scroll; with nothing to identify the scroll is not read.
+  - **Reading a scroll** (belt key, belt right-click, or right-click in the backpack) opens the inventory with every unidentified item highlighted; clicking one identifies it and uses up the scroll. `Esc` cancels without using the scroll; with nothing to identify the scroll is not read.
 - **Ways to identify:**
   - **Scroll of Identify:** common; see §6.3.
   - **Identify spell:** learned from a *Book of Identify* (qlvl 10, Int 60) **[OURS/USER]**. Each cast costs 10 mana.
@@ -846,7 +846,7 @@ const UNIQUES    = [{ id: 'gravewhisper', base: 'dagger', qlvl: 1, props: [{ sta
 - Drinking slows movement for 0.7 s, using the existing `drink` animation and particles.
 
 **Elixirs** (shipped in Phase 3)
-- Use with right-click or `X` in the backpack.
+- Use with right-click in the backpack.
 - +1 permanently to a base attribute; refused at the class maximum.
 
 **Using the belt [OURS]:** keys `1`–`8` or right-click a slot. Drinking from the belt never takes control away from AUTO. Left-click is reserved for moving items once the inventory exists (Phase 3).
@@ -1047,9 +1047,7 @@ Mini-bosses appear on depths 5, 10, 15, 20, … This replaces the current `depth
   - equipment: equip or unequip
 
 **Keyboard and gamepad**
-- Arrow keys move a cell cursor.
-- `Enter` picks up or places.
-- `X` uses, equips, or reads.
+- [USER, after Phase 12] The keyboard cell cursor (arrow keys, `Enter`, `X`) was removed: the inventory, stash and shops are mouse-driven.
 - `G` drops the held item on the ground.
 - The gamepad path (`padAtkPrev`, L580) gets matching bindings.
 
@@ -1250,7 +1248,7 @@ The look stays the same in kind: low-poly meshes drawn at half resolution, dithe
     - Below the boxes: text actions (CONTINUE / NEW HERO / DELETE, or OK / START / BACK), then a footer with the keys.
     - Class select also takes Up and Down.
   - **Esc menu:** RESUME, DAMAGE NUMBERS, SOUND, SAVE AND QUIT, with sigils on the selected entry, and the controls.
-- **Keyboard cursor:** the blue cursor in the inventory, stash and shop list shows only after an arrow key is pressed, and hides again when the mouse moves.
+- **No keyboard cursor:** [USER] the blue keyboard cursor in the inventory, stash and shop list is gone, along with arrow-key inventory control (§10.2).
 - **Also restyled:** the boss bar (a plaque above the control bar), the toast (carved capitals), the sound prompt (a plaque), ground labels (a thin gold edge), and PAUSED (carved capitals, hidden while the menu is open).
 
 ---
@@ -1407,7 +1405,7 @@ Saved to `localStorage['dv.save.v3']`. There are up to 6 character slots:
 - **Up-stairs:** a new tile (7). The hero can walk on it, monsters cannot, and the floor is drawn. It sits on an edge cell of the start room with a wall behind it, away from the room's openings and the start landing. It is drawn as four steps rising into a dark archway.
 - **The key belongs to its level:** whenever a level is rebuilt with its key chest open and its door still locked, the hero holds the key. Leaving through a portal and returning keeps it, and saves no longer store it.
 - **Town Portal:** the portal opens 1.4 m in front of the hero, or at the hero's feet if that spot is blocked. Arriving through a portal puts the hero on the other end, which works only after stepping off and on again. Scrolls of Town Portal need no Int, as in D1. AUTO never casts or reads it.
-- **Stash:** walking into the stash opens it, only when the player is moving the hero (never in AUTO); it opens again after stepping away. Click to pick up, place or swap. Right-click or X sends an item across: stash to backpack, or backpack to stash while the stash is open. Arrow keys cross between the two grids, and Enter places. `DEPOSIT` and `WITHDRAW` move all gold. Closing the stash saves.
+- **Stash:** walking into the stash opens it, only when the player is moving the hero (never in AUTO); it opens again after stepping away. Click to pick up, place or swap. Right-click sends an item across: stash to backpack, or backpack to stash while the stash is open. `DEPOSIT` and `WITHDRAW` move all gold. Closing the stash saves.
 - **Pacing (AUTO from a new character to depth 6):** all classes arrive at clvl 8–9. On dying (Thief at depth 4, Mage four times at depth 5), AUTO woke in town, walked back down through its cleared levels (about 30 s each) or took the depth 5 entrance, and recovered its grave.
 
 ### 13.1 Stash [USER]
@@ -1417,7 +1415,7 @@ Saved to `localStorage['dv.save.v3']`. There are up to 6 character slots:
   - The stash grid is on the left and the inventory on the right.
   - The game is paused, like every panel (§10.1).
 - **Grid [OURS]:** 10×10 cells. D1 has no stash; this size matches D2R's stash.
-- Items move between the stash and the backpack the same way they move within the inventory: click to pick up or place (with swap), and `Enter`/`X` on the keyboard.
+- Items move between the stash and the backpack the same way they move within the inventory: click to pick up or place (with swap).
 - Gold can be deposited and withdrawn as a single counter, which shows the stash's gold.
 - Unidentified items keep that state inside the stash.
 - **Persistence:** the stash is saved with the character (§12.2). It survives death, because only carried items drop.
@@ -1459,8 +1457,8 @@ D1's town has four shopkeepers, plus Wirt. They sell, buy and identify; Griswold
 **Interaction and UI**
 - **NPC figures:** each stands at a fixed spot in town with a name label, on the hero model rig with its own clothing and a slow idle. The smith stands by an anvil and forge at a market stall, the witch at a stall with a cauldron, the healer by the well, and the sage by a lectern near the stash.
 - **Opening a shop:** walking into an NPC (player-driven movement only, like the stash) opens the **shop panel** on the left and the inventory on the right, pausing the game. The sage opens the inventory in identify mode, paying 100 gold per item, and keeps it open for more.
-- **Shop panel:** a list of rows (icon, name in quality colour, price). The price is red when the hero can't afford it, or grey with `NO ROOM` when it wouldn't fit. Hovering shows the usual description box. Click or Enter buys; arrow keys move.
-- **Selling:** with a shop open, right-click or X on a backpack item sells it to a merchant who buys that kind. The description box shows `SELLS FOR n GOLD` or `THE SMITH WILL NOT BUY THIS`. Equipped items must be unequipped first (D1).
+- **Shop panel:** a list of rows (icon, name in quality colour, price). The price is red when the hero can't afford it, or grey with `NO ROOM` when it wouldn't fit. Hovering shows the usual description box. Click buys.
+- **Selling:** with a shop open, right-click on a backpack item sells it to a merchant who buys that kind. The description box shows `SELLS FOR n GOLD` or `THE SMITH WILL NOT BUY THIS`. Equipped items must be unequipped first (D1).
 - **Bought items** go to the backpack (potions and scrolls to the belt first, by the usual pickup rules).
 - **AUTO never trades** [USER, §14]: trading is a player decision. The healer's free heal still applies whenever the player walks up.
 

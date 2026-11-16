@@ -22,9 +22,7 @@ const CONTROLS: readonly (readonly [string, string] | string)[] = [
   ['B', 'SPELLBOOK'],
   ['ESC', 'MENU, OR CLOSE PANELS'],
   'IN THE INVENTORY',
-  ['ARROWS', 'MOVE THE CURSOR'],
-  ['ENTER', 'PICK UP OR PLACE'],
-  ['X', 'USE, EQUIP, OR SELL'],
+  ['R-CLICK', 'USE, EQUIP, OR SELL'],
   ['G', 'DROP THE HELD ITEM'],
 ];
 
