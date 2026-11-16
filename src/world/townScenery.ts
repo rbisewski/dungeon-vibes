@@ -10,6 +10,10 @@ import { PI, R, TAU, clamp, rr, vnoise } from '../core/math';
 import { G } from '../game/state';
 import { S } from '../render/buckets';
 import { gBox, gCyl } from '../render/geometry';
+import { merged, type Kit } from '../actors/models/kit';
+import { CELL, PROPS, SK } from './propKit';
+import { rail, stake } from './propModels';
+import { archway, buttress, deadTree, house, merlon, pine, roseWindow } from './townModels';
 import { MAT } from '../render/materials';
 import { _e, _m4, _q, _s3, _v3 } from '../render/scratch';
 import { T } from './consts';
@@ -53,103 +57,86 @@ export function buildTownGround(yard: Rect, paths: Set<number>): void {
 
 /** The ruined abbey: a tall stone façade along row `z` with an archway above each entrance column. */
 export function buildAbbey(x0: number, x1: number, z: number, entranceX: readonly number[]): void {
-  const list: [number, number, number][] = [];
-  for (let x = x0; x <= x1; x++) { list.push([x, z, 4.6]); list.push([x, z - 1, 6.2]); }
+  const FRONT = 4.6, BACK = 6.4, list: [number, number, number][] = [];
+  for (let x = x0; x <= x1; x++) { list.push([x, z, FRONT]); list.push([x, z - 1, BACK]); }
   const geo = new THREE.BoxGeometry(T, 1, T); geo.translate(0, .5, 0);
   const im = new THREE.InstancedMesh(geo, [MAT.wallSide, MAT.wallSide, MAT.wallTop, MAT.wallSide, MAT.wallSide, MAT.wallSide], list.length);
   const c = new THREE.Color();
   list.forEach(([x, zz, h], i) => {
-    _m4.compose(_v3.set(x * T, 0, zz * T), _q.identity(), _s3.set(1, h * rr(.92, 1.06), 1)); im.setMatrixAt(i, _m4);
+    _m4.compose(_v3.set(x * T, 0, zz * T), _q.identity(), _s3.set(1, h, 1)); im.setMatrixAt(i, _m4);
     const v = rr(.7, .95); c.setRGB(v, v * .97, v * .92); im.setColorAt(i, c);
   });
   im.castShadow = im.receiveShadow = true; G.L.group.add(im); G.L.disposeInst.push(im); G.L.disposeGeo.push(geo);
-  // archways: a dark recess and a stone lintel over each stairwell
-  const face = z * T + 1;
-  for (const ex of entranceX) {
-    const x = ex * T;
-    S('dark', gBox(1.7, 2.6, .12), x, 1.3, face + .02);
-    S('stone', gBox(2.1, .35, .3), x, 2.75, face + .1);
-    for (const s of [-1, 1]) S('stone', gBox(.28, 2.7, .3), x + s * .95, 1.35, face + .1);
+  const face = z * T + 1, left = x0 * T - 1, right = x1 * T + 1;
+  // pointed stone archways over the stairwells, stepped buttresses between them
+  for (const ex of entranceX) SK('archway', archway, ex * T, 0, face);
+  for (let i = 0; i < entranceX.length - 1; i++) SK('buttress', buttress, (entranceX[i] + entranceX[i + 1]) / 2 * T, 0, face);
+  // a string course, battlements on both walls, a rose window high on the back wall
+  S('stone', gBox(right - left, .16, .2), (left + right) / 2, 3.95, face + .08);
+  for (const [y, zz] of [[FRONT, face - .3], [BACK, face - T - .3]] as const) {
+    const n = Math.floor((right - left) / 1.15);
+    for (let i = 0; i <= n; i++) { const v = i % 3; SK(`merlon${v}`, k => merlon(k, v), left + .3 + i * (right - left - .6) / n, y, zz); }
   }
-  // buttresses between archways
-  for (let i = 0; i < entranceX.length - 1; i++) { const x = (entranceX[i] + entranceX[i + 1]) / 2 * T; S('stone', gBox(.6, 3.6, .8), x, 1.8, face + .35); }
+  SK('roseWindow', roseWindow, (left + right) / 2, 5.45, face - T + .02, 0, .85);
 }
 
 /** A palisade of sharpened stakes with two rails, along the inside edge of the given tiles. */
 export function buildFence(edges: { x0: number; z0: number; x1: number; z1: number }[]): void {
   for (const e of edges) {
-    const len = Math.hypot(e.x1 - e.x0, e.z1 - e.z0), n = Math.round(len / .42), dx = (e.x1 - e.x0) / len, dz = (e.z1 - e.z0) / len, ry = Math.atan2(dx, dz);
+    const len = Math.hypot(e.x1 - e.x0, e.z1 - e.z0), n = Math.round(len / .42), ry = Math.atan2(e.x1 - e.x0, e.z1 - e.z0);
     for (let k = 0; k <= n; k++) {
-      const t = k / n, x = e.x0 + (e.x1 - e.x0) * t, z = e.z0 + (e.z1 - e.z0) * t, h = rr(1.25, 1.55);
-      S('wood', gCyl(.09, .1, h, 5), x, h / 2, z);
-      S('wood', gCyl(0, .09, .25, 5), x, h + .12, z);
+      const t = k / n, v = k % 4;
+      SK(`stake${v}`, kit => stake(kit, v), e.x0 + (e.x1 - e.x0) * t, 0, e.z0 + (e.z1 - e.z0) * t, R() * TAU, 1, rr(-.05, .05), rr(-.05, .05));
     }
-    for (const y of [.45, 1.0]) S('wood', gBox(.06, .1, len), (e.x0 + e.x1) / 2, y, (e.z0 + e.z1) / 2, ry);
+    for (const y of [.45, 1.0]) SK('rail', rail, (e.x0 + e.x1) / 2, y, (e.z0 + e.z1) / 2, ry, [1, 1, len]);
   }
-}
-
-/** Builds one geometry per material for a timber house centred on the origin, door facing +z. */
-function houseParts(w: number, d: number): Record<'plaster' | 'beam' | 'roof' | 'window', THREE.BufferGeometry> {
-  const wallH = 2.6, roofH = 2.1, over = .4;
-  const box = (sx: number, sy: number, sz: number, x: number, y: number, z: number, rz = 0, rx = 0) =>
-    new THREE.BoxGeometry(sx, sy, sz).applyMatrix4(_m4.compose(_v3.set(x, y, z), _q.setFromEuler(_e.set(rx, 0, rz)), _s3.set(1, 1, 1))).toNonIndexed();
-  const plaster = [box(w, wallH, d, 0, wallH / 2, 0)];
-  // gable triangles at the two ends (roof ridge runs along x)
-  const tri = new THREE.Shape([new THREE.Vector2(-d / 2, 0), new THREE.Vector2(d / 2, 0), new THREE.Vector2(0, roofH)]);
-  for (const s of [-1, 1]) {
-    const g = new THREE.ShapeGeometry(tri).toNonIndexed();
-    g.applyMatrix4(_m4.compose(_v3.set(s * w / 2, wallH, 0), _q.setFromEuler(_e.set(0, s * PI / 2, 0)), _s3.set(1, 1, 1)));
-    plaster.push(g);
-  }
-  const beam: THREE.BufferGeometry[] = [];
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) beam.push(box(.22, wallH, .22, sx * w / 2, wallH / 2, sz * d / 2));
-  for (const sz of [-1, 1]) beam.push(box(w + .1, .2, .2, 0, wallH, sz * d / 2), box(w + .1, .14, .16, 0, wallH * .45, sz * d / 2));
-  for (const sx of [-1, 1]) beam.push(box(.2, .2, d + .1, sx * w / 2, wallH, 0));
-  // diagonal braces on the front
-  for (const sx of [-1, 1]) beam.push(box(.14, 1.4, .14, sx * w * .3, wallH * .7, d / 2 + .02, sx * .7));
-  beam.push(box(1.0, 1.7, .12, 0, .85, d / 2 + .05)); // door
-  const slope = Math.atan2(roofH, d / 2), len = Math.hypot(roofH, d / 2) + over;
-  const roof: THREE.BufferGeometry[] = [];
-  for (const s of [-1, 1]) roof.push(box(w + over * 2, .14, len, 0, wallH + roofH / 2 + .05, s * (d / 4 + over / 4), 0, s * slope));
-  roof.push(box(w + over * 2 + .1, .2, .25, 0, wallH + roofH + .05, 0));
-  const window: THREE.BufferGeometry[] = [];
-  for (const sx of [-1, 1]) window.push(box(.55, .6, .08, sx * w * .3, 1.5, d / 2 + .03));
-  for (const sz of [-1, 1]) window.push(box(.08, .6, .55, w / 2 + .03, 1.5, sz * d * .2));
-  const merge = (a: THREE.BufferGeometry[]) => { const m = mergeGeometries(a); a.forEach(g => g.dispose()); return m; };
-  return { plaster: merge(plaster), beam: merge(beam), roof: merge(roof), window: merge(window) };
 }
 
 /** Timber houses on the given tile blocks; each faces `toward` (its door side) and has lit windows. */
 export function buildHouses(blocks: readonly Rect[], toward: { x: number; z: number }): void {
-  const parts = houseParts(5.2, 5.2), mats = { plaster: MAT.plaster, beam: MAT.beam, roof: MAT.roof, window: MAT.windowLit };
-  const ims = (Object.keys(parts) as (keyof typeof parts)[]).map(k => {
-    const im = new THREE.InstancedMesh(parts[k], mats[k], blocks.length);
-    im.castShadow = im.receiveShadow = true; G.L.group.add(im); G.L.disposeInst.push(im); G.L.disposeGeo.push(parts[k]);
-    return im;
-  });
-  blocks.forEach((b, i) => {
+  instanced('house', house, blocks.map(b => {
     const x = (b.x + (b.w - 1) / 2) * T, z = (b.y + (b.h - 1) / 2) * T;
     // doors face the square: the nearest of the four sides
     const dx = toward.x - x, dz = toward.z - z, ry = Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? PI / 2 : -PI / 2) : (dz > 0 ? 0 : PI);
-    _m4.compose(_v3.set(x, 0, z), _q.setFromEuler(_e.set(0, ry, 0)), _s3.set(1, 1, 1));
-    for (const im of ims) im.setMatrixAt(i, _m4);
     G.L.lights.push({ x: x + Math.sin(ry) * 3.4, y: 1.6, z: z + Math.cos(ry) * 3.4, base: 7, cold: false, seed: R() * 100, d: 0 });
-  });
+    return { m: new THREE.Matrix4().compose(_v3.set(x, 0, z), _q.setFromEuler(_e.set(0, ry, 0)), _s3.set(1, 1, 1)) };
+  }));
 }
 
-/** Pines (trunk plus three cones), instanced; positions in world units. */
+/**
+ * Instances of kit model `key`: one instanced mesh per surface and CELL-metre square (so the camera and the lights'
+ * shadow passes cull the squares out of reach); `c` tints an instance.
+ */
+function instanced(key: string, make: (k: Kit) => void, items: { m: THREE.Matrix4; c?: THREE.Color }[]): void {
+  const cells = new Map<string, typeof items>();
+  for (const it of items) {
+    const id = `${Math.floor(it.m.elements[12] / CELL)},${Math.floor(it.m.elements[14] / CELL)}`;
+    let list = cells.get(id);
+    if (!list) cells.set(id, list = []);
+    list.push(it);
+  }
+  for (const list of cells.values()) for (const b of merged(key, make, PROPS)) {
+    const im = new THREE.InstancedMesh(b.geo, PROPS.material(b.key, b.surf), list.length);
+    list.forEach((it, i) => { im.setMatrixAt(i, it.m); if (it.c) im.setColorAt(i, it.c); });
+    im.castShadow = b.surf.shadow ?? true; im.receiveShadow = true;
+    G.L.group.add(im); G.L.disposeInst.push(im);
+  }
+}
+
+/** Pines (two shapes) and the odd dead tree, instanced; positions in world units. */
 export function buildTrees(spots: { x: number; z: number; s: number }[]): void {
-  const trunk = new THREE.CylinderGeometry(.14, .2, 1.4, 6).translate(0, .7, 0);
-  const crown = mergeGeometries([0, 1, 2].map(k => new THREE.ConeGeometry(1.3 - k * .32, 1.6, 7).translate(0, 1.6 + k * .9, 0).toNonIndexed()));
-  const a = new THREE.InstancedMesh(trunk, MAT.bark, spots.length), b = new THREE.InstancedMesh(crown, MAT.foliage, spots.length);
-  const c = new THREE.Color();
-  spots.forEach((p, i) => {
-    _m4.compose(_v3.set(p.x, 0, p.z), _q.setFromEuler(_e.set(0, R() * TAU, 0)), _s3.set(p.s, p.s * rr(.9, 1.2), p.s));
-    a.setMatrixAt(i, _m4); b.setMatrixAt(i, _m4);
-    const v = rr(.75, 1.15); c.setRGB(v * .9, v, v * .9); b.setColorAt(i, c);
-  });
-  for (const m of [a, b]) { m.castShadow = m.receiveShadow = true; G.L.group.add(m); G.L.disposeInst.push(m); }
-  G.L.disposeGeo.push(trunk, crown);
+  const kinds = [
+    { key: 'pine', make: (k: Kit) => pine(k, false) },
+    { key: 'pineTall', make: (k: Kit) => pine(k, true) },
+    { key: 'deadTree', make: deadTree },
+  ];
+  const items = kinds.map(() => [] as { m: THREE.Matrix4; c: THREE.Color }[]);
+  for (const p of spots) {
+    const r = R(), kind = r < .5 ? 0 : r < .88 ? 1 : 2, v = rr(.8, 1.15);
+    const m = new THREE.Matrix4().compose(_v3.set(p.x, 0, p.z), _q.setFromEuler(_e.set(rr(-.04, .04), R() * TAU, rr(-.04, .04))), _s3.set(p.s, p.s * rr(.9, 1.2), p.s));
+    items[kind].push({ m, c: new THREE.Color(v * rr(.88, 1.02), v, v * rr(.85, 1)) });
+  }
+  kinds.forEach((k, i) => instanced(k.key, k.make, items[i]));
 }
 
 /** Grass tufts (three thin blades each), instanced; they catch the light and break up the flat ground. */

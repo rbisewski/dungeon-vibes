@@ -7,9 +7,11 @@ import * as THREE from 'three';
 import { PI, R, TAU, rr } from '../core/math';
 import { G } from '../game/state';
 import type { Exit, Layout, Room } from '../game/types';
-import { S } from '../render/buckets';
-import { gBox, gCone, gCyl, gPlane, glowSprite, mesh } from '../render/geometry';
-import { MAT, grateMat } from '../render/materials';
+import { gCyl, gPlane, glowSprite, mesh } from '../render/geometry';
+import { part } from '../actors/models/kit';
+import { PROPS, SK } from './propKit';
+import { anvil, cauldron, chestBody, chestLid, forge, lectern, stall as stallModel, well as wellModel } from './propModels';
+import { grateMat } from '../render/materials';
 import { T } from './consts';
 import { propBarrel, propBrazier, propCrate, propStairs, wallFace } from './props';
 import { buildAbbey, buildFence, buildHouses, buildTownGround, buildTrees, buildTufts, lampPost } from './townScenery';
@@ -47,35 +49,24 @@ function blockProp(tx: number, tz: number, r: number): void {
 }
 
 function well(): void {
-  const x = WELL.tx * T, z = WELL.tz * T;
-  S('stone', gCyl(.95, 1, .75, 16), x, .37, z);
-  S('dark', gCyl(.75, .75, .02, 16), x, .76, z);
-  for (const s of [-1, 1]) S('wood', gBox(.12, 1.9, .12), x + .85 * s, 1.5, z);
-  S('wood', gBox(2.1, .12, .9), x, 2.45, z, 0, 0, 0);
-  S('wood', gCyl(.06, .06, 1.7, 6), x, 1.95, z, 0, 0, PI / 2);
+  SK('well', wellModel, WELL.tx * T, 0, WELL.tz * T);
   blockProp(WELL.tx, WELL.tz, 1.05);
 }
 
-/** A closed market stall (merchants come in a later phase): counter, posts and a striped awning. */
-function stall(tx: number, tz: number, color: number): void {
+/** A market stall with its awning colour and wares, a crate and a barrel beside it. */
+function stall(tx: number, tz: number, canvas: 'canvasRed' | 'canvasGreen', goods: 'pots' | 'herbs'): void {
   const x = tx * T, z = tz * T;
-  S('wood', gBox(2.2, .9, .8), x, .45, z);
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) S('wood', gBox(.1, 2.2, .1), x + sx * 1.05, 1.1, z + sz * .55);
-  const awning = new THREE.MeshStandardMaterial({ color, roughness: .9, side: THREE.DoubleSide });
-  G.L.disposeMat.push(awning);
-  const a = mesh(gBox(2.5, .06, 1.5), awning, x, 2.25, z, G.L.group); a.rotation.x = .25;
+  SK(`stall:${goods}`, k => stallModel(k, canvas, goods), x, 0, z);
   propCrate(x - .7, z + .9, .55); propBarrel(x + .9, z + .9);
   blockProp(Math.round(tx), Math.round(tz), 1.1);
 }
 
-/** The stash: a large iron-bound chest with gold trim (SPEC §13.1). */
+/** The stash: a large gold-bound chest (SPEC §13.1). */
 function stashChest(): void {
   const x = TOWN_STASH.tx * T, z = TOWN_STASH.tz * T, g = new THREE.Group(); g.position.set(x, 0, z); g.scale.setScalar(1.45);
-  mesh(gBox(.9, .5, .58), MAT.wood, 0, .25, 0, g);
-  mesh(gBox(.94, .07, .62), MAT.gold, 0, .07, 0, g); mesh(gBox(.94, .07, .62), MAT.gold, 0, .46, 0, g);
-  for (const s of [-1, 1]) mesh(gBox(.07, .52, .63), MAT.iron, .32 * s, .26, 0, g);
-  mesh(gBox(.96, .14, .64), MAT.wood, 0, .58, 0, g);
-  mesh(gBox(.14, .16, .05), MAT.gold, 0, .4, .31, g);
+  part(g, 'chest:gold', k => chestBody(k, 'gold'), PROPS);
+  const lid = new THREE.Group(); lid.position.set(0, .48, -.29); g.add(lid);
+  part(lid, 'chestLid:gold', k => chestLid(k, 'gold'), PROPS);
   glowSprite(0xffc060, 1.3, g, 0, .9, 0);
   G.L.group.add(g);
   blockProp(TOWN_STASH.tx, TOWN_STASH.tz, .75);
@@ -123,7 +114,7 @@ export function dressTown(): void {
   for (const [tx, tz] of [[12.5, 8], [17.5, 8], [12.5, 18], [17.5, 18], [9, 16.5], [21, 11.5]]) lampPost(tx * T, tz * T);
   // warm light where people gather: around the well, by the stash, at the portal spot
   for (const [tx, tz] of [[13, 12], [17, 14], [13.5, 20.5], [16.5, 20.5], [22.5, 13]]) { propBrazier(tx * T, tz * T, .9); blockProp(Math.round(tx), Math.round(tz), .35); }
-  stall(9, 14, 0xa04030); stall(21, 16.5, 0x3a6a40);
+  stall(9, 14, 'canvasRed', 'pots'); stall(21, 16.5, 'canvasGreen', 'herbs');
   well();
   stashChest();
   townsfolk();
@@ -185,14 +176,15 @@ function townsfolk(): void {
   }
   const at = (tx: number, tz: number) => [tx * T, tz * T] as const;
   // the smith's anvil (on a stump) and forge
-  { const [x, z] = at(10.4, 11.2); S('wood', gCyl(.3, .34, .5, 8), x, .25, z); S('iron', gBox(.7, .22, .3), x, .62, z); S('iron', gBox(.3, .16, .24), x, .45, z); S('iron', gCone(.12, .3, 6), x + .45, .62, z, 0, 0, -PI / 2); }
-  { const [x, z] = at(7.6, 11); S('stone', gBox(1.1, .8, 1.1), x, .4, z); S('coal', gBox(.9, .06, .9), x, .82, z); G.L.flames.push({ x, y: .85, z, s: 1.4, seed: R() }); G.L.lights.push({ x, y: 1.4, z, base: 20, cold: false, seed: R() * 100, d: 0 }); }
-  // the witch's cauldron
-  { const [x, z] = at(19.8, 19.3); S('iron', gCyl(.48, .38, .6, 12), x, .4, z); S('iron', gCyl(.5, .5, .05, 12), x, .7, z); propBrazier(x, z, .35);
+  { const [x, z] = at(10.4, 11.2); SK('anvil', anvil, x, 0, z, -.5); }
+  { const [x, z] = at(7.6, 11); SK('forge', forge, x, 0, z); G.L.flames.push({ x, y: .88, z, s: 1.4, seed: R() }); G.L.lights.push({ x, y: 1.4, z, base: 20, cold: false, seed: R() * 100, d: 0 }); }
+  // the witch's cauldron over a small fire, its brew glowing
+  { const [x, z] = at(19.8, 19.3); SK('cauldron', cauldron, x, 0, z);
+    G.L.flames.push({ x, y: .1, z, s: .7, seed: R() }); G.L.lights.push({ x, y: .6, z, base: 9, cold: false, seed: R() * 100, d: 0 });
     const brew = new THREE.MeshBasicMaterial({ color: 0x5aff6a }); G.L.disposeMat.push(brew);
-    mesh(gCyl(.42, .42, .02, 12), brew, x, .72, z, G.L.group, false); G.L.lights.push({ x, y: 1.2, z, base: 10, cold: true, seed: R() * 100, pulse: true, d: 0 }); }
-  // the sage's lectern with an open book
-  { const [x, z] = at(11.5, 20.5); S('wood', gBox(.12, 1, .12), x, .5, z); S('wood', gBox(.6, .06, .45), x, 1.02, z, 0, -.35); S('bone', gBox(.5, .03, .36), x, 1.07, z - .02, 0, -.35); }
+    mesh(gCyl(.41, .41, .02, 16), brew, x, .63, z, G.L.group, false); G.L.lights.push({ x, y: 1.4, z, base: 10, cold: true, seed: R() * 100, pulse: true, d: 0 }); }
+  // the sage's lectern with an open book and a candle
+  { const [x, z] = at(11.5, 20.5); SK('lectern', lectern, x, 0, z); G.L.flames.push({ x: x + .27, y: 1.17, z: z + .1, s: .25, seed: R() }); }
   // the peddler's crates
   { const [x, z] = at(21, 8.2); propCrate(x, z, .6); propCrate(x + .2, z + .1, .4); }
 }

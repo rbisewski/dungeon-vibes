@@ -1,3 +1,4 @@
+import { mergePropBuckets, resetPropBuckets } from './propKit';
 import * as THREE from 'three';
 import { spawnMonster } from '../actors/monsters';
 import { pickFamilies } from '../rules/monsters';
@@ -99,10 +100,10 @@ function newLevel(lay: Layout, depth: number, lockedDoor: Door | null, group: TH
 }
 
 function generateTown(): void {
-  resetBuckets();
+  resetBuckets(); resetPropBuckets();
   const L = newLevel(townLayout(), 0, null, new THREE.Group());
   dressTown();
-  buildTownTerrain(); mergeBuckets();
+  buildTownTerrain(); mergeBuckets(); mergePropBuckets();
   L.flameMesh = makeFlames(L.flames); L.group.add(L.flameMesh);
   setOutdoor(true);
   POST.mist = .3;
@@ -129,7 +130,7 @@ function upStairsCell(L: Level): { tx: number; tz: number; nx: number; nz: numbe
 }
 
 function generate(depth: number): void {
-  resetBuckets();
+  resetBuckets(); resetPropBuckets();
   const lay = generateLayout();
   const group = new THREE.Group();
   const lc = lay.lockedCell;
@@ -145,7 +146,7 @@ function generate(depth: number): void {
   L.exits.push({ kind: 'down', to: depth + 1, tx: L.stairs.tx, tz: L.stairs.tz, x: L.stairs.x, z: L.stairs.z, r: .85, open: true });
   if (up) { const x = up.tx * T, z = up.tz * T; propUpStairs(x, z, up.nx, up.nz); L.exits.push({ kind: 'up', to: depth - 1, tx: up.tx, tz: up.tz, x, z, r: .7, open: true }); }
   if (G.portal?.depth === depth) addPortalExit(G.portal.x, G.portal.z, 0);
-  buildFloor(tint); buildWalls(tint); mergeBuckets();
+  buildFloor(tint); buildWalls(tint); mergeBuckets(); mergePropBuckets();
   L.flameMesh = makeFlames(L.flames); L.group.add(L.flameMesh);
   setOutdoor(false);
   POST.mist = .7;

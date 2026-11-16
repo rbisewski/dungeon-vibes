@@ -7,7 +7,8 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { pmrem, rimLit } from '../../render/materials';
+import { applyFade, pmrem, rimLit } from '../../render/materials';
+import { TEX } from '../../render/textures';
 
 export type V3 = readonly [number, number, number];
 export type V2 = readonly [number, number];
@@ -73,6 +74,9 @@ function aim(a: V3, b: V3): THREE.Quaternion {
 export class Kit {
   private readonly parts = new Map<string, THREE.BufferGeometry[]>();
 
+  /** `boxR`: edge rounding of boxes that do not set their own. */
+  constructor(private readonly boxR = .015) {}
+
   /** Adds an arbitrary geometry (consumed) to `slot`. */
   add(slot: string, g: THREE.BufferGeometry, o: PieceOpts = {}): this {
     const n = normalise(g);
@@ -136,7 +140,7 @@ export class Kit {
   /** A box with rounded edges. */
   box(slot: string, size: V3, o: PieceOpts & { r?: number } = {}): this {
     // rounding too small to see (teeth, rivets, stitches) is not worth a rounded box's ~150 triangles
-    const r = Math.min(o.r ?? .015, size[0] / 2 - 1e-4, size[1] / 2 - 1e-4, size[2] / 2 - 1e-4);
+    const r = Math.min(o.r ?? this.boxR, size[0] / 2 - 1e-4, size[1] / 2 - 1e-4, size[2] / 2 - 1e-4);
     return this.add(slot, r >= .008 ? new RoundedBoxGeometry(size[0], size[1], size[2], 1, r) : new THREE.BoxGeometry(...size), o);
   }
 
@@ -202,7 +206,15 @@ export class Kit {
  * A slot's surface. Colour is baked into the part's vertex colours; the rest (with roughness and metalness rounded
  * to coarse steps) decides which material the slot shares, so a part needs one mesh per surface kind, not per colour.
  */
-export interface Surf { color: number; rough: number; metal?: number; side?: THREE.Side; emissive?: number; envI?: number; rim?: boolean; shadow?: boolean }
+export interface Surf {
+  color: number; rough: number; metal?: number; side?: THREE.Side; emissive?: number; envI?: number; rim?: boolean; shadow?: boolean;
+  /** A detail texture multiplied over the baked colours (wood grain, stone blocks, plaster, shingles). */
+  tex?: 'wood' | 'wall' | 'plaster' | 'roof';
+  /** Instanced scenery that fades out (dithered) when the hero walks behind it: houses and trees. */
+  fade?: boolean;
+  /** Emissive intensity (lit windows). */
+  glow?: number;
+}
 
 const step = (v: number, s: number): number => Math.round(v / s) * s;
 
@@ -213,18 +225,22 @@ const step = (v: number, s: number): number => Math.round(v / s) * s;
 export class Skin {
   readonly mats: THREE.MeshStandardMaterial[] = [];
   private readonly byKey = new Map<string, THREE.MeshStandardMaterial>();
-  constructor(readonly surf: Record<string, Surf>) {}
+  /** `boxR`: default edge rounding of boxes in parts built for this skin (scenery uses sharp boxes). */
+  constructor(readonly surf: Record<string, Surf>, readonly boxR = .015) {}
 
   key(slot: string): string {
     const s = this.surf[slot];
     if (!s) throw new Error(`kit: no surface for slot ${slot}`);
-    return [step(s.rough, .25), step(s.metal ?? 0, .5), s.side ?? THREE.FrontSide, s.emissive ?? 0, s.envI ? 1 : 0, s.rim ?? true, s.shadow ?? true].join('|');
+    return [step(s.rough, .25), step(s.metal ?? 0, .5), s.side ?? THREE.FrontSide, s.emissive ?? 0, s.envI ? 1 : 0, s.rim ?? true, s.shadow ?? true, s.tex ?? '', s.fade ?? false, s.glow ?? 1].join('|');
   }
 
   material(key: string, from: Surf): THREE.MeshStandardMaterial {
     let m = this.byKey.get(key);
     if (!m) {
-      m = charMat(0xffffff, step(from.rough, .25), { metal: step(from.metal ?? 0, .5), side: from.side, emissive: from.emissive, envI: from.envI, rim: from.rim });
+      m = charMat(0xffffff, step(from.rough, .25), { metal: step(from.metal ?? 0, .5), side: from.side, emissive: from.emissive, envI: from.envI, rim: from.rim && !from.fade });
+      if (from.tex) { m.map = TEX[from.tex]; m.bumpMap = TEX[from.tex]; m.bumpScale = .8; }
+      if (from.fade) applyFade(m, .8);
+      if (from.glow) m.emissiveIntensity = from.glow;
       this.byKey.set(key, m); this.mats.push(m);
     }
     return m;
@@ -239,9 +255,18 @@ const CACHE = new Map<string, { key: string; geo: THREE.BufferGeometry; surf: Su
  * colours and slots of the same surface kind merged, one mesh each. Instances sharing `key` must share colours.
  */
 export function part(group: THREE.Object3D, key: string, make: (k: Kit) => void, skin: Skin): void {
+  for (const b of merged(key, make, skin)) {
+    const m = new THREE.Mesh(b.geo, skin.material(b.key, b.surf));
+    m.castShadow = b.surf.shadow ?? true; m.receiveShadow = true;
+    group.add(m);
+  }
+}
+
+/** The cached, merged geometry of part `key`, one entry per surface kind (for instancing and static merging). */
+export function merged(key: string, make: (k: Kit) => void, skin: Skin): readonly { key: string; geo: THREE.BufferGeometry; surf: Surf }[] {
   let built = CACHE.get(key);
   if (!built) {
-    const k = new Kit(); make(k);
+    const k = new Kit(skin.boxR); make(k);
     const bySurf = new Map<string, { geos: THREE.BufferGeometry[]; surf: Surf }>();
     for (const [slot, g] of Object.entries(k.build())) {
       const surf = skin.surf[slot], sk = skin.key(slot), c = new THREE.Color(surf.color), col = g.attributes.color;
@@ -258,11 +283,7 @@ export function part(group: THREE.Object3D, key: string, make: (k: Kit) => void,
     });
     CACHE.set(key, built);
   }
-  for (const b of built) {
-    const m = new THREE.Mesh(b.geo, skin.material(b.key, b.surf));
-    m.castShadow = b.surf.shadow ?? true; m.receiveShadow = true;
-    group.add(m);
-  }
+  return built;
 }
 export interface MatOpts { metal?: number; side?: THREE.Side; emissive?: number; rim?: boolean; envI?: number }
 

@@ -13,8 +13,6 @@ export const gPlane = (w: number, h: number) => gget(`p${w},${h}`, () => new THR
 export const gDode = (r: number) => gget(`d${r}`, () => new THREE.DodecahedronGeometry(r, 0));
 export const gCircle = (r: number) => gget(`o${r}`, () => new THREE.CircleGeometry(r, 18));
 export const GEO = {
-  barrel: new THREE.LatheGeometry([[0, 0], [.32, 0], [.37, .2], [.39, .43], [.37, .66], [.32, .86], [0, .86]].map(p => new THREE.Vector2(p[0], p[1])), 12),
-  lid: new THREE.CylinderGeometry(.29, .29, .9, 10, 1, false, 0, PI),
   blade: new THREE.CylinderGeometry(.62, .62, .05, 16, 1, false, 0, PI),
   cloak: new THREE.CylinderGeometry(.2, .34, .62, 10, 1, true, PI * .55, PI * .9),
   trail: new THREE.RingGeometry(.3, 1.45, 32, 1)

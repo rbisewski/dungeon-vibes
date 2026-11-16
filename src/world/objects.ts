@@ -2,22 +2,22 @@ import * as THREE from 'three';
 import { PI, R, TAU, ri } from '../core/math';
 import { G } from '../game/state';
 import { S } from '../render/buckets';
-import { GEO, gBox, gCone, gCyl, gSph, glowSprite, mesh } from '../render/geometry';
+import { GEO, gBox, gCone, gSph, glowSprite, mesh } from '../render/geometry';
 import { MAT } from '../render/materials';
+import { part } from '../actors/models/kit';
+import { PROPS } from './propKit';
+import { chestBody, chestLid } from './propModels';
 import { T } from './consts';
 import { CHEST_ITEM_CHANCE } from '../rules/loot';
 import type { Axis, Chest, Door, Trap } from '../game/types';
 
 export function makeChest(x: number, z: number, ry: number, isKey: boolean): Chest {
   const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry;
-  const trim = isKey ? MAT.gold : MAT.iron;
-  mesh(gBox(.9, .48, .58), MAT.wood, 0, .24, 0, g);
-  mesh(gBox(.94, .06, .62), trim, 0, .06, 0, g);
-  for (const s of [-1, 1]) mesh(gBox(.06, .5, .62), trim, .3 * s, .25, 0, g);
-  mesh(gBox(.1, .12, .04), MAT.gold, 0, .38, .3, g);
+  // the key chest is bound in gold, the others in iron
+  const trim = isKey ? 'gold' : 'iron';
+  part(g, `chest:${trim}`, k => chestBody(k, trim), PROPS);
   const lid = new THREE.Group(); lid.position.set(0, .48, -.29); g.add(lid);
-  const lm = mesh(GEO.lid, MAT.wood, 0, 0, .29, lid); lm.rotation.z = PI / 2;
-  for (const s of [-1, 1]) { const b = mesh(gCyl(.3, .3, .06, 10), trim, .3 * s, 0, .29, lid); b.rotation.z = PI / 2; b.scale.set(1, 1, 1); }
+  part(lid, `chestLid:${trim}`, k => chestLid(k, trim), PROPS);
   let glow: THREE.Sprite | null = null; if (isKey) glow = glowSprite(0xffc060, 1.2, g, 0, .7, 0);
   G.L.group.add(g);
   return { g, lid, glow, open: false, t: 0, x, z, isKey, gold: ri(6, 18), hasItem: R() < CHEST_ITEM_CHANCE, shelf: false };

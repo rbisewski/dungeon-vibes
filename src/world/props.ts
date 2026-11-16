@@ -2,10 +2,21 @@ import { buildHumanoid } from '../actors/models/skeleton';
 import { PI, R, TAU, lerp, ri, rr } from '../core/math';
 import { G } from '../game/state';
 import { S } from '../render/buckets';
-import { GEO, gBox, gCircle, gCyl, gDode, gPlane, gSph } from '../render/geometry';
+import { gBox, gCircle, gCyl, gDode, gPlane, gSph } from '../render/geometry';
+import { SK } from './propKit';
+import { barrel, crate, hash } from './propModels';
 
-export function propBarrel(x: number, z: number): void { S('wood', GEO.barrel, x, 0, z, R() * TAU); S('iron', gCyl(.385, .385, .05, 12), x, .18, z); S('iron', gCyl(.375, .375, .05, 12), x, .68, z); }
-export function propCrate(x: number, z: number, s = .8): void { const ry = rr(-.4, .4); S('wood', gBox(s, s, s), x, s / 2, z, ry); S('iron', gBox(s + .02, .06, s + .02), x, s * .5, z, ry); if (R() < .4 && s > .6) { const s2 = .5; S('wood', gBox(s2, s2, s2), x + rr(-.1, .1), s + s2 / 2, z + rr(-.1, .1), ry + rr(-.5, .5)); } }
+/** Which of two colourings a prop at (x, z) gets; from its position, so level generation draws no extra numbers. */
+const variant = (x: number, z: number): number => hash(Math.floor(x * 7.3 + z * 13.1)) < .5 ? 0 : 1;
+
+/** A barrel (two stave colourings), turned at random. */
+export function propBarrel(x: number, z: number): void { const v = variant(x, z); SK(`barrel${v}`, k => barrel(k, v), x, 0, z, R() * TAU); }
+/** A crate of size `s` (two board colourings), sometimes with a smaller one stacked on top. */
+export function propCrate(x: number, z: number, s = .8): void {
+  const ry = rr(-.4, .4), v = variant(x, z);
+  SK(`crate${v}`, k => crate(k, v), x, 0, z, ry, s);
+  if (R() < .4 && s > .6) SK(`crate${1 - v}`, k => crate(k, 1 - v), x + rr(-.1, .1), s, z + rr(-.1, .1), ry + rr(-.5, .5), .5);
+}
 export function propRubble(x: number, z: number, n: number): void { for (let k = 0; k < n; k++) { const r = [.08, .12, .16, .2][ri(0, 3)]; S('stone', gDode(r), x + rr(-.75, .75), r * .45, z + rr(-.75, .75), R() * 3, R() * 3, 0, 1, .7, 1); } }
 export function propBones(x: number, z: number): void {
   for (let k = 0; k < ri(2, 4); k++) S('bone', gCyl(.03, .025, .38, 5), x + rr(-.5, .5), .03, z + rr(-.5, .5), R() * TAU, PI / 2);

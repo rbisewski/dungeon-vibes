@@ -1148,7 +1148,7 @@ Mini-bosses appear on depths 5, 10, 15, 20, … This replaces the current `depth
   - **Bat:** membrane wings stretched between finger bones, big ears and fangs.
   - **Spiders:** jointed, banded and bristled legs, fangs, palps, an eye cluster, and a marked abdomen with spinnerets; the Brood Mother's markings form a red hourglass.
   - **Egg sac:** lumpy and translucent, with veins on its surface, hatchlings showing through, and web strands.
-- **Not reworked:** the townsfolk keep their Phase 12 models.
+- **Townsfolk:** reworked in the scenery pass (§10.7).
 
 ### 10.6 Rendering [USER: "significantly improve the graphics"; choices OURS]
 
@@ -1168,6 +1168,49 @@ The look stays the same in kind: low-poly meshes drawn at half resolution, dithe
 - **Town:** grass tufts (about 1 900), fireflies around the hero, and brighter windows.
 - **Tuning:** the values above live in `POST` (`render/post.ts`).
 - **Cost:** 60 fps held at 2560×1440 on the development machine (Radeon RX 7600), in town and in a boss room. There is no low-quality setting yet.
+
+### 10.7 Scenery models [USER: "improve the barrels, boxes, townsfolk, buildings, well and trees in a similar manner"; choices OURS]
+
+**As reworked after Phase 12.** Props, buildings, trees and townsfolk use the modelling kit of §10.5.
+
+- **How props are built** (`world/propKit.ts`, `world/propModels.ts`, `world/townModels.ts`):
+  - One shared palette (`PROPS`) holds every prop surface. Props never flash or tint, so their materials are shared.
+  - Boxes are sharp by default. Only large stones, the house plinth and the chimney keep rounded edges.
+  - Each model is built once per level session and cached. Builders take variation from a fixed hash, never from the level's random stream, so dungeon layouts are unchanged.
+  - Placed props (`SK`) bake their transform into the level's static geometry, merged per surface and per 16 m square. The camera and each light's shadow pass then cull the squares out of reach.
+  - Houses and trees stay instanced (per surface and per 16 m square), so they still fade out when the hero walks behind them.
+- **Barrels:** 14 staves with dark gaps, four iron hoops, and a planked lid with a bung. Two stave colourings, chosen from the barrel's position.
+- **Crates:** planks on every face, a frame board on every edge, a diagonal brace and iron corner caps. Two colourings.
+- **Chests:** plank body, a curved planked lid with bands, corner brackets, feet, and a lock plate with keyhole. Iron-bound, or gold-bound for the key chest and the stash. The lid still hinges.
+- **Well:** three courses of dressed stones with a cap, a dark shaft with water, a shingled gable roof on braced posts, a winch with a rope coil and crank, and a bucket on the rope.
+- **Market stalls:** planked counter, posts, a striped awning with a scalloped edge. The red stall sells pottery; the green one has hanging herbs and potion bottles.
+- **Workplaces:**
+  - **Smith:** an anvil on a tree stump, and a brick forge with a glowing coal bed, hood and chimney, bellows and tongs.
+  - **Witch:** an iron cauldron on three feet over a small log fire. [OURS] It no longer sits on a brazier.
+  - **Sage:** a lectern with an open book and a lit candle.
+- **Houses:**
+  - Construction: a stone plinth, a timber frame (posts, rails, studs, braces) over plaster, gables with a king post, shingle rows, bargeboards, a ridge cap and a stone chimney.
+  - Front: a plank door with iron straps, ring and step.
+  - Windows: four lit windows with mullions, sills and open shutters; some have a flower box.
+- **Trees:** two pine shapes (jagged, drooping tiers, lighter toward the top, flared roots) and the odd bare dead tree.
+- **Palisade:** split-log stakes, sharpened and lashed with rope, on round rails.
+- **Abbey:**
+  - Entrances: pointed archways of dressed stones with a keystone.
+  - Between them: stepped buttresses and a string course.
+  - Battlements on both walls, and a rose window of coloured glass high on the back wall.
+  - [OURS] The wall heights are now even (4.6 m front, 6.4 m back) so the battlements sit level.
+- **Townsfolk:** the same rig and idle, rebuilt with faces like the heroes'.
+  - **Smith:** bald and bearded, with rolled sleeves, a leather apron, trousers and boots, and a hammer.
+  - **Witch:** ragged robe, shawl, pendant, long black hair, a crooked nose, a pointed hat with a bent tip, and a gnarled staff with a glowing orb.
+  - **Healer:** a tonsure, a red sash with a cross, a rope belt, and a red flask.
+  - **Sage:** cowl, long white hair and beard, and a staff with a gold ring.
+  - **Peddler:** hood, cape, trousers and boots, a walking stick, and a framed pack with a blanket roll, a pan and a jug.
+- **Cost, measured at the same run seed:**
+
+  | Scene | Draw calls (old → new) | Triangles per frame, all passes (old → new) |
+  |---|---|---|
+  | Depth 1 | 1 900 → 1 870 | 521 k → 475 k |
+  | Town | 460 → 810 | 445 k → 824 k |
 
 ---
 

@@ -22,7 +22,7 @@ function applyCut(mat: THREE.Material, factor: number): void {
  * Like `applyCut`, but instead of squashing the instance it fades it out with a screen-door dither (whole pixels
  * dropped in a pattern), so trees and houses stay recognisable while the hero walks behind them.
  */
-function applyFade(mat: THREE.Material, maxFade: number): void {
+export function applyFade(mat: THREE.Material, maxFade: number): void {
   mat.onBeforeCompile = sh => {
     sh.uniforms.uPlayer = cutU.uPlayer;
     sh.vertexShader = 'uniform vec3 uPlayer;\nvarying float vFade;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
@@ -79,12 +79,6 @@ export const MAT = {
   flesh: new THREE.MeshStandardMaterial({ color: 0x7a4a40, roughness: .8 }),
   // the town (SPEC §13)
   grass: new THREE.MeshStandardMaterial({ map: TEX.grass, bumpMap: TEX.grass, bumpScale: .8, roughness: 1, vertexColors: true }),
-  plaster: new THREE.MeshStandardMaterial({ map: TEX.plaster, roughness: .95 }),
-  beam: new THREE.MeshStandardMaterial({ map: TEX.wood, color: 0x6a5040, roughness: .9 }),
-  roof: new THREE.MeshStandardMaterial({ map: TEX.roof, roughness: .95, side: THREE.DoubleSide }),
-  windowLit: new THREE.MeshStandardMaterial({ color: 0x3a2008, emissive: 0xffa040, emissiveIntensity: 2.4, roughness: .6 }),
-  foliage: new THREE.MeshStandardMaterial({ color: 0x3a6a3e, roughness: 1, flatShading: true }),
-  bark: new THREE.MeshStandardMaterial({ color: 0x5a4430, roughness: 1 }),
   tuft: new THREE.MeshStandardMaterial({ color: 0x6a9a4a, emissive: 0x070d05, roughness: 1, flatShading: true }),
 };
 /** Ground-potion glass per type: red healing, blue mana, purple rejuvenation. */
@@ -93,7 +87,6 @@ const RED = potionGlass(0xa01828, 0x400008), BLUE = potionGlass(0x2040c0, 0x0810
 export const POTION_MAT: Record<PotionId, THREE.Material> = { heal: RED, fullHeal: RED, mana: BLUE, fullMana: BLUE, rejuv: PURPLE, fullRejuv: PURPLE };
 applyCut(MAT.wallSide, .16); applyCut(MAT.wallTop, .16); applyCut(MAT.pillar, .2);
 // houses and trees are instanced: they fade (dithered) when the hero walks behind them
-for (const m of [MAT.plaster, MAT.beam, MAT.roof, MAT.windowLit, MAT.foliage, MAT.bark]) applyFade(m, .8);
 MAT.banner.onBeforeCompile = sh => {
   sh.uniforms.uTime = GU.uTime;
   sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
