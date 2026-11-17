@@ -7,6 +7,7 @@ import { G } from '../game/state';
 import { quality } from '../rules/inventory';
 import { capGround } from '../rules/persist';
 import { restorePickup, savePickup, type SavedPickup } from './groundItems';
+import { setBroken } from './objects';
 
 export interface LevelDelta {
   /** Floor items and gold outside graves, oldest first (capped, SPEC §12.2). */
@@ -16,6 +17,8 @@ export interface LevelDelta {
   dead: number[];
   /** Indices into `Level.chests` (bookshelves included) that were opened. */
   chests: number[];
+  /** Indices into `Level.barrels` that were broken (absent in saves from before barrels broke). */
+  barrels?: number[];
   /** Indices into `Level.traps` a Thief disarmed. */
   disarmed: number[];
   unlocked: boolean;
@@ -32,6 +35,7 @@ export function captureLevel(): LevelDelta {
     graves: L.graves.map(g => ({ x: g.x, z: g.z, pickups: g.pickups.map(savePickup) })),
     dead: [...L.killedGen],
     chests: L.chests.flatMap((c, i) => (c.open ? [i] : [])),
+    barrels: L.barrels.flatMap((b, i) => (b.broken ? [i] : [])),
     disarmed: L.traps.flatMap((t, i) => (t.disabled ? [i] : [])),
     unlocked: !L.locked,
     visited: L.rooms.flatMap((r, i) => (r.visited ? [i] : [])),
@@ -48,6 +52,7 @@ export function applyLevel(d: LevelDelta): void {
     c.open = true; c.lid.rotation.x = -1.9; if (c.glow) c.glow.visible = false;
     if (c.shelf) c.lid.visible = false;
   }
+  for (const i of d.barrels ?? []) { const b = L.barrels[i]; if (b && !b.broken) setBroken(b); }
   for (const i of d.disarmed) { const t = L.traps[i]; if (t) t.disabled = true; }
   for (const i of d.visited) { const r = L.rooms[i]; if (r) r.visited = true; }
   const door = L.lockedDoor;

@@ -13,6 +13,8 @@ import { _e, _m4, _q, _s3, _v3 } from '../render/scratch';
 export const PROPS = new Skin({
   wood: { color: 0x8a6a4a, rough: .8, tex: 'wood', rim: false },
   woodDark: { color: 0x5a4030, rough: .8, tex: 'wood', rim: false },
+  /** Boards seen from both sides: a broken barrel's staves. */
+  woodTwo: { color: 0x8a6a4a, rough: .8, tex: 'wood', side: DoubleSide, rim: false },
   bark: { color: 0x4a3a2c, rough: 1, rim: false },
   iron: { color: 0x5a5a62, rough: .45, metal: .7, rim: false },
   gold: { color: 0xd8a040, rough: .3, metal: .9, rim: false },

@@ -1,9 +1,9 @@
-import { openChest, unlockDoor } from './combat';
+import { BARREL_R, BARREL_REACH, breakBarrel, openChest, unlockDoor } from './combat';
 import { PI, pick, wrapA } from '../core/math';
 import { G } from '../game/state';
 import { DX8, DZ8, T } from '../world/consts';
 import { buildPath, clearLine, fieldAt, navOK } from '../world/nav';
-import type { Exit, Goal, Hero, Monster, Pickup, Trap } from '../game/types';
+import type { Barrel, Exit, Goal, Hero, Monster, Pickup, Trap } from '../game/types';
 import { findBelt, storeTarget, type Item } from '../rules/inventory';
 import type { PotionId } from '../rules/potions';
 import { POTIONS } from '../rules/potions';
@@ -82,13 +82,13 @@ export const canCollect = (h: Hero, p: Pickup): boolean => p.kind === 'coin' || 
 /** Sets the AUTO goal; a different goal (by kind, tile and, for monsters, identity) resets the path and goal timer. */
 function setGoal(goal: Goal): void {
   const h = G.hero;
-  const key = goal.kind + ':' + goal.tx + ',' + goal.tz + (goal.kind === 'mon' ? ':' + G.L.monsters.indexOf(goal.ref) : '');
+  const key = goal.kind + ':' + goal.tx + ',' + goal.tz + (goal.kind === 'mon' ? ':' + G.L.monsters.indexOf(goal.ref) : goal.kind === 'barrel' ? ':' + G.L.barrels.indexOf(goal.ref) : '');
   if (h.goalKey !== key) { h.goalKey = key; h.goalT = 0; h.path = null; }
   h.goal = goal;
 }
 /**
  * Priority: own grave (SPEC §14, fending off only monsters right next to the hero) > nearby monster > pickup >
- * locked door (if key and most rooms seen) > nearest chest/unvisited room > door > stairs > wander.
+ * locked door (if key and most rooms seen) > nearest chest/barrel/unvisited room > door > stairs > wander.
  */
 const exitGoal = (e: Exit): Goal => ({ kind: 'exit', ref: e, tx: e.tx, tz: e.tz });
 
@@ -126,9 +126,10 @@ function chooseGoal(): void {
   if (pk) return setGoal({ kind: 'pick', ref: pk, tx: Math.round(pk.x / T), tz: Math.round(pk.z / T) });
   const door = L.lockedDoor, doorGoal: Goal | null = door && { kind: 'door', ref: door, tx: door.tx, tz: door.tz };
   if (doorGoal && L.locked && h.key && L.rooms.filter(r => r.visited).length >= L.rooms.length * .6) return setGoal(doorGoal);
-  // explore: nearest unopened chest or unvisited room, whichever is closer by path
+  // explore: nearest unopened chest, intact barrel or unvisited room, whichever is closer by path
   let ex: Goal | null = null; bd = 1e9;
   for (const c of L.chests) { if (c.open) continue; const fd = fieldAt(c.x, c.z); if (fd < bd) { bd = fd; ex = { kind: 'chest', ref: c, tx: Math.round(c.x / T), tz: Math.round(c.z / T) }; } }
+  for (const b of L.barrels) { if (b.broken) continue; const fd = fieldAt(b.x, b.z), at = fd < bd ? standCell(b) : null; if (at) { bd = fd; ex = { kind: 'barrel', ref: b, tx: at[0], tz: at[1] }; } }
   for (const r of L.rooms) {
     if (r.visited) continue; let tx = r.cx, tz = r.cy;
     if (!navOK(tz * L.W + tx)) { outer: for (let z = r.y; z < r.y + r.h; z++) for (let x = r.x; x < r.x + r.w; x++) if (navOK(z * L.W + x)) { tx = x; tz = z; break outer; } }
@@ -141,6 +142,24 @@ function chooseGoal(): void {
   // fallback: wander to a random room
   const r = pick(L.rooms.filter(r => r !== L.stairsRoom)); r.visited = false;
   return setGoal({ kind: 'room', ref: r, tx: r.cx, tz: r.cy });
+}
+/**
+ * Where AUTO stands to break a barrel: the reachable cell beside the barrel's own cell that is nearest by the walk
+ * there plus the reach to the barrel, sides before corners (the way past a corner may be blocked by a neighbouring
+ * prop). Null when none is reachable.
+ */
+function standCell(b: Barrel): [number, number] | null {
+  const L = G.L, cx = Math.round(b.x / T), cz = Math.round(b.z / T);
+  let best: [number, number] | null = null, bs = Infinity;
+  for (let k = 0; k < 8; k++) {
+    const x = cx + DX8[k], z = cz + DZ8[k];
+    if (x < 0 || z < 0 || x >= L.W || z >= L.H) continue;
+    const i = z * L.W + x;
+    if (!navOK(i) || !(L.dist[i] < Infinity)) continue;
+    const s = L.dist[i] * T + Math.hypot(x * T - b.x, z * T - b.z) + (DX8[k] && DZ8[k] ? 1 : 0);
+    if (s < bs) { bs = s; best = [x, z]; }
+  }
+  return best;
 }
 /** True while a trap tile is (about to be) dangerous to step on. */
 function trapUnsafe(tr: Trap): boolean {
@@ -186,6 +205,16 @@ export function heroAuto(dt: number): AutoOut {
     direct = Math.hypot(gx - h.x, gz - h.z) < 5 && clearLine(h.x, h.z, gx, gz, h.r);
   }
   else if (g.kind === 'chest') { if (g.ref.open) { h.aiT = 0; return out; } arrive = 1.35; if (Math.hypot(g.ref.x - h.x, g.ref.z - h.z) < 1.3) return out; if (h.goalT > 25) openChest(g.ref); }
+  else if (g.kind === 'barrel') {
+    // walk up to it, turn and strike; give up on it (break it) after 25 s like a chest
+    if (g.ref.broken) { h.aiT = 0; return out; }
+    const bx = g.ref.x - h.x, bz = g.ref.z - h.z;
+    if (Math.hypot(bx, bz) < h.r + BARREL_R + BARREL_REACH - .05) { out.face = Math.atan2(bx, bz); out.atk = Math.abs(wrapA(out.face - h.face)) < .7; return out; }
+    // on or just past the cell beside it (chosen by standCell): straight at it. The wide radius keeps AUTO from
+    // flipping back to the cell's centre as it squeezes between props toward the barrel.
+    if (Math.hypot(gx - h.x, gz - h.z) < 1.6) { gx = g.ref.x; gz = g.ref.z; direct = true; }
+    arrive = .1; if (h.goalT > 25) breakBarrel(g.ref);
+  }
   else if (g.kind === 'room') { if (g.ref.visited) { h.aiT = 0; return out; } if (h.goalT > 30) g.ref.visited = true; }
   else if (g.kind === 'door') { if (Math.hypot(gx - h.x, gz - h.z) < 2.1) return out; if (h.goalT > 30) unlockDoor(); }
   let tx: number, tz: number;

@@ -87,3 +87,20 @@ export function monsterDrops(rng: Rng, mlvl: number, depth: number, ctx: LootCtx
 
 /** Chests: their gold plus, half the time [OURS], one item at D1's chest ilvl of 2·depth. */
 export const CHEST_ITEM_CHANCE = 0.5;
+
+/**
+ * D1 barrels (devilution `AddBarrel`/`BreakBarrel`, SPEC §6.3): one in five holds something. A third of those hold
+ * a "useful" item: a healing or mana potion, or from depth 2 a Town Portal scroll a third of the time. The rest hold
+ * a random drop at D1's object ilvl of 2·depth: gold three times in four, otherwise an item.
+ */
+export const BARREL_LOOT = 0.2, BARREL_USEFUL = 1 / 3, BARREL_GOLD = 0.75;
+
+export function barrelDrops(rng: Rng, depth: number, ctx: LootCtx): Drop[] {
+  if (rng() >= BARREL_LOOT) return [];
+  if (rng() < BARREL_USEFUL) {
+    const potion = newPotion(rng() < .5 ? 'heal' : 'mana');
+    return [{ kind: 'item', item: depth > 1 && rng() < 1 / 3 ? newScroll('town_portal') : potion }];
+  }
+  if (rng() < BARREL_GOLD) return [{ kind: 'gold', amount: goldAmount(rng, 2 * depth) }];
+  return [{ kind: 'item', item: rollItem(rng, 2 * depth, depth, ctx) }];
+}

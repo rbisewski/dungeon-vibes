@@ -750,6 +750,17 @@ Notes:
 - Pickups may fly out of a prop (chest loot starts inside the chest) but not into one. One that still ends up inside a prop can be collected from 1.4 m instead of 0.55 m. AUTO gives up on a pickup it has not reached after 8 s.
 - The starting kit is equipped: Short Sword and Buckler, a Club in the backpack, two Potions of Healing on the belt (D1 Warrior kit).
 
+**Breakable barrels [USER, after Phase 12]** (D1, devilution `AddBarrel`/`BreakBarrel`)
+- Every barrel in the dungeon breaks from any blow: a melee swing (every barrel in the arc), an arrow or bolt that strikes its cluster (the barrel nearest the impact), a fireball's blast (every barrel in it), or the end of a lightning bolt. Town barrels are scenery.
+- **Contents (D1 rates):** one barrel in five holds something.
+  - A third of those: a Potion of Healing or Mana (even odds); from depth 2, a Scroll of Town Portal a third of the time instead.
+  - The rest: a random drop at `ilvl = 2·depth`, gold three times in four (a normal gold pile at that level), otherwise an item through the normal pipeline above.
+  - [OURS] D1 rolls the contents when the barrel is created; ours rolls them when it breaks, so level generation draws no extra numbers and existing saves rebuild their levels unchanged. The odds are the same.
+- **Not ported:** D1's skeletons that climb out of one barrel in five, and its explosive barrels (about one in four or five).
+- **Looks:** the barrel bursts into splinters and dust with a wooden crack. Its remains stay: the lower staves snapped at jagged heights, the bottom hoop, loose staves and a hoop on the floor.
+- **Movement:** a cell holding only barrels stops blocking once they are all broken; a cell shared with a crate keeps blocking.
+- **Manual play:** Space with no monster within reach turns to the nearest barrel within 2 m and swings.
+
 ### 6.4 Identification [USER]
 
 - **Normal items never need identifying.**
@@ -1350,7 +1361,7 @@ Saved to `localStorage['dv.save.v3']`. There are up to 6 character slots:
 
 **As implemented in Phase 10** [OURS unless noted]
 - **Format:** each character stores its `runSeed` (every level's seed derives from it, §12.1) instead of per-level seeds. It also stores the hero's position, life and mana, so a reload continues mid-level. The town and stash parts of the format arrive with Phase 11.
-- **Level delta:** floor items and gold (oldest normal-quality items dropped first beyond 200), grave piles, killed generated monsters (by spawn order in generation), opened chests and bookshelves, disarmed traps, the unlocked door, and visited rooms. Living monsters come back at full health where they were generated; monsters added later (boss summons, hatchlings, slime splits) are not saved.
+- **Level delta:** floor items and gold (oldest normal-quality items dropped first beyond 200), grave piles, killed generated monsters (by spawn order in generation), opened chests and bookshelves, broken barrels (absent in older saves, read as none), disarmed traps, the unlocked door, and visited rooms. Living monsters come back at full health where they were generated; monsters added later (boss summons, hatchlings, slime splits) are not saved.
 - **When:** at the end of the descend and death transitions, every 30 s of game time, on Save and Quit, and when the page is hidden or closed (`pagehide`, `visibilitychange`), so a reload loses nothing.
 - **Title screen:** on start-up it lists the characters, last played first. Up/Down choose, Enter continues, N starts a new character (class select, disabled at 6), Delete asks to confirm with Y. With no characters the game opens class select directly; Esc in class select goes back to the title.
 - **Game menu (Esc):** Resume, Damage Numbers on/off, Sound on/off, Save and Quit to Title. It pauses like every panel. Settings live in `localStorage['dv.settings']`, apart from characters.
@@ -1492,6 +1503,7 @@ AUTO keeps playing well and never makes the player's decisions.
 |---|---|
 | Pick up gold, potions, scrolls, items | Yes. Items go to the backpack if there is room. Ground items become `pick` goals in `chooseGoal`. |
 | Recover its own grave pile | Yes, top priority after respawning |
+| Break barrels | Yes. An intact barrel counts like an unopened chest when AUTO chooses where to explore. AUTO walks to the reachable cell beside it (nearest by walk plus reach, sides before corners), then straight at it, and swings. It breaks the barrel anyway after 25 s, as with a chest. |
 | Drink from the belt | Yes. Healing below 50 % life [OURS, Phase 9; was 35 %]; Full Healing first below 20 %. A Mage drinks mana below 25 % mana. The belt comes first, then the backpack [OURS, Phase 9]: a belt full of mana potions used to hide every Healing potion from a Warrior or Thief. |
 | Fight in the class style | **Warrior:** melee, as today. **Thief with a bow:** keeps 4–7 m from the target, steps back when a monster closes within 3 m, and fires when the target is in the aim cone. **Mage:** casts the readied attack spell whenever mana allows, kites like the Thief, and only uses melee when out of mana. |
 | Cast the readied spell | Yes, if it is an attack spell and a target is in range. The Warrior and Thief need mana above 50 % first; the Mage needs only enough mana for the cast. It casts Healing if that is readied and life is below 35 % with no healing potions left. It never casts Fire Wall, Phasing, Stone Curse, or Identify. |

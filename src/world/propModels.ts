@@ -27,6 +27,39 @@ export function barrel(k: Kit, seed: number): void {
   k.ball('dark', [.08, .852, .06], [.03, .01, .03], { seg: 8 });
 }
 
+/**
+ * A broken barrel's remains: the lower staves snapped at jagged heights (a few gone, both sides showing), the
+ * bottom planks and lowest hoop, and loose staves and a hoop thrown on the floor around it.
+ */
+export function barrelBroken(k: Kit, seed: number): void {
+  // the barrel's profile cut off at height h
+  const upTo = (h: number): V2[] => {
+    const out: V2[] = [];
+    for (let j = 0; j < BARREL.length; j++) {
+      const [r, y] = BARREL[j];
+      if (y < h) { out.push([r, y]); continue; }
+      const [r0, y0] = BARREL[j - 1];
+      out.push([r0 + (r - r0) * (h - y0) / (y - y0), h]);
+      break;
+    }
+    return out;
+  };
+  const n = 14;
+  for (let i = 0; i < n; i++) {
+    if (hash(seed * 31 + i + 7) < .2) continue;
+    const h = .1 + hash(seed * 17 + i) ** 1.6 * .4;
+    k.lathe('woodTwo', upTo(h), { arc: [i / n * PI * 2 + .012, PI * 2 / n - .024], seg: 2, tint: .78 + hash(seed * 31 + i) * .34, fade: .3 });
+  }
+  k.add('woodDark', new THREE.CircleGeometry(.31, 14), { rot: [-PI / 2, 0, 0], at: [0, .05, 0], tint: .55 });
+  k.lathe('iron', [[.334, .066], [.344, .09], [.334, .114]], { seg: 18 });
+  for (let j = 0; j < 4; j++) {
+    const a = hash(seed * 5 + j) * PI * 2, d = .52 + hash(seed * 9 + j) * .3, len = .25 + hash(seed * 3 + j) * .3;
+    k.box('wood', [.11, .022, len], { at: [Math.sin(a) * d, .011, Math.cos(a) * d], rot: [0, a + (hash(seed + j) - .5) * 2, 0], tint: .7 + hash(seed * 13 + j) * .3 });
+  }
+  const a = hash(seed + 40) * PI * 2;
+  k.ring('iron', .33, .012, { at: [Math.sin(a) * .62, .02, Math.cos(a) * .62], rot: [PI / 2 - .12, 0, .1], seg: 4 });
+}
+
 /** A planked crate (unit cube, origin at the bottom centre): frame boards on every edge, a brace, iron corner caps. */
 export function crate(k: Kit, seed: number): void {
   k.box('woodDark', [.94, .94, .94], { at: [0, .5, 0], tint: .5 });

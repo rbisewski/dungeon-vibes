@@ -86,7 +86,7 @@ function newLevel(lay: Layout, depth: number, lockedDoor: Door | null, group: TH
   const L: Level = {
     ...lay, depth, group,
     navBlock: new Uint8Array(lay.N), trap: new Int16Array(lay.N).fill(-1), propAt: new Array(lay.N).fill(null), dist: new Float64Array(lay.N),
-    traps: [], doors: [], chests: [], monsters: [], pickups: [], spellFx: [], arrows: [], graves: [], descendWarned: false, families: depth ? pickFamilies(R, depth) : [], shots: [], hazards: [], bossRunes: [], debris: [], decals: [], lights: [], flames: [], pillars: [], runes: [], moons: [],
+    traps: [], doors: [], chests: [], barrels: [], monsters: [], pickups: [], spellFx: [], arrows: [], graves: [], descendWarned: false, families: depth ? pickFamilies(R, depth) : [], shots: [], hazards: [], bossRunes: [], debris: [], decals: [], lights: [], flames: [], pillars: [], runes: [], moons: [],
     disposeGeo: [], disposeInst: [], disposeMat: [], locked: !!lockedDoor, fieldT: 0, killsHere: 0, killedGen: new Set(),
     startIdx: lay.startRoom.cy * lay.W + lay.startRoom.cx,
     stairs: { tx: sr.cx, tz: sr.cy, x: sr.cx * T, z: sr.cy * T },

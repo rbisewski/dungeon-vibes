@@ -7,7 +7,7 @@ import { SK } from './propKit';
 import { barrel, crate, hash } from './propModels';
 
 /** Which of two colourings a prop at (x, z) gets; from its position, so level generation draws no extra numbers. */
-const variant = (x: number, z: number): number => hash(Math.floor(x * 7.3 + z * 13.1)) < .5 ? 0 : 1;
+export const variant = (x: number, z: number): number => hash(Math.floor(x * 7.3 + z * 13.1)) < .5 ? 0 : 1;
 
 /** A barrel (two stave colourings), turned at random. */
 export function propBarrel(x: number, z: number): void { const v = variant(x, z); SK(`barrel${v}`, k => barrel(k, v), x, 0, z, R() * TAU); }

@@ -10,7 +10,7 @@ import { fxNorm } from '../render/particles';
 import { CLASS } from '../rules/classes';
 import { arrowHitChance, roll, rollDamage } from '../rules/combat';
 import { circleBlocked } from '../world/nav';
-import { damageMonster, missMonster } from './combat';
+import { damageMonster, hitBarrel, missMonster } from './combat';
 import { findTarget } from './spells';
 
 /** World speed of a D1 arrow speed of 32 [OURS]. */
@@ -58,6 +58,8 @@ export function updateArrows(dt: number): void {
     a.x += a.dx * a.speed * dt; a.z += a.dz * a.speed * dt;
     a.mesh.position.x = a.x; a.mesh.position.z = a.z;
     let done = a.flight > LIFE || circleBlocked(a.x, a.z, .06, true);
+    // an arrow stopped by a barrel cluster breaks the barrel it struck
+    if (done && a.flight <= LIFE) hitBarrel(a.x, a.z, .5);
     if (done && a.flight <= LIFE) for (let k = 0; k < 4; k++) fxNorm.spawn(a.x, 1, a.z, rr(-1, 1), rr(.5, 1.5), rr(-1, 1), rr(.3, .5), .3, .25, .2, .04, 9, 1, 1);
     for (const m of L.monsters) {
       if (done) break;

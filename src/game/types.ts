@@ -33,6 +33,12 @@ export interface LightSrc { x: number; y: number; z: number; base: number; cold:
 export interface FlameSpec { x: number; y: number; z: number; s: number; seed: number }
 export interface PropBlock { x: number; z: number; r: number }
 
+/**
+ * A breakable dungeon barrel (SPEC §6.3). `whole` is the intact model, hidden once broken. `tile`: the cell its
+ * cluster blocks, freed once every barrel on it is broken; -1 when a crate shares the cell.
+ */
+export interface Barrel { g: THREE.Group; whole: THREE.Group; x: number; z: number; v: number; tile: number; broken: boolean }
+
 export interface Chest {
   g: THREE.Group; lid: THREE.Group; glow: THREE.Sprite | null;
   open: boolean; t: number; x: number; z: number; isKey: boolean; gold: number; /** Rolled at creation: the chest also holds an item. */ hasItem: boolean;
@@ -68,7 +74,7 @@ export interface Level extends Layout {
   trap: Int16Array;
   propAt: (PropBlock | null)[];
   dist: Float64Array;
-  traps: Trap[]; doors: Door[]; chests: Chest[]; monsters: Monster[]; pickups: Pickup[];
+  traps: Trap[]; doors: Door[]; chests: Chest[]; barrels: Barrel[]; monsters: Monster[]; pickups: Pickup[];
   /** Live spell effects: missiles, flame jets and fire walls. */
   spellFx: SpellFx[];
   arrows: Arrow[];
@@ -199,11 +205,12 @@ export type Monster = MonsterCommon & (
   | ({ type: 'eggsac' } & EggParts)
 );
 
-export type GoalKind = 'mon' | 'pick' | 'chest' | 'room' | 'door' | 'exit';
+export type GoalKind = 'mon' | 'pick' | 'chest' | 'barrel' | 'room' | 'door' | 'exit';
 export type Goal =
   | { kind: 'mon'; ref: Monster; tx: number; tz: number }
   | { kind: 'pick'; ref: Pickup; tx: number; tz: number }
   | { kind: 'chest'; ref: Chest; tx: number; tz: number }
+  | { kind: 'barrel'; ref: Barrel; tx: number; tz: number }
   | { kind: 'room'; ref: Room; tx: number; tz: number }
   | { kind: 'door'; ref: Door; tx: number; tz: number }
   | { kind: 'exit'; ref: Exit; tx: number; tz: number };

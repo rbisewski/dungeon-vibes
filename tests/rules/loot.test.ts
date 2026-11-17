@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../../src/core/rng';
 import { BASES } from '../../src/rules/bases';
-import { eligibleBases, goldAmount, monsterDrops, MONSTER_GOLD, MONSTER_ITEM, rollItem } from '../../src/rules/loot';
+import { barrelDrops, BARREL_GOLD, BARREL_LOOT, BARREL_USEFUL, eligibleBases, goldAmount, monsterDrops, MONSTER_GOLD, MONSTER_ITEM, rollItem } from '../../src/rules/loot';
 
 describe('monsterDrops', () => {
   it('matches D1 rates over 10 000 kills: ~30.3 % gold, ~10.7 % item', () => {
@@ -25,6 +25,35 @@ describe('monsterDrops', () => {
       if (d.length) gold++;
     }
     expect(gold / N).toBeCloseTo(MONSTER_GOLD, 1);
+  });
+});
+
+describe('barrelDrops', () => {
+  const tally = (depth: number, seed: number) => {
+    const rng = mulberry32(seed), N = 30000, n = { gold: 0, useful: 0, portal: 0, other: 0 };
+    for (let i = 0; i < N; i++) {
+      const d = barrelDrops(rng, depth, { found: new Set() });
+      expect(d.length).toBeLessThanOrEqual(1);
+      if (!d.length) continue;
+      if (d[0].kind === 'gold') n.gold++;
+      else if (d[0].item.kind === 'scroll' && d[0].item.spell === 'town_portal') n.portal++;
+      else if (d[0].item.kind === 'potion' && (d[0].item.potion === 'heal' || d[0].item.potion === 'mana')) n.useful++;
+      else n.other++;
+    }
+    return { any: (n.gold + n.useful + n.portal + n.other) / N, gold: n.gold / N, useful: (n.useful + n.portal) / N, portal: n.portal / N };
+  };
+
+  it('matches D1 rates: 20 % hold something; a third of that useful, the rest 75 % gold', () => {
+    const r = tally(3, 21), rest = BARREL_LOOT * (1 - BARREL_USEFUL);
+    expect(r.any).toBeCloseTo(BARREL_LOOT, 2);
+    expect(r.gold).toBeCloseTo(rest * BARREL_GOLD, 2);
+    // the random-item share can roll potions too, so useful items are at least the useful share
+    expect(r.useful).toBeGreaterThan(BARREL_LOOT * BARREL_USEFUL - .006);
+    expect(r.portal).toBeGreaterThan(0);
+  });
+
+  it('never holds a Town Portal scroll on depth 1 (D1)', () => {
+    expect(tally(1, 22).portal).toBe(0);
   });
 });
 

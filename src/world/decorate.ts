@@ -5,8 +5,8 @@ import { gBox, gPlane } from '../render/geometry';
 import { beamMat, grateMat, runeMat } from '../render/materials';
 import { DX8, DZ8, T } from './consts';
 import { tileAt } from './nav';
-import { makeBlade, makeChest, makeDoor, makeShelf, makeSpikes } from './objects';
-import { propBarrel, propBars, propBones, propBrazier, propCobweb, propCrate, propPillar, propPuddle, propRubble, propStairs, sittingSkeleton, wallFace } from './props';
+import { makeBarrel, makeBlade, makeChest, makeDoor, makeShelf, makeSpikes } from './objects';
+import { propBars, propBones, propBrazier, propCobweb, propCrate, propPillar, propPuddle, propRubble, propStairs, sittingSkeleton, wallFace } from './props';
 import type { Axis } from '../game/types';
 
 /** True when every walkable tile is still reachable from the start (used before placing a blocking prop). */
@@ -107,8 +107,10 @@ export function decorate(): void {
       const [x, z] = pick(allEdge); const cx = x * T, cz = z * T;
       if (!block(x, z, cx, cz, .72)) continue; placed++;
       const kind = R();
-      if (kind < .4) { propBarrel(cx - .3, cz - .25); propBarrel(cx + .32, cz + .1); if (R() < .5) propBarrel(cx - .2, cz + .42); }
-      else if (kind < .75) { propCrate(cx - .15, cz - .1); if (R() < .6) propBarrel(cx + .45, cz + .35); }
+      // barrels are breakable (SPEC §6.3); a cell of barrels alone opens up once they are all broken
+      const bar = (px: number, pz: number, tile: number) => G.L.barrels.push(makeBarrel(px, pz, tile));
+      if (kind < .4) { bar(cx - .3, cz - .25, idx(x, z)); bar(cx + .32, cz + .1, idx(x, z)); if (R() < .5) bar(cx - .2, cz + .42, idx(x, z)); }
+      else if (kind < .75) { propCrate(cx - .15, cz - .1); if (R() < .6) bar(cx + .45, cz + .35, -1); }
       else { propCrate(cx, cz, .7); propCrate(cx + .45, cz + .45, .45); }
     }
     if (!hasPillars && !isStairs && !isStart && R() < .45) { for (let k = 0; k < 6; k++) { const x = ri(r.x + 1, r.x + r.w - 2), z = ri(r.y + 1, r.y + r.h - 2); if (block(x, z, x * T, z * T, .45)) { propBrazier(x * T, z * T); break; } } }

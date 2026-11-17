@@ -2,7 +2,7 @@ import { openNpc, openPanel } from '../ui/actions';
 import type { NpcId } from '../game/shops';
 import { glowSprite } from '../render/geometry';
 import type * as THREE from 'three';
-import { damageMonster, loseLife, missMonster, openChest, unlockDoor } from './combat';
+import { BARREL_R, BARREL_REACH, breakBarrel, damageMonster, loseLife, missMonster, openChest, unlockDoor } from './combat';
 import { fxAdd } from '../render/particles';
 import { drinkFromBelt, drinkPotion, recompute, startingInventory } from './heroStats';
 import { meleeHitChance, rollDamage, roll } from '../rules/combat';
@@ -22,7 +22,7 @@ import { PI, R, clamp, damp, lerp, rr, wrapA } from '../core/math';
 import { G, addShake } from '../game/state';
 import { trailMat } from '../render/materials';
 import { T } from '../world/consts';
-import type { Hero, Monster } from '../game/types';
+import type { Barrel, Hero, Monster } from '../game/types';
 import { buildHero } from './models/heroModel';
 import { bowAim, fireArrow } from './arrows';
 
@@ -70,6 +70,14 @@ function heroHitCheck(): void {
     h.mana = Math.min(h.d.maxMana, h.mana + hit.dmg * h.d.manaSteal / 100);
     any = true; crit ||= hit.crit;
   }
+  // D1: any blow breaks a barrel.
+  for (const b of G.L.barrels) {
+    if (b.broken) continue;
+    const dx = b.x - h.x, dz = b.z - h.z, d = Math.hypot(dx, dz);
+    if (d > h.r + BARREL_R + BARREL_REACH) continue;
+    if (Math.abs(wrapA(Math.atan2(dx, dz) - h.face)) > 1.5 && d > h.r + BARREL_R + .2) continue;
+    breakBarrel(b); any = true;
+  }
   if (any) { G.hitstop = crit ? .11 : .055; addShake(crit ? .4 : .22); }
 }
 /** What the hero stood by last step: the stash, someone in town, or nothing. */
@@ -105,7 +113,9 @@ export function updateHero(dt: number): void {
   let mx: number, mz: number, atk: boolean, faceT: number | null = null;
   if (manual) {
     mx = inp.mx; mz = inp.mz; atk = inp.atk; h.goal = null; h.path = null;
-    if (atk && !mx && !mz) { let bm: Monster | null = null, bd = 2.8; for (const m of G.L.monsters) { if (m.dead || m.rise > 0) continue; const d = Math.hypot(m.x - h.x, m.z - h.z); if (d < bd) { bd = d; bm = m; } } if (bm) faceT = Math.atan2(bm.x - h.x, bm.z - h.z); }
+    if (atk && !mx && !mz) { let bm: Monster | null = null, bd = 2.8; for (const m of G.L.monsters) { if (m.dead || m.rise > 0) continue; const d = Math.hypot(m.x - h.x, m.z - h.z); if (d < bd) { bd = d; bm = m; } } if (bm) faceT = Math.atan2(bm.x - h.x, bm.z - h.z);
+      // no monster in reach: turn to the nearest barrel instead
+      else { let bb: Barrel | null = null; bd = 2; for (const b of G.L.barrels) { if (b.broken) continue; const d = Math.hypot(b.x - h.x, b.z - h.z); if (d < bd) { bd = d; bb = b; } } if (bb) faceT = Math.atan2(bb.x - h.x, bb.z - h.z); } }
   } else { const o = heroAuto(dt); mx = o.mx; mz = o.mz; atk = o.atk; faceT = o.face; }
   for (const slot of takeBeltPresses()) {
     if (h.inv.belt[slot]?.kind === 'scroll') readScroll({ belt: slot });

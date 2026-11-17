@@ -15,7 +15,7 @@ import { toast } from '../ui/store';
 import { T } from '../world/consts';
 import { collect } from '../world/groundItems';
 import { circleBlocked, isStairs, navOK } from '../world/nav';
-import { damageHero, damageMonster, missMonster, openChest } from './combat';
+import { BARREL_R, breakBarrel, damageHero, damageMonster, hitBarrel, missMonster, openChest } from './combat';
 
 /** Fraction of the class cast time at which the spell is released [OURS]. */
 const RELEASE = .4;
@@ -164,6 +164,7 @@ function lightningLine(h: Hero, c: Caster, aim: number): Set<Monster> {
   while (len < SPELLS.lightning.range && !circleBlocked(h.x + dx * (len + .3), h.z + dz * (len + .3), .05, true)) len += .3;
   const ex = h.x + dx * len, ez = h.z + dz * len, hit = new Set<Monster>();
   bolt(h.x + dx * .4, h.z + dz * .4, ex, ez);
+  hitBarrel(ex, ez, .5);
   for (const m of G.L.monsters) {
     if (m.dead || m.rise > 0) continue;
     const t = (m.x - h.x) * dx + (m.z - h.z) * dz;
@@ -258,6 +259,7 @@ function explode(x: number, z: number, c: Caster): void {
   SFX.fireWhoosh(); addShake(.3); impact(x, .8, z, 0xff8030, 2.6);
   for (let k = 0; k < 50; k++) { const a = R() * TAU, s = rr(1, 5); fxAdd.spawn(x, .8, z, Math.cos(a) * s, rr(.5, 4), Math.sin(a) * s, rr(.4, .8), 2, .9, .3, rr(.06, .11), 4, 1, 2); }
   for (const m of G.L.monsters) if (!m.dead && m.rise <= 0 && Math.hypot(m.x - x, m.z - z) < 1.6 + m.r) spellHit(m, 'fireball', c, m.x - x, m.z - z);
+  for (const b of G.L.barrels) if (!b.broken && Math.hypot(b.x - x, b.z - z) < 1.6 + BARREL_R) breakBarrel(b);
 }
 
 function updateMissile(f: Extract<SpellFx, { kind: 'missile' }>, dt: number, c: Caster): boolean {
@@ -267,7 +269,7 @@ function updateMissile(f: Extract<SpellFx, { kind: 'missile' }>, dt: number, c: 
   if (f.light) { f.light.x = f.x; f.light.z = f.z; }
   const hex = COLOR[f.spell] ?? 0xffffff, r = (hex >> 16 & 255) / 160, g = (hex >> 8 & 255) / 160, b = (hex & 255) / 160;
   for (let k = 0; k < 2; k++) fxAdd.spawn(f.x + rr(-.08, .08), f.sprite.position.y + rr(-.08, .08), f.z + rr(-.08, .08), rr(-.3, .3), rr(0, .6), rr(-.3, .3), rr(.15, .35), r, g, b, rr(.04, .07), 0, 1, 2);
-  if (circleBlocked(f.x, f.z, .12, true)) { if (f.spell === 'fireball') explode(f.x, f.z, c); else impact(f.x, 1, f.z, COLOR[f.spell] ?? 0xffffff, .9); return false; }
+  if (circleBlocked(f.x, f.z, .12, true)) { if (f.spell === 'fireball') explode(f.x, f.z, c); else { impact(f.x, 1, f.z, COLOR[f.spell] ?? 0xffffff, .9); hitBarrel(f.x, f.z, .5); } return false; }
   for (const m of G.L.monsters) {
     if (m.dead || m.rise > 0 || Math.hypot(m.x - f.x, m.z - f.z) > m.r + .3) continue;
     if (f.spell === 'fireball') explode(f.x, f.z, c);

@@ -7,14 +7,15 @@ import { MAT } from '../render/materials';
 import { fxAdd, fxNorm, impact } from '../render/particles';
 import { CLASS } from '../rules/classes';
 import { blockChance, monsterHitChance, roll, staggers } from '../rules/combat';
-import { monsterDrops, rollBookSpell, rollItem } from '../rules/loot';
+import { barrelDrops, monsterDrops, rollBookSpell, rollItem } from '../rules/loot';
 import { bossDrops } from '../rules/bosses';
 import { eliteDrops } from '../rules/elites';
 import { newBook } from '../rules/inventory';
 import { spawnDrops, spawnGold, spawnItem } from '../world/groundItems';
 import { toast } from '../ui/store';
 import { computeField } from '../world/nav';
-import type { Chest, Monster } from '../game/types';
+import type { Barrel, Chest, Monster } from '../game/types';
+import { setBroken } from '../world/objects';
 import { awardKill, recompute } from './heroStats';
 import { spawnMonster } from './monsters';
 
@@ -164,6 +165,28 @@ function killMonster(m: Monster, nx: number, nz: number, byHero: boolean): void 
   }
   if (m.boss) toast(`${m.boss.name.toUpperCase()} FALLS`);
 }
+/**
+ * A barrel's footprint, and how far past the hero's and the barrel's sides a swing reaches it: a little more than a
+ * monster, so barrels wedged between a crate and a wall stay in reach.
+ */
+export const BARREL_R = .36, BARREL_REACH = 1.1;
+
+/** Smashes a barrel (D1: any hit breaks it): splinters and dust, then its loot (SPEC §6.3). */
+export function breakBarrel(b: Barrel): void {
+  if (b.broken) return;
+  setBroken(b); SFX.barrel(); addShake(.12);
+  for (let k = 0; k < 26; k++) { const a = R() * PI * 2, s = rr(1, 3.4); fxNorm.spawn(b.x + Math.sin(a) * .2, rr(.2, .8), b.z + Math.cos(a) * .2, Math.sin(a) * s, rr(1.5, 4), Math.cos(a) * s, rr(.7, 1.3), .42, .28, .16, rr(.04, .08), 12, .3, 1); }
+  for (let k = 0; k < 10; k++) fxNorm.spawn(b.x + rr(-.3, .3), rr(.1, .6), b.z + rr(-.3, .3), rr(-.4, .4), rr(.2, .7), rr(-.4, .4), rr(.8, 1.4), .32, .28, .24, rr(.12, .2), -.2, 1.5, 0);
+  spawnDrops(barrelDrops(R, G.L.depth, G.loot), b.x, b.z);
+}
+
+/** Breaks the intact barrel nearest (x, z) within `reach` of its side (a projectile stopped by a barrel cluster). */
+export function hitBarrel(x: number, z: number, reach: number): void {
+  let best: Barrel | null = null, bd = reach + BARREL_R;
+  for (const b of G.L.barrels) { if (b.broken) continue; const d = Math.hypot(b.x - x, b.z - z); if (d < bd) { bd = d; best = b; } }
+  if (best) breakBarrel(best);
+}
+
 export function openChest(c: Chest): void {
   if (c.open) return; c.open = true; SFX.chest();
   for (let k = 0; k < 24; k++) fxAdd.spawn(c.x, .6, c.z, rr(-1, 1), rr(1.5, 3.5), rr(-1, 1), rr(.6, 1.2), 1.6, 1.1, .35, rr(.04, .08), 4, .5, 1);

@@ -35,6 +35,8 @@ export const SFX = {
     else Snd.tone({ wave: 'sawtooth', f: 2200, f2: 500, dur: .25, gain: .04 * v });
   },
   coin() { Snd.tone({ wave: 'square', f: 1318, dur: .05, gain: .045, rev: .2 }); Snd.tone({ wave: 'square', f: 1760, dur: .16, gain: .045, delay: .06, rev: .2 }); },
+  /** A barrel bursting: a wooden crack, a thump, staves clattering down. */
+  barrel() { Snd.noise({ type: 'bandpass', f: 1100, f2: 300, q: 1.1, dur: .2, gain: .45 }); Snd.noise({ type: 'lowpass', f: 320, dur: .16, gain: .5, delay: .015 }); Snd.tone({ wave: 'triangle', f: 170, f2: 80, dur: .14, gain: .07 }); for (let k = 0; k < 4; k++) Snd.noise({ type: 'bandpass', f: rr(700, 1600), q: 4, dur: .05, gain: .18, delay: .12 + k * rr(.05, .09) }); },
   chest() { Snd.tone({ wave: 'sawtooth', f: 110, f2: 170, dur: .4, gain: .04 }); Snd.noise({ type: 'lowpass', f: 300, dur: .15, gain: .35, delay: .35 }); },
   key() { [880, 1108, 1318, 1760].forEach((f, i) => Snd.tone({ wave: 'triangle', f, dur: .22, gain: .06, delay: i * .08, rev: .5 })); },
   unlock() { Snd.tone({ wave: 'triangle', f: 2200, dur: .04, gain: .08 }); Snd.tone({ wave: 'triangle', f: 1600, dur: .05, gain: .08, delay: .09 }); Snd.noise({ type: 'lowpass', f: 220, dur: .3, gain: .55, delay: .16 }); Snd.tone({ wave: 'sawtooth', f: 85, f2: 140, dur: .8, gain: .05, delay: .3 }); },

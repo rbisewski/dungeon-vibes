@@ -6,10 +6,11 @@ import { GEO, gBox, gCone, gSph, glowSprite, mesh } from '../render/geometry';
 import { MAT } from '../render/materials';
 import { part } from '../actors/models/kit';
 import { PROPS } from './propKit';
-import { chestBody, chestLid } from './propModels';
+import { barrel, barrelBroken, chestBody, chestLid } from './propModels';
+import { variant } from './props';
 import { T } from './consts';
 import { CHEST_ITEM_CHANCE } from '../rules/loot';
-import type { Axis, Chest, Door, Trap } from '../game/types';
+import type { Axis, Barrel, Chest, Door, Trap } from '../game/types';
 
 export function makeChest(x: number, z: number, ry: number, isKey: boolean): Chest {
   const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry;
@@ -21,6 +22,26 @@ export function makeChest(x: number, z: number, ry: number, isKey: boolean): Che
   let glow: THREE.Sprite | null = null; if (isKey) glow = glowSprite(0xffc060, 1.2, g, 0, .7, 0);
   G.L.group.add(g);
   return { g, lid, glow, open: false, t: 0, x, z, isKey, gold: ri(6, 18), hasItem: R() < CHEST_ITEM_CHANCE, shelf: false };
+}
+
+/**
+ * A breakable barrel (SPEC §6.3) on cell `tile` (-1: its cell also holds a crate). Its turn draws one number from the
+ * level's stream, as the static barrel prop did, so levels generate as before.
+ */
+export function makeBarrel(x: number, z: number, tile: number): Barrel {
+  const v = variant(x, z), g = new THREE.Group(), whole = new THREE.Group();
+  g.position.set(x, 0, z); g.rotation.y = R() * TAU; g.add(whole);
+  part(whole, `barrel${v}`, k => barrel(k, v), PROPS);
+  G.L.group.add(g);
+  return { g, whole, x, z, v, tile, broken: false };
+}
+
+/** Swaps a barrel for its remains; once its whole cluster is broken, its cell no longer blocks. No effects or loot. */
+export function setBroken(b: Barrel): void {
+  b.broken = true; b.whole.visible = false;
+  part(b.g, `barrelBroken${b.v}`, k => barrelBroken(k, b.v), PROPS);
+  const L = G.L;
+  if (b.tile >= 0 && L.barrels.every(o => o.tile !== b.tile || o.broken)) { L.propAt[b.tile] = null; L.navBlock[b.tile] = 0; }
 }
 
 const BOOK_COLS = [0x8a2a20, 0x2a3a8a, 0x5a2a7a, 0x2a6a3a, 0x8a6a2a, 0x3a2a1a];
