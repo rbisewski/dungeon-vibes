@@ -41,6 +41,22 @@ export function computeField(): void {
     }
   }
 }
+/**
+ * (x, z) unless it lies in rock (or a closed cell), else the centre of the nearest walkable cell that is not stairs:
+ * for things saved on a level whose layout has since changed (SPEC §12.2).
+ */
+export function openSpot(x: number, z: number): [number, number] {
+  const { W, H, N, tiles } = G.L, s = clamp(Math.round(z / T), 0, H - 1) * W + clamp(Math.round(x / T), 0, W - 1);
+  if (!solidFor(tiles[s], true)) return [x, z];
+  const seen = new Uint8Array(N), queue = [s]; seen[s] = 1;
+  for (let q = 0; q < queue.length; q++) {
+    const c = queue[q];
+    if (navOK(c) && !isStairs(tiles[c])) return [(c % W) * T, ((c / W) | 0) * T];
+    const cx = c % W, cz = (c / W) | 0;
+    for (let k = 0; k < 4; k++) { const nx = cx + DX8[k], nz = cz + DZ8[k], n = nz * W + nx; if (nx >= 0 && nz >= 0 && nx < W && nz < H && !seen[n]) { seen[n] = 1; queue.push(n); } }
+  }
+  return [x, z];
+}
 export function fieldAt(x: number, z: number): number {
   const tx = Math.round(x / T), tz = Math.round(z / T); if (tx < 0 || tz < 0 || tx >= G.L.W || tz >= G.L.H) return Infinity;
   let d = G.L.dist[tz * G.L.W + tx]; if (d < Infinity) return d;

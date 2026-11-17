@@ -1365,6 +1365,45 @@ Saved to `localStorage['dv.save.v3']`. There are up to 6 character slots:
 - **When:** at the end of the descend and death transitions, every 30 s of game time, on Save and Quit, and when the page is hidden or closed (`pagehide`, `visibilitychange`), so a reload loses nothing.
 - **Title screen:** on start-up it lists the characters, last played first. Up/Down choose, Enter continues, N starts a new character (class select, disabled at 6), Delete asks to confirm with Y. With no characters the game opens class select directly; Esc in class select goes back to the title.
 - **Game menu (Esc):** Resume, Damage Numbers on/off, Sound on/off, Save and Quit to Title. It pauses like every panel. Settings live in `localStorage['dv.settings']`, apart from characters.
+- **Layout version [USER, after Phase 12]:** each character stores the generator its level deltas were recorded on (`layout`; absent = 1, the generator before room styles; now 2). A save from an older generator rebuilds its levels with the new layouts and keeps only what lay on the floor there, graves included. Kills, opened chests, broken barrels, disarmed traps, the unlocked door and explored rooms start over; the town keeps everything.
+- **Relocation:** floor items, graves and a Town Portal end restored onto a cell that is now rock move to the centre of the nearest walkable cell (`openSpot`). A hero saved inside rock starts at the start room, as before.
+
+### 12.3 Level layouts and room styles [USER, after Phase 12; choices OURS unless noted]
+
+After D1, whose four dungeon types each had their own generator:
+- **Cathedral:** a spine of large rooms, smaller rooms budding off it, four-pillar chambers and wide halls.
+- **Catacombs:** recursive area splitting.
+- **Caves:** grown and smoothed blobs.
+- **Hell:** mirrored blocks.
+
+Ours mixes room styles within every level instead (`world/layout.ts`).
+
+- **Map:** 52×52 tiles (was 46×46) holding 7–10 rooms (was 6–8), at least 3 tiles apart.
+- **Room styles:**
+
+  | Style | Size (tiles) | Notes |
+  |---|---|---|
+  | `room` | 4–7 × 4–6 | The old rectangle; four pillars when 6 × 5 or larger, 70 % of the time |
+  | `cell` | 3–4 × 3–4 | Never the start room (no space for the up stairs) |
+  | `gallery` | 10–13 × 3–4 | Long and narrow, either way round |
+  | `hall` | 8–11 × 6–8 | D1's pillared chambers: two colonnades, a pillar every 3 tiles |
+  | `lshape` | 6–9 × 6–8 | A corner quadrant removed, leaving arms 3–4 thick |
+  | `cross` | 7–9 × 7–9 | Two crossing bars, 3 thick |
+  | `octagon` | 6–9 square | Corners cut diagonally (by 2, or 3 from 8 tiles); four pillars from 8 tiles |
+  | `cave` | 8–12 × 7–10 | Random fill in an ellipse with a solid core, 3 rounds of a cellular automaton, the largest 4-connected part (≥ 16 cells); rock walls and an earth floor |
+
+- **Mix by depth [USER: "more halls and caves deeper"]:** weights `room 30, cell 12, gallery 10, lshape 12, cross 8, octagon 8, hall 6 + 0.75·d, cave 3 + 1.25·d`, with `d` the depth capped at 16. Every style can appear at any depth. By weight, halls and caves are about 12 % of rooms at depth 1 and 34 % from depth 16.
+- **Stairs room:** always a `room` (at least 5×5), `hall` or `octagon`, so boss arenas keep their space and the locked door's row or column is full. The first room placed is always one of these; the stairs room is the one of them farthest from the start.
+- **Corridors:** as before (A* with turn costs, a minimum spanning tree plus up to 3 extra links), but 35 % of links are dug two tiles wide (D1's halls), always widening on the same side. The locked door's corridor stays narrow. Wooden doors and swinging blades keep to the narrow ones.
+- **Rooms in code:** a room keeps its bounding box and gains its style (`shape`) and floor `cells`; its centre (`cx`, `cy`) is the floor cell nearest the middle of the box. Decoration, monster and elite placement, the up stairs, boss arenas and AUTO's room targets all work from the cells:
+  - wall features go on cells with a wall on that side;
+  - clutter goes on cells with any wall beside them;
+  - braziers and moonlight go on cells without one.
+- **Caves:** no banners or prison alcoves. Wall blocks bordering a cave are rough rock, each a little wider (up to 16 %), taller or lower (0.8–1.3×) and turned (up to ±0.18 rad).
+- **Monsters:** one per 12 floor cells as before; a room of 60 cells or more holds up to 6 (others 4).
+- **Checked:**
+  - Tests: over 18 depth/seed pairs, room cells match the tile map, every walkable tile is reachable, and the stairs room is reachable only through its door; all eight styles appear at depths 1 and 14, with halls and caves at least 1.5× as common at depth 14.
+  - Simulation: AUTO cleared depths 1–16 and 20 (every boss, the Ember Lich twice) in 170–400 s of game time each.
 
 ---
 

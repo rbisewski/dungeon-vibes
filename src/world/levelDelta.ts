@@ -8,6 +8,7 @@ import { quality } from '../rules/inventory';
 import { capGround } from '../rules/persist';
 import { restorePickup, savePickup, type SavedPickup } from './groundItems';
 import { setBroken } from './objects';
+import { openSpot } from './nav';
 
 export interface LevelDelta {
   /** Floor items and gold outside graves, oldest first (capped, SPEC §12.2). */
@@ -61,6 +62,8 @@ export function applyLevel(d: LevelDelta): void {
   }
   // The key belongs to its level: with the key chest open and the door still locked, the hero holds it.
   if (L.locked && L.chests.some(c => c.isKey && c.open)) G.hero.key = true;
-  for (const s of d.ground) restorePickup(s);
-  for (const g of d.graves) addGrave(g.x, g.z, g.pickups.map(restorePickup));
+  // things saved on an older layout may now lie in rock: they move to the nearest open floor
+  const placed = (s: SavedPickup): SavedPickup => { const [x, z] = openSpot(s.x, s.z); return { ...s, x, z }; };
+  for (const s of d.ground) restorePickup(placed(s));
+  for (const g of d.graves) { const [x, z] = openSpot(g.x, g.z); addGrave(x, z, g.pickups.map(p => restorePickup(placed(p)))); }
 }

@@ -38,8 +38,9 @@ export function townLayout(): Layout {
   const N = W * H, tiles = new Uint8Array(N), roomId = new Int16Array(N).fill(-1);
   for (let z = YARD.y; z < YARD.y + YARD.h; z++) for (let x = YARD.x; x < YARD.x + YARD.w; x++) { tiles[z * W + x] = 1; roomId[z * W + x] = 0; }
   for (const b of HOUSES) for (let z = b.y; z < b.y + b.h; z++) for (let x = b.x; x < b.x + b.w; x++) { tiles[z * W + x] = 0; roomId[z * W + x] = -1; }
+  const cells: number[] = []; for (let i = 0; i < N; i++) if (roomId[i] === 0) cells.push(i);
   for (const x of ENTRANCE_X) tiles[ENTRANCE_Z * W + x] = 6;
-  const yard: Room = { ...YARD, cx: RESPAWN.tx, cy: RESPAWN.tz, id: 0, visited: true };
+  const yard: Room = { ...YARD, cx: RESPAWN.tx, cy: RESPAWN.tz, id: 0, visited: true, shape: 'room', cells };
   return { W, H, N, tiles, roomId, rooms: [yard], startRoom: yard, stairsRoom: yard, lockedCell: { tx: 0, tz: 0, axis: 'x' } };
 }
 

@@ -21,7 +21,7 @@ import { T } from './consts';
 import { decorate } from './decorate';
 import { buildFloor, buildWalls, type Tint } from './floorWalls';
 import { generateLayout } from './layout';
-import { circleBlocked, computeField, isStairs, navOK } from './nav';
+import { circleBlocked, computeField, isStairs, navOK, openSpot } from './nav';
 import { makeDoor } from './objects';
 import { buildTownTerrain, dressTown, portalObject, townLayout } from './town';
 import { propUpStairs } from './props';
@@ -119,7 +119,8 @@ function generateTown(): void {
 function upStairsCell(L: Level): { tx: number; tz: number; nx: number; nz: number } | null {
   const r = L.startRoom, t = (x: number, z: number): number => (x < 0 || z < 0 || x >= L.W || z >= L.H ? 0 : L.tiles[z * L.W + x]);
   const out: { tx: number; tz: number; nx: number; nz: number }[] = [];
-  for (let z = r.y; z < r.y + r.h; z++) for (let x = r.x; x < r.x + r.w; x++) {
+  for (const c of r.cells) {
+    const x = c % L.W, z = (c / L.W) | 0;
     if (Math.abs(x - r.cx) <= 1 && Math.abs(z - r.cy) <= 1) continue;
     let nearOpening = false;
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) { const n = t(x + dx, z + dz); if (n === 2 || n === 3 || n === 4) nearOpening = true; }
@@ -131,7 +132,7 @@ function upStairsCell(L: Level): { tx: number; tz: number; nx: number; nz: numbe
 
 function generate(depth: number): void {
   resetBuckets(); resetPropBuckets();
-  const lay = generateLayout();
+  const lay = generateLayout(depth);
   const group = new THREE.Group();
   const lc = lay.lockedCell;
   const lockedDoor = makeDoor({ roomId: lay.roomId, W: lay.W, group }, lc.tx, lc.tz, lc.axis, true);
@@ -145,7 +146,7 @@ function generate(depth: number): void {
   // exits: down to depth + 1 (behind the locked door), up to the level above (depth 1: town), an open portal's end
   L.exits.push({ kind: 'down', to: depth + 1, tx: L.stairs.tx, tz: L.stairs.tz, x: L.stairs.x, z: L.stairs.z, r: .85, open: true });
   if (up) { const x = up.tx * T, z = up.tz * T; propUpStairs(x, z, up.nx, up.nz); L.exits.push({ kind: 'up', to: depth - 1, tx: up.tx, tz: up.tz, x, z, r: .7, open: true }); }
-  if (G.portal?.depth === depth) addPortalExit(G.portal.x, G.portal.z, 0);
+  if (G.portal?.depth === depth) { const [x, z] = openSpot(G.portal.x, G.portal.z); G.portal = { depth, x, z }; addPortalExit(x, z, 0); }
   buildFloor(tint); buildWalls(tint); mergeBuckets(); mergePropBuckets();
   L.flameMesh = makeFlames(L.flames); L.group.add(L.flameMesh);
   setOutdoor(false);
@@ -175,10 +176,10 @@ function generate(depth: number): void {
   };
   const family = () => L.families[Math.floor(R() * L.families.length)];
   for (const r of L.rooms) {
-    const cells: [number, number][] = [];
-    for (let z = r.y; z < r.y + r.h; z++) for (let x = r.x; x < r.x + r.w; x++) if (Math.abs(x - L.startRoom.cx) + Math.abs(z - L.startRoom.cy) > 2) cells.push([x, z]);
+    const cells: [number, number][] = r.cells.map((c): [number, number] => [c % L.W, (c / L.W) | 0]).filter(([x, z]) => Math.abs(x - L.startRoom.cx) + Math.abs(z - L.startRoom.cy) > 2);
     if (!cells.length) continue;
-    let n = r === L.startRoom ? 1 : Math.min(4, 1 + Math.floor(r.w * r.h / 12) + (depth > 3 ? 1 : 0));
+    // one monster per 12 floor cells; big halls and caves hold up to 6
+    let n = r === L.startRoom ? 1 : Math.min(r.cells.length >= 60 ? 6 : 4, 1 + Math.floor(r.cells.length / 12) + (depth > 3 ? 1 : 0));
     if (r === L.stairsRoom) {
       n = 2;
       if (boss) {
@@ -201,8 +202,7 @@ function generate(depth: number): void {
   const eliteRooms = L.rooms.filter(r => r !== L.startRoom && r !== L.stairsRoom);
   if (depth >= ELITE.fromDepth && eliteRooms.length && R() < ELITE.chance) {
     const r = pick(eliteRooms), type = family(), mod = pick(ELITE_MODS), name = eliteName(R), spell = R() < .5 ? 'firebolt' as const : 'lightning' as const;
-    const cells: [number, number][] = [];
-    for (let z = r.y; z < r.y + r.h; z++) for (let x = r.x; x < r.x + r.w; x++) { const i = z * L.W + x; if (navOK(i) && !occupied.has(i) && !isStairs(L.tiles[i]) && L.trap[i] < 0) cells.push([x, z]); }
+    const cells: [number, number][] = r.cells.filter(i => navOK(i) && !occupied.has(i) && !isStairs(L.tiles[i]) && L.trap[i] < 0).map((i): [number, number] => [i % L.W, (i / L.W) | 0]);
     if (cells.length) {
       const [cx, cz] = pick(cells), lead = spawnMonster(type, cx * T, cz * T, { elite: { name, mod, leader: true, spell } });
       const n = ri(ELITE.escorts[0], ELITE.escorts[1]);

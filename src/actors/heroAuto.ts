@@ -132,7 +132,7 @@ function chooseGoal(): void {
   for (const b of L.barrels) { if (b.broken) continue; const fd = fieldAt(b.x, b.z), at = fd < bd ? standCell(b) : null; if (at) { bd = fd; ex = { kind: 'barrel', ref: b, tx: at[0], tz: at[1] }; } }
   for (const r of L.rooms) {
     if (r.visited) continue; let tx = r.cx, tz = r.cy;
-    if (!navOK(tz * L.W + tx)) { outer: for (let z = r.y; z < r.y + r.h; z++) for (let x = r.x; x < r.x + r.w; x++) if (navOK(z * L.W + x)) { tx = x; tz = z; break outer; } }
+    if (!navOK(tz * L.W + tx)) { const c = r.cells.find(navOK); if (c !== undefined) { tx = c % L.W; tz = (c / L.W) | 0; } }
     const fd = L.dist[tz * L.W + tx]; if (fd < bd) { bd = fd; ex = { kind: 'room', ref: r, tx, tz }; }
   }
   if (ex) return setGoal(ex);

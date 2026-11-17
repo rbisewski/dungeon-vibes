@@ -20,7 +20,13 @@ export type HeroStats = CharState & Progress;
 export type Tile = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 export type Axis = 'x' | 'z';
 
-export interface Room { x: number; y: number; w: number; h: number; cx: number; cy: number; id: number; visited: boolean }
+/** Room styles (SPEC §12.3). */
+export type RoomShape = 'room' | 'cell' | 'gallery' | 'hall' | 'lshape' | 'cross' | 'octagon' | 'cave';
+/**
+ * A room: its bounding box (x, y, w, h), its floor cells (tile indices; not every cell of the box for shaped rooms)
+ * and a centre cell (cx, cy) that is always one of them.
+ */
+export interface Room { x: number; y: number; w: number; h: number; cx: number; cy: number; id: number; visited: boolean; shape: RoomShape; cells: number[] }
 
 export interface Layout {
   W: number; H: number; N: number;

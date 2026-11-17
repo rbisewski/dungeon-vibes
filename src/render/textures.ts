@@ -54,6 +54,53 @@ function texFloor() {
   speckle(g, S, S, 9000, .14);
   return c;
 }
+/** Cave rock (SPEC §12.3): rough blocks of rock in rough strata, without mortar courses, cracked, darker than brick. */
+function texRock() {
+  const S = 256, c = mkC(S, S), g = c.getContext('2d')!;
+  g.fillStyle = '#1a1714'; g.fillRect(0, 0, S, S);
+  for (let y = 0; y < S;) {
+    const bh = ri(26, 52);
+    for (let x = -ri(0, 40); x < S;) {
+      const bw = ri(34, 90), v = ri(48, 80), tilt = rr(-5, 5), hasCrack = R() < .5;
+      const pts: [number, number][] = [
+        [rr(2, 8), rr(2, 7) + tilt], [bw * rr(.4, .6), rr(0, 4)], [bw - rr(2, 8), rr(2, 7) - tilt], [bw - rr(0, 5), bh * rr(.4, .6)],
+        [bw - rr(2, 8), bh - rr(2, 6) - tilt], [bw * rr(.4, .6), bh - rr(0, 4)], [rr(2, 8), bh - rr(2, 6) + tilt], [rr(0, 5), bh * rr(.4, .6)],
+      ];
+      const cx = rr(8, bw - 8), cy = rr(6, bh - 6), seed = R();
+      // blocks crossing an edge are painted again one texture over, so the texture tiles
+      for (const ox of x < 0 ? [x, x + S] : x + bw > S ? [x, x - S] : [x]) for (const oy of y + bh > S ? [y, y - S] : [y]) {
+        g.fillStyle = `rgb(${v + 4},${v + 1},${v - 3})`;
+        g.beginPath(); pts.forEach(([px, py], i) => (i ? g.lineTo(ox + px, oy + py) : g.moveTo(ox + px, oy + py))); g.closePath(); g.fill();
+        // a lit upper face and a shadowed underside on each block
+        g.fillStyle = 'rgba(255,235,205,.06)'; g.fillRect(ox + 6, oy + 5, bw - 12, 4);
+        g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(ox + 6, oy + bh - 9, bw - 12, 4);
+        if (hasCrack) { g.strokeStyle = 'rgba(8,6,5,.75)'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(ox + cx, oy + cy); g.lineTo(ox + cx + (seed - .5) * 20, oy + cy + 8); g.lineTo(ox + cx + (seed - .3) * 14, oy + cy + 16); g.stroke(); }
+      }
+      x += bw;
+    }
+    y += bh;
+  }
+  for (let k = 0; k < 160; k++) { g.fillStyle = `rgba(${ri(40, 60)},${ri(56, 80)},${ri(30, 42)},${rr(.2, .55)})`; g.fillRect(R() * S, R() * S, ri(1, 4), ri(1, 3)); }
+  speckle(g, S, S, 7000, .18);
+  return c;
+}
+/** Cave floor (SPEC §12.3): packed earth with gravel, pebbles and the odd flat stone. */
+function texEarth() {
+  const S = 256, c = mkC(S, S), g = c.getContext('2d')!;
+  g.fillStyle = '#3a3128'; g.fillRect(0, 0, S, S);
+  for (let k = 0; k < 60; k++) {
+    const x = R() * S, y = R() * S, r = rr(14, 40), gr = g.createRadialGradient(x, y, 1, x, y, r), v = ri(-14, 14);
+    gr.addColorStop(0, `rgba(${62 + v},${52 + v},${42 + v},.55)`); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r);
+  }
+  for (let k = 0; k < 9; k++) {
+    const x = R() * S, y = R() * S, rw = rr(10, 22), rh = rw * rr(.5, .8), v = ri(70, 96);
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(x + 2, y + 3, rw, rh, R() * PI, 0, TAU); g.fill();
+    g.fillStyle = `rgb(${v},${v - 4},${v - 10})`; g.beginPath(); g.ellipse(x, y, rw, rh, R() * PI, 0, TAU); g.fill();
+  }
+  for (let k = 0; k < 700; k++) { const v = ri(50, 110), s = rr(1, 3.2); g.fillStyle = `rgba(${v},${v - 6},${v - 12},${rr(.5, .9)})`; g.beginPath(); g.ellipse(R() * S, R() * S, s, s * rr(.6, 1), R() * PI, 0, TAU); g.fill(); }
+  speckle(g, S, S, 9000, .16);
+  return c;
+}
 function texWood() {
   const S = 128, c = mkC(S, S), g = c.getContext('2d')!;
   g.fillStyle = '#3a2616'; g.fillRect(0, 0, S, S);
@@ -158,4 +205,5 @@ export const TEX = {
   wall: ctex(WALL_CANVAS), floor: ctex(texFloor()), wood: ctex(texWood()), web: ctex(texWeb(), true, false),
   rune: ctex(texRune(), true, false), grate: ctex(texGrate(), true, false), glow: ctex(texGlow(), true, false), banner: ctex(texBanner(), true, false),
   grass: ctex(texGrass()), plaster: ctex(texPlaster()), roof: ctex(texRoof()), floorRough: ctex(texFloorRough(), false),
+  rock: ctex(texRock()), earth: ctex(texEarth()),
 };

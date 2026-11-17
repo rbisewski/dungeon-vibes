@@ -54,7 +54,16 @@ export interface CharSave {
   stash: { grid: Grid; gold: number };
   /** The smith's and peddler's stock; the witch's and healer's reroll on load [USER Q19]. Absent before Phase 12. */
   shops?: SavedShops;
+  /** The dungeon generator the level deltas were recorded on (absent: 1, before room styles). */
+  layout?: number;
 }
+
+/**
+ * The current dungeon generator (SPEC §12.2). Saves from an older one rebuild their levels with new layouts and keep
+ * only what was left on the floor there (graves included); kills, opened chests, broken barrels, disarmed traps, the
+ * unlocked door and explored rooms start over. The town keeps everything.
+ */
+export const LAYOUT_VERSION = 2;
 
 export interface SaveFile { characters: CharSave[]; lastPlayed: string | null }
 
@@ -102,7 +111,7 @@ export function saveGame(): void {
   const c: CharSave = {
     id, cls: h.stats.cls, name: h.name, clvl: h.stats.clvl, depth: G.depth, runSeed: G.runSeed, savedAt: Date.now(),
     hero, levels: { ...G.levels, [G.depth]: captureLevel() }, uniquesFound: [...G.loot.found],
-    deepest: G.deepest, portal: G.portal, stash: G.stash, shops: saveShops(G.shops),
+    deepest: G.deepest, portal: G.portal, stash: G.stash, shops: saveShops(G.shops), layout: LAYOUT_VERSION,
   };
   const f = readSaves();
   const i = f.characters.findIndex(x => x.id === id);
@@ -150,7 +159,8 @@ export function continueCharacter(id: string): boolean {
   G.stash = c.stash;
   G.shops = c.shops ? loadShops(c.shops) : newShops();
   // the saved current level is rebuilt like any other visited level
-  G.levels = { ...c.levels };
+  G.levels = (c.layout ?? 1) === LAYOUT_VERSION ? { ...c.levels } : Object.fromEntries(Object.entries(c.levels).map(([k, d]) => [k, +k === 0 ? d
+    : { ground: d.ground, graves: d.graves, dead: [], chests: [], barrels: [], disarmed: [], unlocked: false, visited: [] }]));
   clearShots();
   buildLevel(c.depth);
   if ((s.x || s.z) && !circleBlocked(s.x, s.z, h.r, true)) {

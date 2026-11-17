@@ -60,6 +60,10 @@ export const MAT = {
   wallSide: new THREE.MeshStandardMaterial({ map: TEX.wall, bumpMap: TEX.wall, bumpScale: 2.2, roughness: .94 }),
   wallTop: new THREE.MeshStandardMaterial({ map: TEX.wall, color: 0x6a645c, roughness: 1 }),
   pillar: new THREE.MeshStandardMaterial({ map: TEX.wall, bumpMap: TEX.wall, bumpScale: 2, roughness: .94, color: 0xc4bcb0 }),
+  // caves (SPEC §12.3): rough rock walls and an earth floor
+  rockSide: new THREE.MeshStandardMaterial({ map: TEX.rock, bumpMap: TEX.rock, bumpScale: 3, roughness: .97 }),
+  rockTop: new THREE.MeshStandardMaterial({ map: TEX.rock, color: 0x5a544c, roughness: 1 }),
+  earth: new THREE.MeshStandardMaterial({ map: TEX.earth, bumpMap: TEX.earth, bumpScale: 1.8, roughness: 1, vertexColors: true }),
   // damp patches (roughness map) catch the torchlight
   floor: new THREE.MeshStandardMaterial({ map: TEX.floor, bumpMap: TEX.floor, bumpScale: 1.6, roughness: 1, roughnessMap: TEX.floorRough, metalness: .05, vertexColors: true }),
   stone: new THREE.MeshStandardMaterial({ map: TEX.wall, bumpMap: TEX.wall, bumpScale: 1.5, roughness: .95, color: 0xaaa296 }),
@@ -85,7 +89,7 @@ export const MAT = {
 const potionGlass = (color: number, emissive: number) => new THREE.MeshStandardMaterial({ color, emissive, roughness: .25 });
 const RED = potionGlass(0xa01828, 0x400008), BLUE = potionGlass(0x2040c0, 0x081040), PURPLE = potionGlass(0x8a30b0, 0x2a0840);
 export const POTION_MAT: Record<PotionId, THREE.Material> = { heal: RED, fullHeal: RED, mana: BLUE, fullMana: BLUE, rejuv: PURPLE, fullRejuv: PURPLE };
-applyCut(MAT.wallSide, .16); applyCut(MAT.wallTop, .16); applyCut(MAT.pillar, .2);
+applyCut(MAT.wallSide, .16); applyCut(MAT.wallTop, .16); applyCut(MAT.pillar, .2); applyCut(MAT.rockSide, .16); applyCut(MAT.rockTop, .16);
 // houses and trees are instanced: they fade (dithered) when the hero walks behind them
 MAT.banner.onBeforeCompile = sh => {
   sh.uniforms.uTime = GU.uTime;

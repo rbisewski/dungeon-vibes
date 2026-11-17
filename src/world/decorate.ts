@@ -54,57 +54,74 @@ export function decorate(): void {
   const tooClose = (x: number, z: number, d: number): boolean => torchAt.some(p => Math.abs(p[0] - x) + Math.abs(p[1] - z) < d);
   for (const r of rooms) {
     const isStart = r === G.L.startRoom, isStairs = r === sr;
-    // north wall (back) features
-    const north: number[] = []; for (let x = r.x; x < r.x + r.w; x++) if (t(x, r.y - 1) === 0) north.push(x);
-    const west: number[] = []; for (let z = r.y; z < r.y + r.h; z++) if (t(r.x - 1, z) === 0) west.push(z);
-    // prison cell alcove
-    if (!isStart && !isStairs && r.w >= 5 && R() < .4) {
-      for (let tries = 0; tries < 6; tries++) {
-        const x = ri(r.x, r.x + r.w - 2);
-        let ok = true; for (let xx = x - 1; xx <= x + 2; xx++) for (let zz = r.y - 3; zz <= r.y - 1; zz++) if (t(xx, zz) !== 0) ok = false;
+    // the room's floor cells, and those with a wall on a given side (shaped rooms have walls inside their box too)
+    const cells: [number, number][] = r.cells.map(c => [c % W, (c / W) | 0]);
+    const walled = (dx: number, dz: number): [number, number][] => cells.filter(([x, z]) => t(x + dx, z + dz) === 0);
+    const edgeCells = cells.filter(([x, z]) => t(x, z - 1) === 0 || t(x + 1, z) === 0 || t(x, z + 1) === 0 || t(x - 1, z) === 0);
+    const inner = cells.filter(c => !edgeCells.includes(c));
+    const inRoom = (x: number, z: number): boolean => G.L.roomId[idx(x, z)] === r.id;
+    // back (north) and west wall features
+    const north = walled(0, -1), west = walled(-1, 0);
+    // prison cell alcove: two neighbouring north-wall cells with solid rock behind them
+    const cave = r.shape === 'cave';
+    if (!isStart && !isStairs && !cave && r.w >= 5 && R() < .4) {
+      const pairs = north.filter(([x, z]) => north.some(([x2, z2]) => x2 === x + 1 && z2 === z));
+      for (let tries = 0; tries < 6 && pairs.length; tries++) {
+        const [x, z] = pick(pairs);
+        let ok = true; for (let xx = x - 1; xx <= x + 2; xx++) for (let zz = z - 3; zz <= z - 1; zz++) if (t(xx, zz) !== 0) ok = false;
         if (!ok) continue;
-        tiles[idx(x, r.y - 1)] = 5; tiles[idx(x + 1, r.y - 1)] = 5;
-        propBars(x * T - 1, r.y * T - 1, (x + 1) * T + 1, r.y * T - 1);
-        sittingSkeleton(x * T + rr(-.3, .3), (r.y - 1) * T - .5, rr(-.3, .3)); propBones((x + 1) * T, (r.y - 1) * T);
-        for (let k = north.length - 1; k >= 0; k--) if (north[k] === x || north[k] === x + 1) north.splice(k, 1);
+        tiles[idx(x, z - 1)] = 5; tiles[idx(x + 1, z - 1)] = 5;
+        propBars(x * T - 1, z * T - 1, (x + 1) * T + 1, z * T - 1);
+        sittingSkeleton(x * T + rr(-.3, .3), (z - 1) * T - .5, rr(-.3, .3)); propBones((x + 1) * T, (z - 1) * T);
+        for (let k = north.length - 1; k >= 0; k--) if (north[k][1] === z && (north[k][0] === x || north[k][0] === x + 1)) north.splice(k, 1);
         break;
       }
     }
     // torches on back walls
-    const nt = north.filter(x => !tooClose(x, r.y, 3));
-    if (nt.length) { const a = nt[Math.floor(nt.length * .2)]; wallFace(a * T, r.y * T - 1, 0, 1, 'torch'); torchAt.push([a, r.y]); north.splice(north.indexOf(a), 1);
-      const b = nt[Math.floor(nt.length * .85)]; if (b !== a && Math.abs(b - a) >= 3) { wallFace(b * T, r.y * T - 1, 0, 1, 'torch'); torchAt.push([b, r.y]); north.splice(north.indexOf(b), 1); } }
-    if (west.length && R() < .7) { const z = west[west.length >> 1]; if (!tooClose(r.x, z, 3)) { wallFace(r.x * T - 1, z * T, 1, 0, 'torch'); torchAt.push([r.x, z]); west.splice(west.indexOf(z), 1); } }
-    if (north.length && R() < .75) { const x = north[north.length >> 1]; wallFace(x * T, r.y * T - 1, 0, 1, 'banner'); }
-    if (west.length && R() < .3) { const z = pick(west); wallFace(r.x * T - 1, z * T, 1, 0, 'banner'); }
-    if (t(r.x - 1, r.y) === 0 && t(r.x, r.y - 1) === 0) propCobweb(r.x * T - .45, r.y * T - .45, PI / 4);
-    if (R() < .5 && t(r.x + r.w, r.y) === 0 && t(r.x + r.w - 1, r.y - 1) === 0) propCobweb((r.x + r.w - 1) * T + .45, r.y * T - .45, -PI / 4);
-    // pillars
+    const nt = north.filter(([x, z]) => !tooClose(x, z, 3));
+    if (nt.length) {
+      const a = nt[Math.floor(nt.length * .2)]; wallFace(a[0] * T, a[1] * T - 1, 0, 1, 'torch'); torchAt.push(a); north.splice(north.indexOf(a), 1);
+      const b = nt[Math.floor(nt.length * .85)];
+      if (b !== a && Math.abs(b[0] - a[0]) + Math.abs(b[1] - a[1]) >= 3) { wallFace(b[0] * T, b[1] * T - 1, 0, 1, 'torch'); torchAt.push(b); north.splice(north.indexOf(b), 1); }
+    }
+    if (west.length && R() < .7) { const w = west[west.length >> 1]; if (!tooClose(w[0], w[1], 3)) { wallFace(w[0] * T - 1, w[1] * T, 1, 0, 'torch'); torchAt.push(w); west.splice(west.indexOf(w), 1); } }
+    // banners hang on masonry, not in caves
+    if (!cave && north.length && R() < .75) { const [x, z] = north[north.length >> 1]; wallFace(x * T, z * T - 1, 0, 1, 'banner'); }
+    if (!cave && west.length && R() < .3) { const [x, z] = pick(west); wallFace(x * T - 1, z * T, 1, 0, 'banner'); }
+    // cobwebs in the north-west and (sometimes) north-east corners
+    const nw = cells.find(([x, z]) => t(x - 1, z) === 0 && t(x, z - 1) === 0);
+    if (nw) propCobweb(nw[0] * T - .45, nw[1] * T - .45, PI / 4);
+    const ne = cells.find(([x, z]) => t(x + 1, z) === 0 && t(x, z - 1) === 0);
+    if (R() < .5 && ne) propCobweb(ne[0] * T + .45, ne[1] * T - .45, -PI / 4);
+    // pillars: four in a big plain room or octagon, colonnades down a hall (D1 Cathedral chambers)
     let hasPillars = false;
-    if (r.w >= 6 && r.h >= 5 && R() < .7) for (const [px, pz] of [[r.x + 1, r.y + 1], [r.x + r.w - 2, r.y + 1], [r.x + 1, r.y + r.h - 2], [r.x + r.w - 2, r.y + r.h - 2]]) if (block(px, pz, px * T, pz * T, .5)) { propPillar(px * T, pz * T); hasPillars = true; }
+    const pillar = (px: number, pz: number) => { if (inRoom(px, pz) && block(px, pz, px * T, pz * T, .5)) { propPillar(px * T, pz * T); hasPillars = true; } };
+    if (r.shape === 'hall') {
+      const along = r.w >= r.h, len = along ? r.w : r.h, thick = along ? r.h : r.w, inset = thick >= 8 ? 2 : 1;
+      for (let a = 2; a <= len - 3; a += 3) for (const b of [inset, thick - 1 - inset]) pillar(r.x + (along ? a : b), r.y + (along ? b : a));
+    } else if ((r.shape === 'room' && r.w >= 6 && r.h >= 5 && R() < .7) || (r.shape === 'octagon' && r.w >= 8)) {
+      const k = r.shape === 'octagon' ? 2 : 1;
+      for (const [px, pz] of [[r.x + k, r.y + k], [r.x + r.w - 1 - k, r.y + k], [r.x + k, r.y + r.h - 1 - k], [r.x + r.w - 1 - k, r.y + r.h - 1 - k]]) pillar(px, pz);
+    }
     // stairs room
     if (isStairs) {
       propStairs(sx * T, sz * T);
-      for (const dx of [-2, 2]) { const bx = sx + dx; if (bx >= r.x && bx < r.x + r.w && block(bx, sz, bx * T, sz * T, .45)) propBrazier(bx * T, sz * T); }
+      for (const dx of [-2, 2]) { const bx = sx + dx; if (inRoom(bx, sz) && block(bx, sz, bx * T, sz * T, .45)) propBrazier(bx * T, sz * T); }
     }
-    // chest
-    const edgeTiles: [number, number, number, number][] = [];
-    for (let x = r.x; x < r.x + r.w; x++) edgeTiles.push([x, r.y, 0, -1]);
-    for (let z = r.y + 1; z < r.y + r.h; z++) edgeTiles.push([r.x, z, -1, 0]);
-    if (r === keyRoom || (!isStairs && R() < .65)) {
+    // chest, against a north or west wall
+    const edgeTiles: [number, number, number, number][] = [...walled(0, -1).map(([x, z]): [number, number, number, number] => [x, z, 0, -1]), ...walled(-1, 0).map(([x, z]): [number, number, number, number] => [x, z, -1, 0])];
+    if (edgeTiles.length && (r === keyRoom || (!isStairs && R() < .65))) {
       for (let k = 0; k < 10; k++) { const [x, z, ox, oz] = pick(edgeTiles); const px = x * T + ox * .4, pz = z * T + oz * .4; if (block(x, z, px, pz, .55)) { G.L.chests.push(makeChest(px, pz, oz ? 0 : PI / 2, r === keyRoom)); break; } }
-      if (r === keyRoom && !G.L.chests.some(c => c.isKey)) { for (let z = r.y; z < r.y + r.h && !G.L.chests.some(c => c.isKey); z++) for (let x = r.x; x < r.x + r.w; x++) if (block(x, z, x * T, z * T, .55)) { G.L.chests.push(makeChest(x * T, z * T, 0, true)); break; } }
     }
-    if (r === shelfRoom) {
+    // the key chest must exist, or the stairs door could never open
+    if (r === keyRoom && !G.L.chests.some(c => c.isKey)) for (const [x, z] of cells) if (block(x, z, x * T, z * T, .55)) { G.L.chests.push(makeChest(x * T, z * T, 0, true)); break; }
+    if (r === shelfRoom && edgeTiles.length) {
       for (let k = 0; k < 12; k++) { const [x, z, ox, oz] = pick(edgeTiles); const px = x * T + ox * .55, pz = z * T + oz * .55; if (block(x, z, px, pz, .6)) { G.L.chests.push(makeShelf(px, pz, oz ? 0 : PI / 2)); break; } }
     }
-    // clutter
-    const allEdge: [number, number][] = [];
-    for (let x = r.x; x < r.x + r.w; x++) { allEdge.push([x, r.y]); allEdge.push([x, r.y + r.h - 1]); }
-    for (let z = r.y + 1; z < r.y + r.h - 1; z++) { allEdge.push([r.x, z]); allEdge.push([r.x + r.w - 1, z]); }
-    const nClutter = ri(1, 3);
-    for (let k = 0, placed = 0; k < 12 && placed < nClutter; k++) {
-      const [x, z] = pick(allEdge); const cx = x * T, cz = z * T;
+    // clutter along the walls
+    const nClutter = ri(1, 3) + (cells.length >= 50 ? 1 : 0);
+    for (let k = 0, placed = 0; k < 12 && placed < nClutter && edgeCells.length; k++) {
+      const [x, z] = pick(edgeCells); const cx = x * T, cz = z * T;
       if (!block(x, z, cx, cz, .72)) continue; placed++;
       const kind = R();
       // barrels are breakable (SPEC §6.3); a cell of barrels alone opens up once they are all broken
@@ -113,16 +130,16 @@ export function decorate(): void {
       else if (kind < .75) { propCrate(cx - .15, cz - .1); if (R() < .6) bar(cx + .45, cz + .35, -1); }
       else { propCrate(cx, cz, .7); propCrate(cx + .45, cz + .45, .45); }
     }
-    if (!hasPillars && !isStairs && !isStart && R() < .45) { for (let k = 0; k < 6; k++) { const x = ri(r.x + 1, r.x + r.w - 2), z = ri(r.y + 1, r.y + r.h - 2); if (block(x, z, x * T, z * T, .45)) { propBrazier(x * T, z * T); break; } } }
-    if (isStart && west.length === 0 && north.length) { const x = north[0]; wallFace(x * T, r.y * T - 1, 0, 1, 'torch'); }
+    if (!hasPillars && !isStairs && !isStart && inner.length && R() < .45) { for (let k = 0; k < 6; k++) { const [x, z] = pick(inner); if (block(x, z, x * T, z * T, .45)) { propBrazier(x * T, z * T); break; } } }
+    if (isStart && west.length === 0 && north.length) { const [x, z] = north[0]; wallFace(x * T, z * T - 1, 0, 1, 'torch'); }
     // floor junk
-    for (let k = 0; k < ri(3, 7); k++) { const x = rr(r.x - .4, r.x + r.w - .6) * T, z = rr(r.y - .4, r.y + r.h - .6) * T; if (Math.hypot(x - sx * T, z - sz * T) < 1.6) continue; R() < .55 ? propRubble(x, z, ri(2, 6)) : propBones(x, z); }
-    for (let k = 0; k < ri(0, 2); k++) propPuddle(rr(r.x, r.x + r.w - 1) * T, rr(r.y, r.y + r.h - 1) * T);
+    for (let k = 0; k < ri(3, 7) + (cells.length >> 4); k++) { const [cx, cz] = pick(cells), x = cx * T + rr(-.7, .7), z = cz * T + rr(-.7, .7); if (Math.hypot(x - sx * T, z - sz * T) < 1.6) continue; R() < .55 ? propRubble(x, z, ri(2, 6)) : propBones(x, z); }
+    for (let k = 0; k < ri(0, 2); k++) { const [x, z] = pick(cells); propPuddle(x * T + rr(-.5, .5), z * T + rr(-.5, .5)); }
     // spike trap
-    if (!isStart && !isStairs && R() < .4) { for (let k = 0; k < 8; k++) { const x = ri(r.x, r.x + r.w - 1), z = ri(r.y, r.y + r.h - 1); if (free(x, z)) { makeSpikes(x, z); reserved[idx(x, z)] = 1; break; } } }
+    if (!isStart && !isStairs && R() < .4) { for (let k = 0; k < 8; k++) { const [x, z] = pick(cells); if (free(x, z)) { makeSpikes(x, z); reserved[idx(x, z)] = 1; break; } } }
     // rune / moonlight
     if (r === runeRoom) { const x = r.cx * T, z = r.cy * T; const m = new THREE.Mesh(gPlane(1.9, 1.9), runeMat); m.rotation.x = -PI / 2; m.position.set(x, .03, z); G.L.group.add(m); G.L.runes.push(m); G.L.lights.push({ x, y: 1.1, z, base: 9, cold: true, seed: R() * 100, pulse: true, d: 0 }); }
-    if (r === moonRoom) { const x = rr(r.x + .5, r.x + r.w - 1.5) * T, z = rr(r.y + .5, r.y + r.h - 1.5) * T; addMoon(x, z); }
+    if (r === moonRoom) { const [mx, mz] = pick(inner.length ? inner : cells); addMoon(mx * T + rr(-.5, .5), mz * T + rr(-.5, .5)); }
   }
   // corridors
   for (let z = 1; z < H - 1; z++) for (let x = 1; x < W - 1; x++) {
