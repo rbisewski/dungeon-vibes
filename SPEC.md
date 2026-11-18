@@ -1175,6 +1175,7 @@ The look stays the same in kind: low-poly meshes drawn at half resolution, dithe
 - **Floors:** a roughness map gives flagstones and cobbles damp patches that catch torchlight.
 - **Depth of field:** kept, but weaker; the sharp band around the hero is about twice as tall.
 - **Town:** grass tufts (about 1 900), fireflies around the hero, and brighter windows.
+- **See-through walls [USER, after Phase 12: "make the walls transparent instead"]:** wall blocks and pillars between the camera and the hero, within 17 m (fading out by 23 m), turn see-through with a screen-door dither, like D1's checkered walls. Whole pixels are dropped in a fixed pattern, up to 60 % of them (`WALL_FADE`, `render/materials.ts`). The amount follows the block's position relative to the hero smoothly, so walls thin out gradually as the hero walks along them. This replaces the earlier cut-away, which squashed those walls to 16 % of their height (20 % for pillars) and made them drop and spring back. Shadows still come from the full walls, as before.
 - **Tuning:** the values above live in `POST` (`render/post.ts`).
 - **Cost:** 60 fps held at 2560×1440 on the development machine (Radeon RX 7600), in town and in a boss room. There is no low-quality setting yet.
 
@@ -1449,7 +1450,7 @@ Ours mixes room styles within every level instead (`world/layout.ts`).
   - **Other sides:** a palisade of sharpened stakes; about 70 pines beyond it and two inside.
   - **Houses:** timber-framed with plaster, shingled gable roofs, lit windows (each with a warm light) and doors facing the well.
   - **Light:** a brighter, bluer moon (key light 3.4 against 1.5) with a night-blue background.
-  - **Fading:** houses and trees fade with a screen-door dither when the hero walks behind them, instead of squashing like dungeon walls.
+  - **Fading:** houses and trees fade with a screen-door dither when the hero walks behind them (dungeon walls do the same since §10.6's see-through walls).
   - **Removed:** the ceiling-grate moonbeams and the side-wall torches.
 - **Exits** are one system on every level: down-stairs, up-stairs, town entrances and portals. Stepping on one (the player) leaves at once. AUTO only uses the exit it is heading for. With a grave pile on the level, the first step warns (`STEP ON AGAIN TO LEAVE`). Leaving by the down-stairs still restores a fifth of max life. Labels name exits within 5 m (`DEPTH 5`, `DEPTH 10 - SEALED`, `UP TO TOWN`, `PORTAL TO DEPTH 3`), and the stash.
 - **Up-stairs:** a new tile (7). The hero can walk on it, monsters cannot, and the floor is drawn. It sits on an edge cell of the start room with a wall behind it, away from the room's openings and the start landing. It is drawn as four steps rising into a dark archway.

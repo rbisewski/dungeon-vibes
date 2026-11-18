@@ -5,24 +5,15 @@ import { TEX } from './textures';
 import type { PotionId } from '../rules/potions';
 import flameFrag from './shaders/flame.frag.glsl?raw';
 
-function applyCut(mat: THREE.Material, factor: number): void {
-  mat.onBeforeCompile = sh => {
-    sh.uniforms.uPlayer = cutU.uPlayer;
-    sh.vertexShader = 'uniform vec3 uPlayer;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
-#ifdef USE_INSTANCING
-{ vec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
-  float s = (ip.x - uPlayer.x) + (ip.z - uPlayer.z);
-  float cut = smoothstep(-0.6, 1.8, s) * (1.0 - smoothstep(17.0, 23.0, length(ip.xz - uPlayer.xz)));
-  transformed.y *= mix(1.0, ${factor.toFixed(3)}, cut); }
-#endif`);
-  };
-  mat.customProgramCacheKey = () => 'cut' + factor;
-}
 /**
- * Like `applyCut`, but instead of squashing the instance it fades it out with a screen-door dither (whole pixels
- * dropped in a pattern), so trees and houses stay recognisable while the hero walks behind them.
+ * Fades an instanced mesh out with a screen-door dither (whole pixels dropped in a pattern, like D1's see-through
+ * walls) when it stands between the camera and the hero: walls, houses and trees stay recognisable while the hero
+ * is behind them. `near`–`far`: the distance from the hero over which the fade dies out.
  */
-export function applyFade(mat: THREE.Material, maxFade: number): void {
+/** How much of a wall in front of the hero is dropped (the rest of its pixels stay). */
+export const WALL_FADE = .6;
+
+export function applyFade(mat: THREE.Material, maxFade: number, near = 9, far = 13): void {
   mat.onBeforeCompile = sh => {
     sh.uniforms.uPlayer = cutU.uPlayer;
     sh.vertexShader = 'uniform vec3 uPlayer;\nvarying float vFade;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
@@ -30,14 +21,14 @@ vFade = 0.0;
 #ifdef USE_INSTANCING
 { vec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
   float s = (ip.x - uPlayer.x) + (ip.z - uPlayer.z);
-  vFade = smoothstep(-0.6, 1.8, s) * (1.0 - smoothstep(9.0, 13.0, length(ip.xz - uPlayer.xz))); }
+  vFade = smoothstep(-0.6, 1.8, s) * (1.0 - smoothstep(${near.toFixed(1)}, ${far.toFixed(1)}, length(ip.xz - uPlayer.xz))); }
 #endif`);
     sh.fragmentShader = 'varying float vFade;\n' + sh.fragmentShader.replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
 { vec2 c = mod(floor(gl_FragCoord.xy), 4.0);
   float b = mod(c.x * 2.0 + c.y * 3.0, 4.0) / 4.0 + mod(c.y, 2.0) * 0.125;
   if (b < vFade * ${maxFade.toFixed(3)}) discard; }`);
   };
-  mat.customProgramCacheKey = () => 'fade' + maxFade;
+  mat.customProgramCacheKey = () => `fade${maxFade}|${near}|${far}`;
 }
 
 /**
@@ -89,7 +80,8 @@ export const MAT = {
 const potionGlass = (color: number, emissive: number) => new THREE.MeshStandardMaterial({ color, emissive, roughness: .25 });
 const RED = potionGlass(0xa01828, 0x400008), BLUE = potionGlass(0x2040c0, 0x081040), PURPLE = potionGlass(0x8a30b0, 0x2a0840);
 export const POTION_MAT: Record<PotionId, THREE.Material> = { heal: RED, fullHeal: RED, mana: BLUE, fullMana: BLUE, rejuv: PURPLE, fullRejuv: PURPLE };
-applyCut(MAT.wallSide, .16); applyCut(MAT.wallTop, .16); applyCut(MAT.pillar, .2); applyCut(MAT.rockSide, .16); applyCut(MAT.rockTop, .16);
+// walls and pillars between the camera and the hero turn see-through (SPEC §10.6)
+for (const m of [MAT.wallSide, MAT.wallTop, MAT.pillar, MAT.rockSide, MAT.rockTop]) applyFade(m, WALL_FADE, 17, 23);
 // houses and trees are instanced: they fade (dithered) when the hero walks behind them
 MAT.banner.onBeforeCompile = sh => {
   sh.uniforms.uTime = GU.uTime;
