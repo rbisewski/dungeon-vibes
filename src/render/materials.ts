@@ -82,6 +82,34 @@ const RED = potionGlass(0xa01828, 0x400008), BLUE = potionGlass(0x2040c0, 0x0810
 export const POTION_MAT: Record<PotionId, THREE.Material> = { heal: RED, fullHeal: RED, mana: BLUE, fullMana: BLUE, rejuv: PURPLE, fullRejuv: PURPLE };
 // walls and pillars between the camera and the hero turn see-through (SPEC §10.6)
 for (const m of [MAT.wallSide, MAT.wallTop, MAT.pillar, MAT.rockSide, MAT.rockTop]) applyFade(m, WALL_FADE, 17, 23);
+// wall textures follow world position, so brick courses and rock strata run on across blocks (SPEC §10.6)
+for (const m of [MAT.wallSide, MAT.wallTop, MAT.rockSide, MAT.rockTop]) worldUV(m);
+
+/**
+ * Maps an instanced block material's textures from world position instead of per face: sides by the horizontal
+ * axis they run along (one texture per 2 m) and height (one per 3 m), tops by x and z. Adds to the material's
+ * existing shader changes (the see-through fade).
+ */
+function worldUV(mat: THREE.Material): void {
+  const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey();
+  mat.onBeforeCompile = (sh, r) => {
+    prev.call(mat, sh, r);
+    sh.vertexShader = sh.vertexShader.replace('#include <uv_vertex>', `#include <uv_vertex>
+#ifdef USE_INSTANCING
+{ vec4 wq = modelMatrix * instanceMatrix * vec4(position, 1.0);
+  vec3 wn = abs(mat3(modelMatrix) * mat3(instanceMatrix) * normal);
+  vec2 wuv = wn.y > max(wn.x, wn.z) ? wq.xz / 2.0 : vec2(wn.x > wn.z ? wq.z : wq.x, wq.y * 2.0 / 3.0) / 2.0;
+  #ifdef USE_MAP
+  vMapUv = wuv;
+  #endif
+  #ifdef USE_BUMPMAP
+  vBumpMapUv = wuv;
+  #endif
+}
+#endif`);
+  };
+  mat.customProgramCacheKey = () => prevKey + '|worldUV';
+}
 // houses and trees are instanced: they fade (dithered) when the hero walks behind them
 MAT.banner.onBeforeCompile = sh => {
   sh.uniforms.uTime = GU.uTime;

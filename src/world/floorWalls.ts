@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { clamp, lerp, ri, rr, vnoise } from '../core/math';
+import { R, clamp, lerp, ri, rr, vnoise } from '../core/math';
 import { G } from '../game/state';
 import { MAT } from '../render/materials';
 import { _e, _m4, _q, _s3, _v3 } from '../render/scratch';
@@ -60,9 +60,12 @@ export function buildWalls(tint: Tint): void {
     list.forEach(([x, z], i) => {
       // rock is lumpier: wider, taller or lower, a little turned
       if (side === MAT.rockSide) _m4.compose(_v3.set(x * T, 0, z * T), _q.setFromEuler(_e.set(0, rr(-.18, .18), 0)), _s3.set(rr(1, 1.16), rr(.8, 1.3), rr(1, 1.16)));
-      else _m4.compose(_v3.set(x * T, 0, z * T), _q.identity(), _s3.set(1, rr(.94, 1.08), 1));
+      // brick is level and flush, so courses line up from block to block. Its draw is kept (brick heights used to
+      // vary), so everything placed after the walls (monsters) lands where saved levels expect.
+      else { R(); _m4.compose(_v3.set(x * T, 0, z * T), _q.identity(), _s3.set(1, 1, 1)); }
       im.setMatrixAt(i, _m4);
-      const v = rr(.72, 1.0); c.setRGB(v * tint.r * rr(.96, 1.04), v * tint.g, v * tint.b * rr(.96, 1.04)); im.setColorAt(i, c);
+      // brightness drifts smoothly along the walls, with a slight variation per block
+      const v = (.8 + .2 * vnoise(x / 4 + 57, z / 4 + 13)) * (1 + (R() - .5) * .06); c.setRGB(v * tint.r * rr(.97, 1.03), v * tint.g, v * tint.b * rr(.97, 1.03)); im.setColorAt(i, c);
     });
     im.castShadow = true; im.receiveShadow = true; G.L.group.add(im); G.L.disposeInst.push(im);
   }

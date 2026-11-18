@@ -1176,6 +1176,12 @@ The look stays the same in kind: low-poly meshes drawn at half resolution, dithe
 - **Depth of field:** kept, but weaker; the sharp band around the hero is about twice as tall.
 - **Town:** grass tufts (about 1 900), fireflies around the hero, and brighter windows.
 - **See-through walls [USER, after Phase 12: "make the walls transparent instead"]:** wall blocks and pillars between the camera and the hero, within 17 m (fading out by 23 m), turn see-through with a screen-door dither, like D1's checkered walls. Whole pixels are dropped in a fixed pattern, up to 60 % of them (`WALL_FADE`, `render/materials.ts`). The amount follows the block's position relative to the hero smoothly, so walls thin out gradually as the hero walks along them. This replaces the earlier cut-away, which squashed those walls to 16 % of their height (20 % for pillars) and made them drop and spring back. Shadows still come from the full walls, as before.
+- **Aligned walls [USER, after Phase 12: "make the walls line up better"]:**
+  - **Height:** brick blocks are all 3 m tall (they varied 94–108 %), so wall tops are level.
+  - **Texture:** wall textures follow world position, one per 2 m along a wall and per 3 m up, so brick courses (and cave rock strata) run on from block to block and round corners. The abbey uses it too.
+  - **Shade:** brightness drifts smoothly along the walls (value noise on a 4-tile lattice, 80–100 %), with ±3 % per block, instead of 72–100 % at random per block.
+  - **Caves:** cave rock keeps its rough, turned blocks of uneven height.
+  - **Saves:** each wall block still draws as many random numbers as before, so monsters placed after the walls land where saved levels expect.
 - **Tuning:** the values above live in `POST` (`render/post.ts`).
 - **Cost:** 60 fps held at 2560×1440 on the development machine (Radeon RX 7600), in town and in a boss room. There is no low-quality setting yet.
 
