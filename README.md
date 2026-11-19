@@ -1,2 +1,5 @@
-# dungeon-vibes
-Roguelike dungeon explorer in the browser
+# Dungeon Vibes
+
+Rogue-like dungeon explorer in the browser.
+
+![Game screenshot](screenshot.png)
